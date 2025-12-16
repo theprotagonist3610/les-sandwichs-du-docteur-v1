@@ -1,68 +1,505 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Dark mode via class .dark sur <html> */
+@custom-variant dark (&:is(.dark *));
+
+/* ========================================================================
+   PALETTE CORPORATE
+   ========================================================================
+   Principales:
+   - Primary (brand rouge):    #a41624
+   - Secondary (cream):        #ffe8c9
+
+   Accompagnements:
+   - Accent (miel):            #ffb564
+   - Destructive (orange):     #d9571d
+   ======================================================================== */
+
+/* ========= MODE LIGHT ========= */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  /* === Backgrounds & Surfaces === */
+  --background: #ffe8c9;
+  /* Fond principal cream chaleureux */
+  --foreground: #3d1a1e;
+  /* Texte principal brun foncé */
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  --card: #ffffff;
+  /* Cartes blanches pour contraste */
+  --card-foreground: #3d1a1e;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --popover: #ffffff;
+  /* Popovers blancs */
+  --popover-foreground: #3d1a1e;
+
+  /* === Primary (Brand Rouge) === */
+  --primary: #a41624;
+  /* Rouge corporate */
+  --primary-foreground: #ffffff;
+  /* Texte blanc sur rouge */
+
+  /* === Secondary (Cream) === */
+  --secondary: #ffe8c9;
+  /* Cream chaleureux */
+  --secondary-foreground: #a41624;
+  /* Texte rouge sur cream */
+
+  /* === Muted (Surfaces atténuées) === */
+  --muted: #ffd9a8;
+  /* Cream plus saturé pour zones désactivées */
+  --muted-foreground: #8b4513;
+  /* Brun moyen pour texte muted */
+
+  /* === Accent (Miel) === */
+  --accent: #ffb564;
+  /* Miel/Orange doux pour hover/focus */
+  --accent-foreground: #3d1a1e;
+  /* Texte foncé sur miel */
+
+  /* === Destructive (Orange épicé) === */
+  --destructive: #d9571d;
+  /* Orange vif pour actions destructives */
+  --destructive-foreground: #ffffff;
+
+  /* === Borders, Inputs & Focus === */
+  --border: #ffd9a8;
+  /* Bordures cream saturé */
+  --input: #ffd9a8;
+  /* Bordures d'input */
+  --ring: #ffb564;
+  /* Ring de focus = accent miel */
+
+  /* === Charts (Recharts) === */
+  --chart-1: #a41624;
+  /* Rouge primary */
+  --chart-2: #ffb564;
+  /* Miel accent */
+  --chart-3: #d9571d;
+  /* Orange destructive */
+  --chart-4: #ffe8c9;
+  /* Cream secondary */
+  --chart-5: #8b1a2a;
+  /* Rouge foncé (variante primary) */
+  --chart-6: #ff9d47;
+  /* Orange clair */
+  --chart-7: #cc8844;
+  /* Beige doré */
+
+  /* === Border Radius === */
+  --radius: 0.625rem;
+  /* 8px par défaut */
+
+  /* === Sidebar === */
+  --sidebar-background: #ffffff;
+  --sidebar-foreground: #3d1a1e;
+  --sidebar-primary: #a41624;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ffe8c9;
+  --sidebar-accent-foreground: #a41624;
+  --sidebar-border: #ffd9a8;
+  --sidebar-ring: #ffb564;
+  --sidebar: #fffaf5;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+/* ========= MODE DARK (Tons chauds adoucis) ========= */
+.dark {
+  /* === Backgrounds & Surfaces === */
+  --background: #2a1f21;
+  /* Brun très foncé chaleureux */
+  --foreground: #ffe8c9;
+  /* Texte cream clair */
+
+  --card: #3d2d2f;
+  /* Cards brun moyen */
+  --card-foreground: #ffe8c9;
+
+  --popover: #3d2d2f;
+  /* Popovers */
+  --popover-foreground: #ffe8c9;
+
+  /* === Primary (Brand Rouge plus clair) === */
+  --primary: #d9571d;
+  /* Orange-rouge plus visible en dark */
+  --primary-foreground: #ffffff;
+
+  /* === Secondary (Surfaces chaudes) === */
+  --secondary: #4a3638;
+  /* Brun grisé pour secondary */
+  --secondary-foreground: #ffb564;
+
+  /* === Muted === */
+  --muted: #4a3638;
+  /* Surfaces atténuées */
+  --muted-foreground: #cc9966;
+  /* Beige pour texte muted */
+
+  /* === Accent (Miel lumineux) === */
+  --accent: #ffb564;
+  /* Miel conservé pour visibilité */
+  --accent-foreground: #2a1f21;
+  /* Texte foncé sur miel */
+
+  /* === Destructive (Orange vif) === */
+  --destructive: #ff7a3d;
+  /* Orange plus lumineux */
+  --destructive-foreground: #ffffff;
+
+  /* === Borders, Inputs & Focus === */
+  --border: #5a4648;
+  /* Bordures brun moyen */
+  --input: #5a4648;
+  /* Bordures d'input */
+  --ring: #ffb564;
+  /* Ring de focus miel */
+
+  /* === Charts (adaptation dark chaude) === */
+  --chart-1: #d9571d;
+  /* Orange-rouge */
+  --chart-2: #ffb564;
+  /* Miel */
+  --chart-3: #ff9d47;
+  /* Orange clair */
+  --chart-4: #ffe8c9;
+  /* Cream */
+  --chart-5: #c94d1a;
+  /* Rouge-orange foncé */
+  --chart-6: #ffcc80;
+  /* Orange pastel */
+  --chart-7: #d4a574;
+  /* Beige doré */
+
+  /* === Sidebar === */
+  --sidebar-background: #3d2d2f;
+  --sidebar-foreground: #ffe8c9;
+  --sidebar-primary: #d9571d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #4a3638;
+  --sidebar-accent-foreground: #ffb564;
+  --sidebar-border: #5a4648;
+  --sidebar-ring: #ffb564;
+  --sidebar: #2a1f21;
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+/* ========= Mapping @theme inline → Tailwind Classes ========= */
+@theme inline {
+  /* Colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Charts */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+
+  /* Border Radius */
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  /* 6px */
+  --radius-md: var(--radius);
+  /* 8px */
+  --radius-lg: calc(var(--radius) + 0.25rem);
+  /* 10px */
+  --radius-xl: calc(var(--radius) + 0.5rem);
+  /* 12px */
+
+  /* Sidebar */
+  --color-sidebar-background: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar: var(--sidebar);
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* ========= Base Layer ========= */
+@layer base {
+  /* Transitions fluides pour le changement de thème */
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+  }
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+/* ========= Composants shadcn/ui - Optimisations ========= */
+@layer components {
+
+  /* === Buttons === */
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+
+  .btn-destructive {
+    @apply bg-destructive text-destructive-foreground hover:bg-destructive/90;
+  }
+
+  /* === Cards === */
+  .card {
+    @apply bg-card text-card-foreground rounded-lg border shadow-sm;
+  }
+
+  /* === Inputs & Textareas === */
+  .input,
+  .textarea {
+    @apply bg-background border-input text-foreground placeholder:text-muted-foreground;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+
+  /* === Badges === */
+  .badge-default {
+    @apply bg-primary text-primary-foreground;
+  }
+
+  .badge-secondary {
+    @apply bg-secondary text-secondary-foreground;
+  }
+
+  .badge-destructive {
+    @apply bg-destructive text-destructive-foreground;
+  }
+
+  .badge-outline {
+    @apply border border-input bg-background text-foreground;
+  }
+
+  /* === Labels === */
+  .label {
+    @apply text-sm font-medium text-foreground;
+  }
+
+  /* === Tabs === */
+  .tabs-trigger {
+    @apply data-[state=active]:bg-background data-[state=active]:text-foreground;
+    @apply data-[state=inactive]:text-muted-foreground;
+  }
+
+  /* === Select, Command, Popover === */
+  .select-content,
+  .command-list,
+  .popover-content {
+    @apply bg-popover text-popover-foreground border rounded-md shadow-md;
+  }
+
+  /* === Dialog, Sheet === */
+  .dialog-content,
+  .sheet-content {
+    @apply bg-card text-card-foreground border shadow-lg;
+  }
+
+  /* === Toast (Sonner) === */
+  .toast {
+    @apply bg-card text-card-foreground border shadow-lg;
+  }
+
+  .toast-success {
+    @apply border-accent bg-accent/10;
+  }
+
+  .toast-error {
+    @apply border-destructive bg-destructive/10;
+  }
+
+  /* === ScrollArea === */
+  .scrollbar-thumb {
+    @apply bg-border hover:bg-border/80;
+  }
+
+  /* === Table === */
+  .table {
+    @apply w-full border-collapse;
+  }
+
+  .table-header {
+    @apply bg-muted/50 border-b;
+  }
+
+  .table-row {
+    @apply border-b hover:bg-muted/30 transition-colors;
+  }
+
+  .table-cell {
+    @apply px-4 py-2 text-left;
+  }
 }
 
-@media (prefers-color-scheme: light) {
+/* ========= Utilities ========= */
+@layer utilities {
+
+  /* Gradient corporates */
+  .gradient-primary {
+    background: linear-gradient(135deg, #a41624 0%, #d9571d 100%);
+  }
+
+  .gradient-accent {
+    background: linear-gradient(135deg, #ffb564 0%, #ffe8c9 100%);
+  }
+
+  /* Text gradients */
+  .text-gradient-primary {
+    @apply bg-gradient-to-r from-primary to-destructive bg-clip-text text-transparent;
+  }
+
+  .text-gradient-accent {
+    @apply bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent;
+  }
+
+  /* Shadows corporates */
+  .shadow-primary {
+    box-shadow: 0 4px 14px 0 rgba(164, 22, 36, 0.15);
+  }
+
+  .shadow-accent {
+    box-shadow: 0 4px 14px 0 rgba(255, 181, 100, 0.2);
+  }
+
+  /* Utilities pour la densité dynamique */
+  .spacing-dynamic {
+    gap: var(--spacing-base, 1rem);
+  }
+
+  .padding-dynamic {
+    padding: var(--padding-base, 0.75rem);
+  }
+
+  .p-dynamic {
+    padding: var(--padding-base, 0.75rem);
+  }
+
+  .px-dynamic {
+    padding-left: var(--padding-base, 0.75rem);
+    padding-right: var(--padding-base, 0.75rem);
+  }
+
+  .py-dynamic {
+    padding-top: var(--padding-base, 0.75rem);
+    padding-bottom: var(--padding-base, 0.75rem);
+  }
+
+  .gap-dynamic {
+    gap: var(--spacing-base, 1rem);
+  }
+
+  .space-y-dynamic > * + * {
+    margin-top: var(--spacing-base, 1rem);
+  }
+
+  .space-x-dynamic > * + * {
+    margin-left: var(--spacing-base, 1rem);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+    font-weight: var(--font-weight-base, 400);
+  }
+
+  /* Appliquer la taille de police à l'élément root pour que rem soit basé dessus */
+  html {
+    font-size: var(--font-size-base, 100%);
+  }
+
+  /* Appliquer l'italique aux descriptions */
+  .text-muted-foreground,
+  .description,
+  [class*="description"] {
+    font-style: var(--font-style-description, normal);
+  }
+
+  /* Appliquer la densité dynamique aux éléments interactifs */
+  button,
+  input,
+  select,
+  textarea {
+    padding: var(--padding-base, 0.75rem);
+  }
+
+  /* Appliquer la densité aux cartes et conteneurs */
+  .bg-card,
+  [class*="rounded"],
+  .border {
+    --card-padding: var(--padding-base, 0.75rem);
+  }
+
+  /* Multiplier les espacements de base par le facteur de densité */
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    --density-factor: 1;
   }
-  a:hover {
-    color: #747bff;
+
+  /* Ajuster automatiquement les espacements communs selon la densité */
+  .space-y-3 > * + * {
+    margin-top: calc(0.75rem * var(--density-factor, 1));
   }
-  button {
-    background-color: #f9f9f9;
+
+  .space-y-4 > * + * {
+    margin-top: calc(1rem * var(--density-factor, 1));
+  }
+
+  .space-y-5 > * + * {
+    margin-top: calc(1.25rem * var(--density-factor, 1));
+  }
+
+  .space-y-6 > * + * {
+    margin-top: calc(1.5rem * var(--density-factor, 1));
+  }
+
+  .gap-3 {
+    gap: calc(0.75rem * var(--density-factor, 1));
+  }
+
+  .gap-4 {
+    gap: calc(1rem * var(--density-factor, 1));
+  }
+
+  .gap-5 {
+    gap: calc(1.25rem * var(--density-factor, 1));
+  }
+
+  .gap-6 {
+    gap: calc(1.5rem * var(--density-factor, 1));
+  }
+
+  /* Appliquer le contraste dynamique */
+  :root {
+    --contrast-multiplier: 1;
+  }
+
+  /* Renforcer le contraste du texte selon le multiplicateur */
+  body {
+    filter: contrast(var(--contrast-multiplier, 1));
   }
 }
