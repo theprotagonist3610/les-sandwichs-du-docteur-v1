@@ -1,13 +1,22 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo-min.png";
 import useActiveUserStore from "@/store/activeUserStore";
 import { loginSchema } from "@/schemas/userSchema";
 
@@ -76,8 +85,7 @@ const DesktopLogin = ({ toggleForm }) => {
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/10 p-8"
-      style={{ display: visible ? "flex" : "none" }}
-    >
+      style={{ display: visible ? "flex" : "none" }}>
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="space-y-6 pb-8">
           {/* Logo */}
@@ -128,8 +136,7 @@ const DesktopLogin = ({ toggleForm }) => {
                 </Label>
                 <button
                   type="button"
-                  className="text-sm text-primary hover:underline"
-                >
+                  className="text-sm text-primary hover:underline">
                   Mot de passe oublié ?
                 </button>
               </div>
@@ -158,8 +165,7 @@ const DesktopLogin = ({ toggleForm }) => {
               type="submit"
               className="w-full py-6 text-base"
               size="lg"
-              disabled={isLoading}
-            >
+              disabled={isLoading}>
               {isLoading ? "Connexion en cours..." : "Se connecter"}
             </Button>
           </form>
@@ -170,8 +176,7 @@ const DesktopLogin = ({ toggleForm }) => {
             Vous n&apos;avez pas de compte ?{" "}
             <button
               onClick={toggleForm}
-              className="text-primary font-semibold hover:underline"
-            >
+              className="text-primary font-semibold hover:underline">
               Créer un compte
             </button>
           </p>

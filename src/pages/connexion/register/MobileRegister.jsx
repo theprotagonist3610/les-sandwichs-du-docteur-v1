@@ -1,10 +1,19 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -12,16 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  User,
-  Users,
-  Calendar,
-  Mail,
-  Lock,
-  UserCircle,
-} from "lucide-react";
+import { User, Users, Calendar, Mail, Lock, UserCircle } from "lucide-react";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo-min.png";
 import PhoneTaker from "@/components/form/PhoneTaker";
 import useActiveUserStore from "@/store/activeUserStore";
 import { registerSchema } from "@/schemas/userSchema";
@@ -119,8 +121,7 @@ const MobileRegister = ({ toggleForm }) => {
   return (
     <div
       className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 p-4 pb-20"
-      style={{ display: visible ? "block" : "none" }}
-    >
+      style={{ display: visible ? "block" : "none" }}>
       <Card className="w-full shadow-lg">
         <CardHeader className="space-y-4 pb-6">
           {/* Logo */}
@@ -194,9 +195,10 @@ const MobileRegister = ({ toggleForm }) => {
                 <Select
                   value={formData.sexe}
                   onValueChange={handleSelectChange}
-                  required
-                >
-                  <SelectTrigger id="mobile-register-sexe" className="flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0">
+                  required>
+                  <SelectTrigger
+                    id="mobile-register-sexe"
+                    className="flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0">
                     <SelectValue placeholder="Sélectionnez votre sexe" />
                   </SelectTrigger>
                   <SelectContent>
@@ -209,7 +211,9 @@ const MobileRegister = ({ toggleForm }) => {
 
             {/* Date de naissance */}
             <div className="space-y-2">
-              <Label htmlFor="mobile-register-dateNaissance" className="text-sm">
+              <Label
+                htmlFor="mobile-register-dateNaissance"
+                className="text-sm">
                 Date de naissance <span className="text-destructive">*</span>
               </Label>
               <InputGroup>
@@ -284,7 +288,9 @@ const MobileRegister = ({ toggleForm }) => {
 
             {/* Confirmer mot de passe */}
             <div className="space-y-2">
-              <Label htmlFor="mobile-register-confirmerMotDePasse" className="text-sm">
+              <Label
+                htmlFor="mobile-register-confirmerMotDePasse"
+                className="text-sm">
                 Confirmer mot de passe{" "}
                 <span className="text-destructive">*</span>
               </Label>
@@ -323,8 +329,7 @@ const MobileRegister = ({ toggleForm }) => {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={isLoading}
-            >
+              disabled={isLoading}>
               {isLoading ? "Création en cours..." : "Créer mon compte"}
             </Button>
           </form>
@@ -335,8 +340,7 @@ const MobileRegister = ({ toggleForm }) => {
             Vous avez déjà un compte ?{" "}
             <button
               onClick={toggleForm}
-              className="text-primary font-semibold hover:underline"
-            >
+              className="text-primary font-semibold hover:underline">
               Se connecter
             </button>
           </p>

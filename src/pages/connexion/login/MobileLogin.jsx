@@ -1,13 +1,22 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo-min.png";
 import useActiveUserStore from "@/store/activeUserStore";
 import { loginSchema } from "@/schemas/userSchema";
 
@@ -76,8 +85,7 @@ const MobileLogin = ({ toggleForm }) => {
   return (
     <div
       className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 p-4 flex items-center"
-      style={{ display: visible ? "block" : "none" }}
-    >
+      style={{ display: visible ? "block" : "none" }}>
       <Card className="w-full shadow-lg">
         <CardHeader className="space-y-4 pb-6">
           {/* Logo */}
@@ -127,8 +135,7 @@ const MobileLogin = ({ toggleForm }) => {
                 </Label>
                 <button
                   type="button"
-                  className="text-xs text-primary hover:underline"
-                >
+                  className="text-xs text-primary hover:underline">
                   Mot de passe oublié ?
                 </button>
               </div>
@@ -156,8 +163,7 @@ const MobileLogin = ({ toggleForm }) => {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={isLoading}
-            >
+              disabled={isLoading}>
               {isLoading ? "Connexion en cours..." : "Se connecter"}
             </Button>
           </form>
@@ -168,8 +174,7 @@ const MobileLogin = ({ toggleForm }) => {
             Vous n&apos;avez pas de compte ?{" "}
             <button
               onClick={toggleForm}
-              className="text-primary font-semibold hover:underline"
-            >
+              className="text-primary font-semibold hover:underline">
               Créer un compte
             </button>
           </p>

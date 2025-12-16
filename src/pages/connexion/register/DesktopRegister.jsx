@@ -1,10 +1,19 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -12,16 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  User,
-  Users,
-  Calendar,
-  Mail,
-  Lock,
-  UserCircle,
-} from "lucide-react";
+import { User, Users, Calendar, Mail, Lock, UserCircle } from "lucide-react";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo-min.png";
 import PhoneTaker from "@/components/form/PhoneTaker";
 import useActiveUserStore from "@/store/activeUserStore";
 import { registerSchema } from "@/schemas/userSchema";
@@ -119,8 +121,7 @@ const DesktopRegister = ({ toggleForm }) => {
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/10 p-8"
-      style={{ display: visible ? "flex" : "none" }}
-    >
+      style={{ display: visible ? "flex" : "none" }}>
       <Card className="w-full max-w-2xl shadow-2xl">
         <CardHeader className="space-y-6 pb-8">
           {/* Logo */}
@@ -198,9 +199,10 @@ const DesktopRegister = ({ toggleForm }) => {
                   <Select
                     value={formData.sexe}
                     onValueChange={handleSelectChange}
-                    required
-                  >
-                    <SelectTrigger id="desktop-register-sexe" className="text-base py-6 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0">
+                    required>
+                    <SelectTrigger
+                      id="desktop-register-sexe"
+                      className="text-base py-6 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0">
                       <SelectValue placeholder="Sélectionnez votre sexe" />
                     </SelectTrigger>
                     <SelectContent>
@@ -213,7 +215,9 @@ const DesktopRegister = ({ toggleForm }) => {
 
               {/* Date de naissance */}
               <div className="space-y-2">
-                <Label htmlFor="desktop-register-dateNaissance" className="text-base">
+                <Label
+                  htmlFor="desktop-register-dateNaissance"
+                  className="text-base">
                   Date de naissance <span className="text-destructive">*</span>
                 </Label>
                 <InputGroup>
@@ -256,7 +260,9 @@ const DesktopRegister = ({ toggleForm }) => {
 
               {/* Téléphone */}
               <div className="space-y-2">
-                <Label htmlFor="desktop-register-telephone" className="text-base">
+                <Label
+                  htmlFor="desktop-register-telephone"
+                  className="text-base">
                   Téléphone <span className="text-destructive">*</span>
                 </Label>
                 <PhoneTaker
@@ -269,7 +275,9 @@ const DesktopRegister = ({ toggleForm }) => {
 
               {/* Mot de passe */}
               <div className="space-y-2">
-                <Label htmlFor="desktop-register-motDePasse" className="text-base">
+                <Label
+                  htmlFor="desktop-register-motDePasse"
+                  className="text-base">
                   Mot de passe <span className="text-destructive">*</span>
                 </Label>
                 <InputGroup>
@@ -291,7 +299,9 @@ const DesktopRegister = ({ toggleForm }) => {
 
               {/* Confirmer mot de passe */}
               <div className="space-y-2">
-                <Label htmlFor="desktop-register-confirmerMotDePasse" className="text-base">
+                <Label
+                  htmlFor="desktop-register-confirmerMotDePasse"
+                  className="text-base">
                   Confirmer mot de passe{" "}
                   <span className="text-destructive">*</span>
                 </Label>
@@ -332,8 +342,7 @@ const DesktopRegister = ({ toggleForm }) => {
               type="submit"
               className="w-full py-6 text-base"
               size="lg"
-              disabled={isLoading}
-            >
+              disabled={isLoading}>
               {isLoading ? "Création en cours..." : "Créer mon compte"}
             </Button>
           </form>
@@ -344,8 +353,7 @@ const DesktopRegister = ({ toggleForm }) => {
             Vous avez déjà un compte ?{" "}
             <button
               onClick={toggleForm}
-              className="text-primary font-semibold hover:underline"
-            >
+              className="text-primary font-semibold hover:underline">
               Se connecter
             </button>
           </p>
