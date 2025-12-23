@@ -34,6 +34,8 @@ import {
   MapPin,
 } from "lucide-react";
 import userService from "@/services/userService";
+import taskToolkit from "@/utils/taskToolkit";
+import useActiveUserStore from "@/store/activeUserStore";
 import { toast } from "sonner";
 
 const DesktopActions = () => {
@@ -41,11 +43,14 @@ const DesktopActions = () => {
   const [visible, setVisible] = useState(false);
   const [searchParams] = useSearchParams();
   const userId = searchParams.get("id");
+  const { user: currentUser } = useActiveUserStore();
 
   // États pour les données
   const [selectedUser, setSelectedUser] = useState(null);
   const [connectionHistory, setConnectionHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
 
   // États pour les dialogs
   const [isPromotionDialogOpen, setIsPromotionDialogOpen] = useState(false);
@@ -56,6 +61,7 @@ const DesktopActions = () => {
   const [newRole, setNewRole] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
+  const [taskPriority, setTaskPriority] = useState("normal");
 
   useEffect(() => {
     setVisible(isDesktop);
@@ -66,6 +72,7 @@ const DesktopActions = () => {
     if (userId) {
       loadUserData(userId);
       loadConnectionHistory(userId);
+      loadTasks(userId);
     }
   }, [userId]);
 
@@ -96,6 +103,20 @@ const DesktopActions = () => {
       console.error("Erreur lors du chargement de l'historique:", error);
     } finally {
       setIsLoadingHistory(false);
+    }
+  };
+
+  const loadTasks = async (id) => {
+    setIsLoadingTasks(true);
+    try {
+      const result = await taskToolkit.getTasksByUser(id);
+      if (result.tasks) {
+        setTasks(result.tasks);
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des tâches:", error);
+    } finally {
+      setIsLoadingTasks(false);
     }
   };
 
@@ -156,14 +177,87 @@ const DesktopActions = () => {
     }
   };
 
-  // Gestion de l'assignation de tâche (à implémenter avec la table tasks)
-  const handleAssignTask = () => {
-    toast.info("Fonction à implémenter", {
-      description: "L'assignation de tâches sera implémentée prochainement",
-    });
-    setIsAssignTaskDialogOpen(false);
-    setTaskTitle("");
-    setTaskDescription("");
+  // Gestion de l'assignation de tâche
+  const handleAssignTask = async () => {
+    if (!taskTitle || !selectedUser || !currentUser) {
+      toast.error("Erreur", {
+        description: "Veuillez remplir tous les champs obligatoires",
+      });
+      return;
+    }
+
+    // Vérifier les permissions d'assignation
+    if (
+      !taskToolkit.canAssignTask(
+        currentUser.role,
+        selectedUser.role,
+        currentUser.id,
+        selectedUser.id
+      )
+    ) {
+      toast.error("Permission refusée", {
+        description:
+          "Vous n'avez pas la permission d'assigner une tâche à cet utilisateur",
+      });
+      return;
+    }
+
+    try {
+      const result = await taskToolkit.createTask({
+        title: taskTitle,
+        description: taskDescription,
+        assignedTo: selectedUser.id,
+        assignedBy: currentUser.id,
+        priority: taskPriority,
+      });
+
+      if (result.task) {
+        toast.success("Tâche assignée", {
+          description: `La tâche "${taskTitle}" a été assignée avec succès`,
+        });
+        setIsAssignTaskDialogOpen(false);
+        setTaskTitle("");
+        setTaskDescription("");
+        setTaskPriority("normal");
+        loadTasks(selectedUser.id);
+      } else {
+        toast.error("Erreur", {
+          description:
+            result.error?.message || "Impossible d'assigner la tâche",
+        });
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'assignation de la tâche:", error);
+      toast.error("Erreur", {
+        description: "Une erreur est survenue",
+      });
+    }
+  };
+
+  // Gestion du changement de statut d'une tâche
+  const handleTaskStatusChange = async (taskId, newStatus) => {
+    try {
+      const result = await taskToolkit.updateTask(taskId, {
+        status: newStatus,
+      });
+
+      if (result.task) {
+        toast.success("Statut mis à jour", {
+          description: "Le statut de la tâche a été mis à jour avec succès",
+        });
+        loadTasks(selectedUser.id);
+      } else {
+        toast.error("Erreur", {
+          description:
+            result.error?.message || "Impossible de mettre à jour le statut",
+        });
+      }
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du statut:", error);
+      toast.error("Erreur", {
+        description: "Une erreur est survenue",
+      });
+    }
   };
 
   // Formater la date
@@ -306,6 +400,22 @@ const DesktopActions = () => {
                           rows={4}
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="task-priority">Priorité</Label>
+                        <Select
+                          value={taskPriority}
+                          onValueChange={setTaskPriority}>
+                          <SelectTrigger id="task-priority">
+                            <SelectValue placeholder="Sélectionnez la priorité" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Basse</SelectItem>
+                            <SelectItem value="normal">Normale</SelectItem>
+                            <SelectItem value="high">Haute</SelectItem>
+                            <SelectItem value="urgent">Urgente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <DialogFooter>
                       <Button
@@ -319,10 +429,136 @@ const DesktopActions = () => {
                 </Dialog>
               </div>
 
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground text-center py-6">
-                  Aucune tâche assignée
-                </p>
+              <div className="space-y-3">
+                {isLoadingTasks ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    Chargement...
+                  </p>
+                ) : tasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    Aucune tâche assignée
+                  </p>
+                ) : (
+                  tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="p-4 rounded-lg border border-border bg-card space-y-3">
+                      {/* Header: Titre et priorité */}
+                      <div className="flex items-start justify-between gap-3">
+                        <h4 className="text-sm font-medium flex-1">
+                          {task.title}
+                        </h4>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs px-2 py-0.5 whitespace-nowrap ${
+                            task.priority === "urgent"
+                              ? "border-red-500 text-red-600 dark:border-red-700 dark:text-red-400"
+                              : task.priority === "high"
+                              ? "border-orange-500 text-orange-600 dark:border-orange-700 dark:text-orange-400"
+                              : task.priority === "normal"
+                              ? "border-blue-500 text-blue-600 dark:border-blue-700 dark:text-blue-400"
+                              : "border-gray-500 text-gray-600 dark:border-gray-700 dark:text-gray-400"
+                          }`}>
+                          {task.priority === "urgent"
+                            ? "Urgente"
+                            : task.priority === "high"
+                            ? "Haute"
+                            : task.priority === "normal"
+                            ? "Normale"
+                            : "Basse"}
+                        </Badge>
+                      </div>
+
+                      {/* Description */}
+                      {task.description && (
+                        <p className="text-sm text-muted-foreground">
+                          {task.description}
+                        </p>
+                      )}
+
+                      {/* Footer: Statut et actions */}
+                      <div className="flex items-center justify-between gap-3 pt-2">
+                        <Badge
+                          variant="secondary"
+                          className={`text-xs px-2.5 py-1 ${
+                            task.status === "completed"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : task.status === "in_progress"
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                              : task.status === "cancelled"
+                              ? "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400"
+                              : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                          }`}>
+                          {task.status === "completed"
+                            ? "Terminée"
+                            : task.status === "in_progress"
+                            ? "En cours"
+                            : task.status === "cancelled"
+                            ? "Annulée"
+                            : "En attente"}
+                        </Badge>
+
+                        {/* Boutons d'action */}
+                        {task.status !== "completed" &&
+                          task.status !== "cancelled" && (
+                            <div className="flex gap-2">
+                              {task.status === "pending" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleTaskStatusChange(
+                                      task.id,
+                                      "in_progress"
+                                    )
+                                  }>
+                                  Démarrer
+                                </Button>
+                              )}
+                              {task.status === "in_progress" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleTaskStatusChange(task.id, "completed")
+                                  }>
+                                  Terminer
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                                onClick={() =>
+                                  handleTaskStatusChange(task.id, "cancelled")
+                                }>
+                                Annuler
+                              </Button>
+                            </div>
+                          )}
+                      </div>
+
+                      {/* Métadonnées */}
+                      <div className="flex items-center gap-3 pt-2 border-t border-border">
+                        <p className="text-xs text-muted-foreground">
+                          Assigné par{" "}
+                          {task.assigned_by_user?.prenoms}{" "}
+                          {task.assigned_by_user?.nom}
+                        </p>
+                        {task.due_date && (
+                          <>
+                            <span className="text-xs text-muted-foreground">
+                              •
+                            </span>
+                            <p className="text-xs text-muted-foreground">
+                              Échéance: {formatDate(task.due_date)}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </TabsContent>
 

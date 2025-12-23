@@ -1,6 +1,13 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { use, useState } from "react";
-import { ChevronDown, Sun, Moon, Wifi, WifiOff, LogOut } from "lucide-react";
+import { useState, useMemo } from "react";
+import {
+  ChevronDown,
+  Sun,
+  Moon,
+  Wifi,
+  WifiOff,
+  LogOut,
+} from "lucide-react";
 import logo from "@/assets/logo-min.png";
 import { useBorderBeam } from "@/hooks/useBorderBeam";
 import { useConnectivity } from "@/store/connectivityStore";
@@ -8,6 +15,7 @@ import { useStyleSettings } from "@/store/styleSettingsStore";
 import useActiveUserStore from "@/store/activeUserStore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { getOutilsParRole } from "@/constants/outils";
 
 const DesktopNavbar = () => {
   const navigate = useNavigate();
@@ -29,7 +37,12 @@ const DesktopNavbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  // Navigation links avec dropdowns (options vides pour l'instant)
+  // Obtenir les outils disponibles pour le rôle de l'utilisateur
+  const outilsDisponibles = useMemo(() => {
+    return getOutilsParRole(user?.role);
+  }, [user?.role]);
+
+  // Navigation links avec dropdowns
   const navLinks = [
     {
       path: "/",
@@ -59,7 +72,7 @@ const DesktopNavbar = () => {
     {
       path: "/outils",
       label: "Outils",
-      options: [], // Options a ajouter plus tard
+      options: outilsDisponibles, // Filtré selon le rôle
     },
     {
       path: "/parametres",
@@ -146,15 +159,19 @@ const DesktopNavbar = () => {
                 {link.options.length > 0 && openDropdown === index && (
                   <div
                     onMouseLeave={() => setOpenDropdown(null)}
-                    className="absolute top-full left-0 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-2 z-50">
-                    {link.options.map((option, optIndex) => (
-                      <Link
-                        key={optIndex}
-                        to={option.path}
-                        className="block px-4 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
-                        {option.label}
-                      </Link>
-                    ))}
+                    className="absolute top-full left-0 mt-1 w-56 bg-card border border-border rounded-lg shadow-lg py-2 z-50">
+                    {link.options.map((option, optIndex) => {
+                      const OptionIcon = option.icon;
+                      return (
+                        <Link
+                          key={optIndex}
+                          to={option.path}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                          <OptionIcon className="w-4 h-4 shrink-0" />
+                          <span>{option.label}</span>
+                        </Link>
+                      );
+                    })}
                   </div>
                 )}
               </div>

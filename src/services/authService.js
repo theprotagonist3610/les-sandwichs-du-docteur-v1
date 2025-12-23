@@ -6,7 +6,7 @@ import { supabase } from "@/config/supabase";
 
 /**
  * Inscription d'un nouvel utilisateur
- * IMPORTANT: L'email doit déjà exister dans la table users (créé par un admin)
+ * IMPORTANT: L'email doit déjà exister dans la table preusers (créé par un admin)
  * @param {string} email - Email de l'utilisateur
  * @param {string} password - Mot de passe
  * @param {Object} userData - Données supplémentaires (nom, prenoms, etc.)
@@ -14,14 +14,14 @@ import { supabase } from "@/config/supabase";
  */
 export const signUp = async (email, password, userData) => {
   try {
-    // 1. Vérifier d'abord si l'email existe dans la table users
-    const { data: existingUser, error: checkError } = await supabase
-      .from("users")
-      .select("email")
+    // 1. Vérifier d'abord si l'email existe dans la table preusers
+    const { data: preUser, error: preUserError } = await supabase
+      .from("preusers")
+      .select("*")
       .eq("email", email)
       .single();
 
-    if (checkError || !existingUser) {
+    if (preUserError || !preUser) {
       return {
         user: null,
         error: {
@@ -31,7 +31,7 @@ export const signUp = async (email, password, userData) => {
       };
     }
 
-    // 2. Créer le compte auth
+    // 2. Créer le compte dans auth.users
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -41,23 +41,51 @@ export const signUp = async (email, password, userData) => {
       return { user: null, error: authError };
     }
 
-    // 3. Mettre à jour le profil utilisateur avec les données complètes
-    if (authData.user) {
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({
-          nom: userData.nom,
-          prenoms: userData.prenoms,
-          telephone: userData.telephone,
-          sexe: userData.sexe,
-          date_naissance: userData.dateNaissance,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("email", email);
+    if (!authData.user) {
+      return {
+        user: null,
+        error: { message: "Erreur lors de la création du compte" },
+      };
+    }
 
-      if (updateError) {
-        console.error("Erreur lors de la mise à jour du profil:", updateError);
-      }
+    // 3. Créer le profil utilisateur dans public.users avec l'ID de auth.users
+    const { error: insertError } = await supabase.from("users").insert([
+      {
+        id: authData.user.id, // Utiliser l'ID de auth.users
+        nom: userData.nom,
+        prenoms: userData.prenoms,
+        email: email,
+        telephone: userData.telephone,
+        sexe: userData.sexe,
+        date_naissance: userData.dateNaissance,
+        role: preUser.role, // Utiliser le rôle du preuser
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+
+    if (insertError) {
+      console.error("Erreur lors de la création du profil:", insertError);
+      // Rollback: supprimer le compte auth créé
+      await supabase.auth.admin.deleteUser(authData.user.id);
+      return {
+        user: null,
+        error: {
+          message: "Erreur lors de la création du profil utilisateur",
+        },
+      };
+    }
+
+    // 4. Supprimer le preuser après création réussie
+    const { error: deleteError } = await supabase
+      .from("preusers")
+      .delete()
+      .eq("email", email);
+
+    if (deleteError) {
+      console.error("Erreur lors de la suppression du preuser:", deleteError);
+      // On continue quand même, ce n'est pas bloquant
     }
 
     return { user: authData.user, error: null };
@@ -73,79 +101,6 @@ export const signUp = async (email, password, userData) => {
  * @param {string} password - Mot de passe
  * @returns {Promise<{user, session, profile, error}>}
  */
-// export const signIn = async (email, password) => {
-//   try {
-//     // 1. Vérifier si l'utilisateur est actif
-//     const { data: userProfile, error: profileError } = await supabase
-//       .from("users")
-//       .select("*");
-//     // .eq("email", email)
-//     // .single();
-//     console.log(userProfile);
-//     if (profileError || !userProfile) {
-//       console.log(`${email},${password}`);
-//       console.log(profileError, userProfile);
-//       return {
-//         user: null,
-//         session: null,
-//         profile: null,
-//         error: { message: "Utilisateur introuvable" },
-//       };
-//     }
-
-//     if (!userProfile.is_active) {
-//       return {
-//         user: null,
-//         session: null,
-//         profile: null,
-//         error: {
-//           message: "Votre compte a été désactivé. Contactez un administrateur.",
-//         },
-//       };
-//     }
-
-//     // 2. Se connecter avec Supabase Auth
-//     const { data, error: authError } = await supabase.auth.signInWithPassword({
-//       email,
-//       password,
-//     });
-
-//     if (authError) {
-//       // Enregistrer l'échec de connexion
-//       await supabase.from("user_connection_history").insert({
-//         user_id: userProfile.id,
-//         success: false,
-//         failure_reason: authError.message,
-//       });
-
-//       return { user: null, session: null, profile: null, error: authError };
-//     }
-
-//     // 3. Mettre à jour la date de dernière connexion
-//     await supabase
-//       .from("users")
-//       .update({ last_login_at: new Date().toISOString() })
-//       .eq("id", data.user.id);
-
-//     // 4. Récupérer le profil complet mis à jour
-//     const { data: updatedProfile } = await supabase
-//       .from("users")
-//       .select("*")
-//       .eq("id", data.user.id)
-//       .single();
-
-//     return {
-//       user: data.user,
-//       session: data.session,
-//       profile: updatedProfile,
-//       error: null,
-//     };
-//   } catch (error) {
-//     console.error("Erreur lors de la connexion:", error);
-//     return { user: null, session: null, profile: null, error };
-//   }
-// };
-
 export const signIn = async (email, password) => {
   try {
     // 1. Authentification

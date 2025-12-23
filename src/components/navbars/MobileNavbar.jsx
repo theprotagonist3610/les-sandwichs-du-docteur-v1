@@ -16,6 +16,7 @@ import {
   ToolCase,
   Wifi,
   WifiOff,
+  Calendar,
 } from "lucide-react";
 import logo from "@/assets/logo-min.png";
 import { useBorderBeam } from "@/hooks/useBorderBeam";
@@ -55,6 +56,9 @@ const MobileNavbar = () => {
     { path: "/outils", label: "Outils", icon: ToolCase },
     { path: "/parametres", label: "Parametres", icon: Settings },
     { path: "/utilisateurs", label: "Utilisateurs", icon: Users },
+    // ...(user?.role === "admin"
+    //   ? [{ path: "/taches-recurrentes", label: "Tâches récurrentes", icon: Calendar }]
+    //   : []),
   ];
 
   const toggleTheme = () => {

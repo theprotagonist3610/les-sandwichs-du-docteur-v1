@@ -8,7 +8,18 @@ import Parametres from "@/pages/Parametres";
 import Utilisateurs from "@/pages/Utilisateurs";
 import Outils from "@/pages/Outils";
 import Profil from "@/pages/Profil";
+import TachesRecurrentes from "@/pages/outils/TachesRecurrentes";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import Adresse from "@/pages/outils/Adresse";
+import Fournisseurs from "@/pages/outils/Fournisseurs";
+import Livraisons from "@/pages/outils/Livraisons";
+import Livreurs from "../pages/outils/Livreurs";
+import Messagerie from "@/pages/outils/Messagerie";
+import MoyensDePaiement from "@/pages/outils/MoyensDePaiement";
+import Productions from "@/pages/outils/Productions";
+import Promotions from "@/pages/outils/Promotions";
+import Rapports from "@/pages/outils/Rapports";
+import Emplacements from "@/pages/outils/Emplacements";
 
 /**
  * Routes accessibles par les superviseurs et admins
@@ -54,6 +65,26 @@ export const superviseurRoutes = {
       path: "utilisateurs",
       element: <Utilisateurs />,
     },
+    {
+      path: "taches-recurrentes",
+      element: <TachesRecurrentes />,
+    },
+    {
+      path: "adresses-livraison",
+      element: <Adresse />,
+    },
+    {
+      path: "fournisseurs",
+      element: <Fournisseurs />,
+    },
+    { path: "livraisons", element: <Livraisons /> },
+    { path: "livreurs", element: <Livreurs /> },
+    { path: "messagerie", element: <Messagerie /> },
+    { path: "moyens-de-paiement", element: <MoyensDePaiement /> },
+    { path: "productions", element: <Productions /> },
+    { path: "promotions", element: <Promotions /> },
+    { path: "rapports", element: <Rapports /> },
+    { path: "emplacements", element: <Emplacements /> },
     {
       path: "profil",
       element: <Profil />,

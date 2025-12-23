@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import userService from "@/services/userService";
 import { toast } from "sonner";
+import { supabase } from "@/config/supabase";
 
 const DesktopPresence = () => {
   const { isDesktop } = useBreakpoint();
@@ -35,6 +36,29 @@ const DesktopPresence = () => {
   // Charger les utilisateurs et pré-utilisateurs
   useEffect(() => {
     loadUsersAndPreUsers();
+  }, []);
+
+  // Subscription Realtime pour les mises à jour de users
+  useEffect(() => {
+    const channel = supabase
+      .channel("users-presence-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "users",
+        },
+        () => {
+          // Recharger la liste lors de changements
+          loadUsersAndPreUsers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadUsersAndPreUsers = async () => {
@@ -142,14 +166,20 @@ const DesktopPresence = () => {
                         key={user.id}
                         onClick={() => handleUserClick(user.id)}
                         className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors">
-                        {/* Avatar */}
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage src={user.photo_url} alt="Avatar" />
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                            {user.prenoms?.charAt(0)}
-                            {user.nom?.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
+                        {/* Avatar avec indicateur de présence */}
+                        <div className="relative">
+                          <Avatar className="w-8 h-8">
+                            <AvatarImage src={user.photo_url} alt="Avatar" />
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                              {user.prenoms?.charAt(0)}
+                              {user.nom?.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {/* Pastille verte si en ligne */}
+                          {userService.isUserOnline(user.last_seen) && (
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></span>
+                          )}
+                        </div>
 
                         {/* Nom et prénom */}
                         <div className="flex-1 text-left min-w-0">

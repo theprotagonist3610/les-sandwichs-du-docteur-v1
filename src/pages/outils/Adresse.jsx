@@ -10,8 +10,3 @@ const Adresse = () => {
 };
 
 export default Adresse;
-/**
- * setup firebase deploy
- * setup supabase deploy
- * setup firebase
- */

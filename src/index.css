@@ -503,3 +503,49 @@
     filter: contrast(var(--contrast-multiplier, 1));
   }
 }
+
+/* ========= Leaflet Map Customizations ========= */
+/* Styles pour les tooltips permanents de la carte */
+.leaflet-tooltip.custom-tooltip {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 0 !important;
+}
+
+.leaflet-tooltip.custom-tooltip::before {
+  border-top-color: #e5e7eb;
+}
+
+/* Masquer les pointeurs de tooltip pour un look plus clean */
+.leaflet-tooltip-top.custom-tooltip::before {
+  border-top-color: white;
+}
+
+/* Labels de distance sur les lignes */
+.distance-label {
+  pointer-events: none;
+}
+
+/* Améliorer la visibilité des marqueurs */
+.custom-marker-icon {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Marqueur utilisateur */
+.custom-user-marker {
+  filter: drop-shadow(0 2px 6px rgba(59, 130, 246, 0.5));
+  animation: pulse-user 2s infinite;
+}
+
+@keyframes pulse-user {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}

@@ -402,6 +402,36 @@ export const checkEmailExists = async (email) => {
   }
 };
 
+/**
+ * Mettre à jour le last_seen de l'utilisateur connecté
+ * @param {string} userId - ID de l'utilisateur
+ * @returns {Promise<{error}>}
+ */
+export const updateLastSeen = async (userId) => {
+  try {
+    const { error } = await supabase
+      .from("users")
+      .update({ last_seen: new Date().toISOString() })
+      .eq("id", userId);
+
+    return { error };
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour de last_seen:", error);
+    return { error };
+  }
+};
+
+/**
+ * Vérifier si un utilisateur est en ligne (last_seen < 5 minutes)
+ * @param {string} lastSeen - Date du dernier seen
+ * @returns {boolean}
+ */
+export const isUserOnline = (lastSeen) => {
+  if (!lastSeen) return false;
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  return new Date(lastSeen) > fiveMinutesAgo;
+};
+
 export default {
   getAllUsers,
   getUserById,
@@ -418,4 +448,6 @@ export default {
   checkInactiveUsers,
   getUserStats,
   checkEmailExists,
+  updateLastSeen,
+  isUserOnline,
 };

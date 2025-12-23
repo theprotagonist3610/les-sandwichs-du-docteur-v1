@@ -268,6 +268,72 @@ export const usePreferencesSettingsStore = create((set, get) => {
         });
       }
     },
+
+    // Formater une date selon les préférences utilisateur
+    formatDate: (dateString) => {
+      if (!dateString) return "";
+
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "";
+
+      const { dateFormat, timeFormat } = get().settings;
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      const hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+
+      let formattedDate = "";
+
+      // Format de date
+      switch (dateFormat) {
+        case "MM/DD/YYYY":
+          formattedDate = `${month}/${day}/${year}`;
+          break;
+        case "YYYY-MM-DD":
+          formattedDate = `${year}-${month}-${day}`;
+          break;
+        case "DD/MM/YYYY":
+        default:
+          formattedDate = `${day}/${month}/${year}`;
+          break;
+      }
+
+      // Format d'heure
+      let formattedTime = "";
+      if (timeFormat === "12h") {
+        const period = hours >= 12 ? "PM" : "AM";
+        const displayHours = hours % 12 || 12;
+        formattedTime = `${displayHours}:${minutes} ${period}`;
+      } else {
+        formattedTime = `${String(hours).padStart(2, "0")}:${minutes}`;
+      }
+
+      return `${formattedDate} ${formattedTime}`;
+    },
+
+    // Formater une date (sans l'heure)
+    formatDateOnly: (dateString) => {
+      if (!dateString) return "";
+
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "";
+
+      const { dateFormat } = get().settings;
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+
+      switch (dateFormat) {
+        case "MM/DD/YYYY":
+          return `${month}/${day}/${year}`;
+        case "YYYY-MM-DD":
+          return `${year}-${month}-${day}`;
+        case "DD/MM/YYYY":
+        default:
+          return `${day}/${month}/${year}`;
+      }
+    },
   };
 });
 
@@ -294,6 +360,10 @@ export const usePreferencesSettings = () => {
     (state) => state.requestLocationPermission
   );
   const installPWA = usePreferencesSettingsStore((state) => state.installPWA);
+  const formatDate = usePreferencesSettingsStore((state) => state.formatDate);
+  const formatDateOnly = usePreferencesSettingsStore(
+    (state) => state.formatDateOnly
+  );
 
   return {
     settings,
@@ -305,5 +375,7 @@ export const usePreferencesSettings = () => {
     toggleFullScreen,
     requestLocationPermission,
     installPWA,
+    formatDate,
+    formatDateOnly,
   };
 };

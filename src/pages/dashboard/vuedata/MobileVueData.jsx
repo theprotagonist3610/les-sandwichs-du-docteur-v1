@@ -1,5 +1,7 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
 import { useEffect, useState } from "react";
+import UsersWidget from "@/components/dashboard/UsersWidget";
+
 const MobileVueData = () => {
   const { isMobile } = useBreakpoint();
   const [visible, setVisible] = useState(false);
@@ -11,7 +13,7 @@ const MobileVueData = () => {
     <div
       className="min-h-screen space-y-4"
       style={{ display: visible ? "block" : "none" }}>
-      MobileVueData
+      <UsersWidget isMobile={true} />
     </div>
   );
 };
