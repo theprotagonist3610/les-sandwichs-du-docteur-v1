@@ -92,9 +92,12 @@ const MobileRegister = ({ toggleForm }) => {
       registerSchema.parse(formData);
     } catch (error) {
       const fieldErrors = {};
-      error.errors.forEach((err) => {
-        fieldErrors[err.path[0]] = err.message;
-      });
+      // Zod utilise error.issues et non error.errors
+      if (error.issues) {
+        error.issues.forEach((err) => {
+          fieldErrors[err.path[0]] = err.message;
+        });
+      }
       setErrors(fieldErrors);
       toast.error("Erreur de validation", {
         description: "Veuillez vérifier les champs du formulaire",
@@ -106,14 +109,20 @@ const MobileRegister = ({ toggleForm }) => {
     const result = await register(formData);
 
     if (result.success) {
-      toast.success("Compte créé avec succès !", {
-        description: `Bienvenue ${formData.prenoms} ${formData.nom}`,
+      // Compte créé en attente d'approbation admin
+      toast.success("Inscription réussie !", {
+        description: result.message || "Votre compte a été créé et est en attente d'approbation.",
+        duration: 10000,
       });
-      // Rediriger vers le dashboard
-      navigate("/");
+
+      // Rediriger vers la page de connexion après 4 secondes
+      setTimeout(() => {
+        navigate("/connexion");
+      }, 4000);
     } else {
-      toast.error("Erreur lors de la création du compte", {
+      toast.error("Erreur lors de l'inscription", {
         description: result.error || "Une erreur est survenue",
+        duration: 6000,
       });
     }
   };
@@ -202,8 +211,9 @@ const MobileRegister = ({ toggleForm }) => {
                     <SelectValue placeholder="Sélectionnez votre sexe" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="masculin">Masculin</SelectItem>
-                    <SelectItem value="feminin">Féminin</SelectItem>
+                    <SelectItem value="Homme">Homme</SelectItem>
+                    <SelectItem value="Femme">Femme</SelectItem>
+                    <SelectItem value="Autre">Autre</SelectItem>
                   </SelectContent>
                 </Select>
               </InputGroup>

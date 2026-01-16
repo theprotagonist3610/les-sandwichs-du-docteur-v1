@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getAllPromotionTemplates,
   createPromotionTemplate,
@@ -20,16 +20,25 @@ const usePromotionTemplates = (options = {}) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Utiliser useRef pour stocker les options sans déclencher de re-renders
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   // Charger les templates
   const loadTemplates = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const { success, templates: data, error: err } = await getAllPromotionTemplates(options);
+      const {
+        success,
+        templates: data,
+        error: err,
+      } = await getAllPromotionTemplates(optionsRef.current);
 
       if (success) {
         setTemplates(data);
+        console.log("Loaded templates:", data);
       } else {
         setError(err);
         toast.error("Erreur de chargement", {
@@ -44,18 +53,54 @@ const usePromotionTemplates = (options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [options]);
+  }, []); // Plus de dépendance sur options
 
-  // Charger au montage et quand les options changent
+  // Charger au montage uniquement - useEffect ne dépend de RIEN
   useEffect(() => {
-    loadTemplates();
-  }, [loadTemplates]);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const {
+          success,
+          templates: data,
+          error: err,
+        } = await getAllPromotionTemplates(optionsRef.current);
+
+        if (success) {
+          setTemplates(data);
+          console.log("Loaded templates:", data);
+        } else {
+          console.log(err);
+          setError(err);
+          toast.error("Erreur de chargement", {
+            description: err,
+          });
+        }
+      } catch (err) {
+        setError(err.message);
+        toast.error("Erreur inattendue", {
+          description: err.message,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Vraiment vide - s'exécute UNE SEULE FOIS au montage
 
   // Créer un template
   const handleCreate = useCallback(
     async (templateData) => {
       try {
-        const { success, template, error: err } = await createPromotionTemplate(templateData);
+        const {
+          success,
+          template,
+          error: err,
+        } = await createPromotionTemplate(templateData);
 
         if (success) {
           toast.success("Template créé", {
@@ -86,7 +131,11 @@ const usePromotionTemplates = (options = {}) => {
   const handleUpdate = useCallback(
     async (templateId, updates) => {
       try {
-        const { success, template, error: err } = await updatePromotionTemplate(templateId, updates);
+        const {
+          success,
+          template,
+          error: err,
+        } = await updatePromotionTemplate(templateId, updates);
 
         if (success) {
           toast.success("Template modifié", {
@@ -117,7 +166,9 @@ const usePromotionTemplates = (options = {}) => {
   const handleDelete = useCallback(
     async (templateId, denomination) => {
       try {
-        const { success, error: err } = await deletePromotionTemplate(templateId);
+        const { success, error: err } = await deletePromotionTemplate(
+          templateId
+        );
 
         if (success) {
           toast.success("Template supprimé", {
@@ -145,35 +196,33 @@ const usePromotionTemplates = (options = {}) => {
   );
 
   // Activer un template (créer une instance)
-  const handleActivate = useCallback(
-    async (templateId, activationData) => {
-      try {
-        const { success, instance, error: err } = await activatePromotionTemplate(
-          templateId,
-          activationData
-        );
+  const handleActivate = useCallback(async (templateId, activationData) => {
+    try {
+      const {
+        success,
+        instance,
+        error: err,
+      } = await activatePromotionTemplate(templateId, activationData);
 
-        if (success) {
-          toast.success("Promotion activée", {
-            description: `${instance.denomination} a été activée avec succès`,
-          });
-
-          return { success: true, instance };
-        } else {
-          toast.error("Erreur d'activation", {
-            description: err,
-          });
-          return { success: false, error: err };
-        }
-      } catch (err) {
-        toast.error("Erreur inattendue", {
-          description: err.message,
+      if (success) {
+        toast.success("Promotion activée", {
+          description: `${instance.denomination} a été activée avec succès`,
         });
-        return { success: false, error: err.message };
+
+        return { success: true, instance };
+      } else {
+        toast.error("Erreur d'activation", {
+          description: err,
+        });
+        return { success: false, error: err };
       }
-    },
-    []
-  );
+    } catch (err) {
+      toast.error("Erreur inattendue", {
+        description: err.message,
+      });
+      return { success: false, error: err.message };
+    }
+  }, []);
 
   // Rechercher des templates
   const handleSearch = useCallback(async (searchTerm) => {
@@ -181,7 +230,11 @@ const usePromotionTemplates = (options = {}) => {
       setLoading(true);
       setError(null);
 
-      const { success, templates: data, error: err } = await searchPromotionTemplates(searchTerm);
+      const {
+        success,
+        templates: data,
+        error: err,
+      } = await searchPromotionTemplates(searchTerm);
 
       if (success) {
         setTemplates(data);
@@ -207,7 +260,11 @@ const usePromotionTemplates = (options = {}) => {
   // Obtenir la performance d'un template
   const getPerformance = useCallback(async (templateId) => {
     try {
-      const { success, performance, error: err } = await getTemplatePerformance(templateId);
+      const {
+        success,
+        performance,
+        error: err,
+      } = await getTemplatePerformance(templateId);
 
       if (success) {
         return { success: true, performance };

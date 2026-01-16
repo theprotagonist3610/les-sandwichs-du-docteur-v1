@@ -13,14 +13,13 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Adresse from "@/pages/outils/Adresse";
 import Fournisseurs from "@/pages/outils/Fournisseurs";
 import Livraisons from "@/pages/outils/Livraisons";
-import Livreurs from "../pages/outils/Livreurs";
+import Livreurs from "@/pages/outils/Livreurs";
 import Messagerie from "@/pages/outils/Messagerie";
 import MoyensDePaiement from "@/pages/outils/MoyensDePaiement";
 import Productions from "@/pages/outils/Productions";
 import Promotions from "@/pages/outils/Promotions";
 import Rapports from "@/pages/outils/Rapports";
 import Emplacements from "@/pages/outils/Emplacements";
-
 /**
  * Routes accessibles par les superviseurs et admins
  * Accès: Toutes les sections (Dashboard, Commandes, Stock, Statistiques, Comptabilite, Parametres, Utilisateurs)

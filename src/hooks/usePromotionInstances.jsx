@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/config/supabase";
 import {
   getAllPromotionInstances,
@@ -28,13 +28,21 @@ const usePromotionInstances = (options = {}) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Utiliser useRef pour stocker les options sans déclencher de re-renders
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   // Charger les instances
   const loadInstances = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const { success, instances: data, error: err } = await getAllPromotionInstances(options);
+      const {
+        success,
+        instances: data,
+        error: err,
+      } = await getAllPromotionInstances(optionsRef.current);
 
       if (success) {
         setInstances(data);
@@ -52,12 +60,16 @@ const usePromotionInstances = (options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [options]);
+  }, []); // Plus de dépendance sur options
 
   // Charger les statistiques
   const loadStats = useCallback(async () => {
     try {
-      const { success, stats: data, error: err } = await getPromotionInstancesStats();
+      const {
+        success,
+        stats: data,
+        error: err,
+      } = await getPromotionInstancesStats();
 
       if (success) {
         setStats(data);
@@ -69,11 +81,60 @@ const usePromotionInstances = (options = {}) => {
     }
   }, []);
 
-  // Charger au montage
+  // Charger au montage uniquement - useEffect ne dépend de RIEN
   useEffect(() => {
-    loadInstances();
-    loadStats();
-  }, [loadInstances, loadStats]);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const {
+          success,
+          instances: data,
+          error: err,
+        } = await getAllPromotionInstances(optionsRef.current);
+
+        if (success) {
+          setInstances(data);
+        } else {
+          console.log(err);
+          setError(err);
+          toast.error("Erreur de chargement", {
+            description: err,
+          });
+        }
+      } catch (err) {
+        setError(err.message);
+        toast.error("Erreur inattendue", {
+          description: err.message,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const fetchStats = async () => {
+      try {
+        const {
+          success,
+          stats: data,
+          error: err,
+        } = await getPromotionInstancesStats();
+
+        if (success) {
+          setStats(data);
+        } else {
+          console.error("Erreur chargement stats:", err);
+        }
+      } catch (err) {
+        console.error("Erreur inattendue stats:", err);
+      }
+    };
+
+    fetchData();
+    fetchStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Vraiment vide - s'exécute UNE SEULE FOIS au montage
 
   // REALTIME: Écouter les changements sur la table promotions_archive
   useEffect(() => {
@@ -121,37 +182,42 @@ const usePromotionInstances = (options = {}) => {
   }, [loadInstances, loadStats]);
 
   // Mettre à jour une instance
-  const handleUpdate = useCallback(
-    async (instanceId, updates) => {
-      try {
-        const { success, instance, error: err } = await updatePromotionInstance(instanceId, updates);
+  const handleUpdate = useCallback(async (instanceId, updates) => {
+    try {
+      const {
+        success,
+        instance,
+        error: err,
+      } = await updatePromotionInstance(instanceId, updates);
 
-        if (success) {
-          toast.success("Instance modifiée", {
-            description: `${instance.denomination} a été modifiée avec succès`,
-          });
-
-          return { success: true, instance };
-        } else {
-          toast.error("Erreur de modification", {
-            description: err,
-          });
-          return { success: false, error: err };
-        }
-      } catch (err) {
-        toast.error("Erreur inattendue", {
-          description: err.message,
+      if (success) {
+        toast.success("Instance modifiée", {
+          description: `${instance.denomination} a été modifiée avec succès`,
         });
-        return { success: false, error: err.message };
+
+        return { success: true, instance };
+      } else {
+        toast.error("Erreur de modification", {
+          description: err,
+        });
+        return { success: false, error: err };
       }
-    },
-    []
-  );
+    } catch (err) {
+      toast.error("Erreur inattendue", {
+        description: err.message,
+      });
+      return { success: false, error: err.message };
+    }
+  }, []);
 
   // Mettre en pause
   const handlePause = useCallback(async (instanceId, denomination) => {
     try {
-      const { success, instance, error: err } = await pausePromotionInstance(instanceId);
+      const {
+        success,
+        instance,
+        error: err,
+      } = await pausePromotionInstance(instanceId);
 
       if (success) {
         toast.success("Promotion mise en pause", {
@@ -176,7 +242,11 @@ const usePromotionInstances = (options = {}) => {
   // Reprendre
   const handleResume = useCallback(async (instanceId, denomination) => {
     try {
-      const { success, instance, error: err } = await resumePromotionInstance(instanceId);
+      const {
+        success,
+        instance,
+        error: err,
+      } = await resumePromotionInstance(instanceId);
 
       if (success) {
         toast.success("Promotion reprise", {
@@ -199,34 +269,45 @@ const usePromotionInstances = (options = {}) => {
   }, []);
 
   // Annuler
-  const handleCancel = useCallback(async (instanceId, denomination, reason = null) => {
-    try {
-      const { success, instance, error: err } = await cancelPromotionInstance(instanceId, reason);
+  const handleCancel = useCallback(
+    async (instanceId, denomination, reason = null) => {
+      try {
+        const {
+          success,
+          instance,
+          error: err,
+        } = await cancelPromotionInstance(instanceId, reason);
 
-      if (success) {
-        toast.success("Promotion annulée", {
-          description: denomination,
-        });
+        if (success) {
+          toast.success("Promotion annulée", {
+            description: denomination,
+          });
 
-        return { success: true, instance };
-      } else {
-        toast.error("Erreur d'annulation", {
-          description: err,
+          return { success: true, instance };
+        } else {
+          toast.error("Erreur d'annulation", {
+            description: err,
+          });
+          return { success: false, error: err };
+        }
+      } catch (err) {
+        toast.error("Erreur inattendue", {
+          description: err.message,
         });
-        return { success: false, error: err };
+        return { success: false, error: err.message };
       }
-    } catch (err) {
-      toast.error("Erreur inattendue", {
-        description: err.message,
-      });
-      return { success: false, error: err.message };
-    }
-  }, []);
+    },
+    []
+  );
 
   // Compléter
   const handleComplete = useCallback(async (instanceId, denomination) => {
     try {
-      const { success, instance, error: err } = await completePromotionInstance(instanceId);
+      const {
+        success,
+        instance,
+        error: err,
+      } = await completePromotionInstance(instanceId);
 
       if (success) {
         toast.success("Promotion complétée", {
@@ -279,10 +360,11 @@ const usePromotionInstances = (options = {}) => {
       setLoading(true);
       setError(null);
 
-      const { success, instances: data, error: err } = await searchPromotionInstances(
-        searchTerm,
-        filter
-      );
+      const {
+        success,
+        instances: data,
+        error: err,
+      } = await searchPromotionInstances(searchTerm, filter);
 
       if (success) {
         setInstances(data);
@@ -308,7 +390,11 @@ const usePromotionInstances = (options = {}) => {
   // Obtenir les stats d'une instance
   const getStats = useCallback(async (instanceId) => {
     try {
-      const { success, stats: data, error: err } = await getInstanceStats(instanceId);
+      const {
+        success,
+        stats: data,
+        error: err,
+      } = await getInstanceStats(instanceId);
 
       if (success) {
         return { success: true, stats: data };
@@ -346,7 +432,11 @@ const usePromotionInstances = (options = {}) => {
   // Mettre à jour les métriques
   const updateMetrics = useCallback(async (instanceId, metrics) => {
     try {
-      const { success, instance, error: err } = await updateInstanceMetrics(instanceId, metrics);
+      const {
+        success,
+        instance,
+        error: err,
+      } = await updateInstanceMetrics(instanceId, metrics);
 
       if (success) {
         return { success: true, instance };

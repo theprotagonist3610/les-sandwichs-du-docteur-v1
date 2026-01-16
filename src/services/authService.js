@@ -5,8 +5,8 @@ import { supabase } from "@/config/supabase";
  */
 
 /**
- * Inscription d'un nouvel utilisateur
- * IMPORTANT: L'email doit déjà exister dans la table preusers (créé par un admin)
+ * Inscription d'un nouvel utilisateur (INSCRIPTION LIBRE)
+ * Le compte est créé avec le statut "pending" et nécessite l'approbation d'un admin
  * @param {string} email - Email de l'utilisateur
  * @param {string} password - Mot de passe
  * @param {Object} userData - Données supplémentaires (nom, prenoms, etc.)
@@ -14,30 +14,30 @@ import { supabase } from "@/config/supabase";
  */
 export const signUp = async (email, password, userData) => {
   try {
-    // 1. Vérifier d'abord si l'email existe dans la table preusers
-    const { data: preUser, error: preUserError } = await supabase
-      .from("preusers")
-      .select("*")
-      .eq("email", email)
-      .single();
+    console.log("🚀 Début de l'inscription pour:", email);
 
-    if (preUserError || !preUser) {
-      return {
-        user: null,
-        error: {
-          message:
-            "Cet email n'est pas autorisé à créer un compte. Contactez un administrateur.",
-        },
-      };
-    }
-
-    // 2. Créer le compte dans auth.users
+    // 1. Créer le compte dans auth.users
+    // On laisse Supabase gérer la vérification des doublons d'email
+    // IMPORTANT: emailRedirectTo est nécessaire pour éviter l'erreur "email not confirmed"
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/connexion`,
+        // Si la confirmation d'email est activée dans Supabase, l'utilisateur recevra un email
+        // Mais avec le système pending_users, on ne vérifie pas si l'email est confirmé
+      },
     });
 
     if (authError) {
+      console.error("❌ Erreur auth.signUp:", authError);
+      // Traduire l'erreur de doublon d'email si nécessaire
+      if (authError.message?.includes("already registered")) {
+        return {
+          user: null,
+          error: { message: "Un compte existe déjà avec cet email." },
+        };
+      }
       return { user: null, error: authError };
     }
 
@@ -48,49 +48,49 @@ export const signUp = async (email, password, userData) => {
       };
     }
 
-    // 3. Créer le profil utilisateur dans public.users avec l'ID de auth.users
-    const { error: insertError } = await supabase.from("users").insert([
+    console.log("✅ Compte auth créé:", authData.user.id);
+
+    // 2. Créer l'inscription en attente dans pending_users
+    // IMPORTANT: On n'insère PAS dans users ici - ce sera fait lors de l'approbation
+    const { error: insertError } = await supabase.from("pending_users").insert([
       {
-        id: authData.user.id, // Utiliser l'ID de auth.users
+        id: authData.user.id,
+        email: email,
         nom: userData.nom,
         prenoms: userData.prenoms,
-        email: email,
-        telephone: userData.telephone,
-        sexe: userData.sexe,
-        date_naissance: userData.dateNaissance,
-        role: preUser.role, // Utiliser le rôle du preuser
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        telephone: userData.telephone || null,
+        sexe: userData.sexe || null,
+        date_naissance: userData.dateNaissance || null,
+        requested_role: "vendeur", // Rôle demandé (toujours vendeur à l'inscription)
+        status: "pending", // En attente d'approbation
       },
     ]);
 
     if (insertError) {
-      console.error("Erreur lors de la création du profil:", insertError);
-      // Rollback: supprimer le compte auth créé
-      await supabase.auth.admin.deleteUser(authData.user.id);
+      console.error("❌ Erreur lors de la création de l'inscription:", insertError);
+      console.error("⚠️ ATTENTION: Compte auth créé:", authData.user.id);
+      console.error("⚠️ L'inscription n'a pas pu être enregistrée dans pending_users");
+
       return {
         user: null,
         error: {
-          message: "Erreur lors de la création du profil utilisateur",
+          message: "Erreur lors de l'enregistrement de votre inscription. Veuillez contacter le support avec ce code: " + authData.user.id.substring(0, 8),
         },
       };
     }
 
-    // 4. Supprimer le preuser après création réussie
-    const { error: deleteError } = await supabase
-      .from("preusers")
-      .delete()
-      .eq("email", email);
+    console.log("✅ Inscription enregistrée avec succès dans pending_users - En attente d'approbation");
 
-    if (deleteError) {
-      console.error("Erreur lors de la suppression du preuser:", deleteError);
-      // On continue quand même, ce n'est pas bloquant
-    }
+    // 3. Déconnecter l'utilisateur (il ne peut pas se connecter tant qu'il n'est pas approuvé)
+    await supabase.auth.signOut();
 
-    return { user: authData.user, error: null };
+    return {
+      user: authData.user,
+      error: null,
+      message: "Votre inscription a été enregistrée et est en attente d'approbation par un administrateur.",
+    };
   } catch (error) {
-    console.error("Erreur lors de l'inscription:", error);
+    console.error("❌ Erreur lors de l'inscription:", error);
     return { user: null, error };
   }
 };
@@ -142,12 +142,21 @@ export const signIn = async (email, password) => {
       // Déconnexion immédiate
       await supabase.auth.signOut();
 
+      // Message personnalisé selon le statut d'approbation
+      let errorMessage = "Votre compte a été désactivé. Contactez un administrateur.";
+
+      if (userProfile.approval_status === "pending") {
+        errorMessage = "Votre compte est en attente d'approbation par un administrateur. Vous recevrez une notification une fois votre compte approuvé.";
+      } else if (userProfile.approval_status === "rejected") {
+        errorMessage = `Votre demande d'inscription a été rejetée. Raison: ${userProfile.rejection_reason || "Non spécifiée"}. Contactez un administrateur pour plus d'informations.`;
+      }
+
       return {
         user: null,
         session: null,
         profile: null,
         error: {
-          message: "Votre compte a été désactivé. Contactez un administrateur.",
+          message: errorMessage,
         },
       };
     }
@@ -271,6 +280,33 @@ export const resetPassword = async (email) => {
 };
 
 /**
+ * Demander un lien de réinitialisation de mot de passe (alias de resetPassword)
+ * Envoie un email avec un lien magique pour réinitialiser le mot de passe
+ * @param {string} email - Email de l'utilisateur
+ * @returns {Promise<{error}>}
+ */
+export const requestPasswordReset = async (email) => {
+  try {
+    console.log("📧 Envoi d'un email de réinitialisation pour:", email);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      console.error("❌ Erreur lors de l'envoi de l'email:", error);
+      return { error };
+    }
+
+    console.log("✅ Email de réinitialisation envoyé avec succès");
+    return { error: null };
+  } catch (error) {
+    console.error("❌ Erreur lors de la demande de réinitialisation:", error);
+    return { error };
+  }
+};
+
+/**
  * Réinitialiser le mot de passe d'un utilisateur (admin uniquement)
  * @param {string} userId - ID de l'utilisateur
  * @returns {Promise<{error}>}
@@ -338,6 +374,7 @@ export default {
   getCurrentUser,
   changePassword,
   resetPassword,
+  requestPasswordReset,
   adminResetPassword,
   onAuthStateChange,
 };

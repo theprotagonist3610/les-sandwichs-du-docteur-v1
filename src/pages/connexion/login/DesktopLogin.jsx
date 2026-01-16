@@ -1,6 +1,6 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -134,11 +134,11 @@ const DesktopLogin = ({ toggleForm }) => {
                 <Label htmlFor="desktop-login-motDePasse" className="text-base">
                   Mot de passe <span className="text-destructive">*</span>
                 </Label>
-                <button
-                  type="button"
+                <Link
+                  to="/mot-de-passe-oublie"
                   className="text-sm text-primary hover:underline">
                   Mot de passe oublié ?
-                </button>
+                </Link>
               </div>
               <InputGroup>
                 <InputGroupAddon>

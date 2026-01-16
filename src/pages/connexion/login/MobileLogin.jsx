@@ -1,6 +1,6 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -133,11 +133,11 @@ const MobileLogin = ({ toggleForm }) => {
                 <Label htmlFor="mobile-login-motDePasse" className="text-sm">
                   Mot de passe <span className="text-destructive">*</span>
                 </Label>
-                <button
-                  type="button"
+                <Link
+                  to="/mot-de-passe-oublie"
                   className="text-xs text-primary hover:underline">
                   Mot de passe oublié ?
-                </button>
+                </Link>
               </div>
               <InputGroup>
                 <InputGroupAddon>

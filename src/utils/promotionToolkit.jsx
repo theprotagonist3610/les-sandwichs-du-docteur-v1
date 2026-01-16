@@ -115,7 +115,7 @@ export const getAllPromotionTemplates = async (options = {}) => {
 
     let query = supabase.from("promotions").select("*");
 
-    // Filtrer par type
+    //Filtrer par type
     if (type) {
       query = query.eq("type_promotion", type);
     }
@@ -993,7 +993,10 @@ export const getInstanceStats = async (instanceId) => {
       utilisation_max: instance.utilisation_max || null,
       taux_utilisation:
         instance.utilisation_max > 0
-          ? ((instance.utilisation_count / instance.utilisation_max) * 100).toFixed(2)
+          ? (
+              (instance.utilisation_count / instance.utilisation_max) *
+              100
+            ).toFixed(2)
           : null,
       revenu_genere: instance.revenu_genere || 0,
       nombre_commandes: instance.nombre_commandes || 0,
@@ -1083,18 +1086,18 @@ export const validatePromotionTemplateData = (templateData) => {
   ) {
     errors.denomination = "La dénomination est requise";
   } else if (templateData.denomination.trim().length < 3) {
-    errors.denomination =
-      "La dénomination doit contenir au moins 3 caractères";
+    errors.denomination = "La dénomination doit contenir au moins 3 caractères";
   } else if (templateData.denomination.trim().length > 100) {
-    errors.denomination =
-      "La dénomination ne peut pas dépasser 100 caractères";
+    errors.denomination = "La dénomination ne peut pas dépasser 100 caractères";
   }
 
   // Validation du type
   if (templateData.type_promotion) {
     const validTypes = Object.values(PROMOTION_TYPES);
     if (!validTypes.includes(templateData.type_promotion)) {
-      errors.type_promotion = `Type invalide. Valeurs acceptées: ${validTypes.join(", ")}`;
+      errors.type_promotion = `Type invalide. Valeurs acceptées: ${validTypes.join(
+        ", "
+      )}`;
     }
   }
 
@@ -1134,7 +1137,9 @@ export const validatePromotionTemplateData = (templateData) => {
   if (templateData.duree_unite) {
     const validUnites = Object.values(DUREE_UNITES);
     if (!validUnites.includes(templateData.duree_unite)) {
-      errors.duree_unite = `Unité invalide. Valeurs acceptées: ${validUnites.join(", ")}`;
+      errors.duree_unite = `Unité invalide. Valeurs acceptées: ${validUnites.join(
+        ", "
+      )}`;
     }
   }
 
@@ -1147,7 +1152,9 @@ export const validatePromotionTemplateData = (templateData) => {
     } else {
       const validEligibiliteTypes = Object.values(ELIGIBILITE_TYPES);
       if (!validEligibiliteTypes.includes(templateData.eligibilite.type)) {
-        errors.eligibilite = `Type d'éligibilité invalide. Valeurs acceptées: ${validEligibiliteTypes.join(", ")}`;
+        errors.eligibilite = `Type d'éligibilité invalide. Valeurs acceptées: ${validEligibiliteTypes.join(
+          ", "
+        )}`;
       }
     }
   }
@@ -1157,8 +1164,7 @@ export const validatePromotionTemplateData = (templateData) => {
     templateData.utilisation_max != null &&
     templateData.utilisation_max <= 0
   ) {
-    errors.utilisation_max =
-      "La limite d'utilisation doit être supérieure à 0";
+    errors.utilisation_max = "La limite d'utilisation doit être supérieure à 0";
   }
 
   if (

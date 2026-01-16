@@ -117,33 +117,56 @@ CREATE TRIGGER set_updated_at
 -- Activer RLS sur la table
 ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
 
--- Politique pour la lecture: tous les utilisateurs authentifiés peuvent lire
-CREATE POLICY "Tous les utilisateurs peuvent lire les templates"
+-- Politiques pour les utilisateurs AUTHENTIFIÉS
+CREATE POLICY "Utilisateurs authentifiés peuvent lire les templates"
     ON public.promotions
     FOR SELECT
     TO authenticated
     USING (true);
 
--- Politique pour l'insertion: tous les utilisateurs authentifiés peuvent créer
-CREATE POLICY "Tous les utilisateurs peuvent créer des templates"
+CREATE POLICY "Utilisateurs authentifiés peuvent créer des templates"
     ON public.promotions
     FOR INSERT
     TO authenticated
     WITH CHECK (true);
 
--- Politique pour la mise à jour: tous les utilisateurs authentifiés peuvent modifier
-CREATE POLICY "Tous les utilisateurs peuvent modifier les templates"
+CREATE POLICY "Utilisateurs authentifiés peuvent modifier les templates"
     ON public.promotions
     FOR UPDATE
     TO authenticated
     USING (true)
     WITH CHECK (true);
 
--- Politique pour la suppression: tous les utilisateurs authentifiés peuvent supprimer
-CREATE POLICY "Tous les utilisateurs peuvent supprimer les templates"
+CREATE POLICY "Utilisateurs authentifiés peuvent supprimer les templates"
     ON public.promotions
     FOR DELETE
     TO authenticated
+    USING (true);
+
+-- Politiques pour le rôle ANON (clé API anon)
+CREATE POLICY "Anon peut lire les templates"
+    ON public.promotions
+    FOR SELECT
+    TO anon
+    USING (true);
+
+CREATE POLICY "Anon peut créer des templates"
+    ON public.promotions
+    FOR INSERT
+    TO anon
+    WITH CHECK (true);
+
+CREATE POLICY "Anon peut modifier les templates"
+    ON public.promotions
+    FOR UPDATE
+    TO anon
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "Anon peut supprimer les templates"
+    ON public.promotions
+    FOR DELETE
+    TO anon
     USING (true);
 
 -- =====================================================

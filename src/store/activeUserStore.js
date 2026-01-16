@@ -81,7 +81,7 @@ const useActiveUserStore = create(
       register: async (userData) => {
         set({ isLoading: true, error: null });
         try {
-          const { error } = await authService.signUp(
+          const { error, message } = await authService.signUp(
             userData.email,
             userData.motDePasse,
             {
@@ -98,13 +98,17 @@ const useActiveUserStore = create(
             return { success: false, error: error.message };
           }
 
-          // Après l'inscription, connecter l'utilisateur
-          const loginResult = await get().login(
-            userData.email,
-            userData.motDePasse
-          );
+          // NE PAS connecter l'utilisateur automatiquement
+          // Il doit attendre l'approbation de son compte
+          set({ isLoading: false });
 
-          return loginResult;
+          return {
+            success: true,
+            message:
+              message ||
+              "Votre compte a été créé et est en attente d'approbation par un administrateur.",
+            pendingApproval: true, // Indicateur que le compte est en attente
+          };
         } catch (error) {
           const errorMessage =
             error.message || "Erreur lors de l'inscription";

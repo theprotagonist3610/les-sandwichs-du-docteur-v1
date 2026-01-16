@@ -10,6 +10,8 @@ import {
   Bike,
   MessageSquare,
   Store,
+  PartyPopper,
+  Gamepad2,
 } from "lucide-react";
 
 /**
@@ -39,6 +41,16 @@ export const TOUS_LES_OUTILS = [
     bgColor: "bg-pink-50 dark:bg-pink-950",
     roles: ["admin"], // Réservé aux admins
   },
+  // {
+  //   name: "evenements",
+  //   label: "Evènements",
+  //   path: "/evenements",
+  //   description: "Créez et gérez des événements.",
+  //   icon: PartyPopper,
+  //   color: "text-rose-600 dark:text-rose-400",
+  //   bgColor: "bg-rose-50 dark:bg-rose-950",
+  //   roles: ["admin"], // Réservé aux admins
+  // },
   {
     name: "emplacements",
     label: "Emplacements",

@@ -25,7 +25,7 @@ export const createAppRouter = (role = null) => {
 
   return createBrowserRouter([
     mainRoutes,
-    publicRoutes,
+    ...publicRoutes,
     {
       path: "*",
       element: <ErrorLayout />,

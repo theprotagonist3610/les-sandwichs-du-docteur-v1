@@ -3,6 +3,8 @@ import Dashboard from "@/pages/Dashboard";
 import Commandes from "@/pages/Commandes";
 import Profil from "@/pages/Profil";
 import Connexion from "@/pages/Connexion";
+import ForgotPassword from "@/pages/connexion/ForgotPassword";
+import ResetPassword from "@/pages/connexion/ResetPassword";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import PublicRoute from "@/components/auth/PublicRoute";
 import Adresse from "@/pages/outils/Adresse";
@@ -49,13 +51,31 @@ export const vendeurRoutes = {
   ],
 };
 
-export const publicRoutes = {
-  path: "connexion",
-  element: (
-    <PublicRoute>
-      <Connexion />
-    </PublicRoute>
-  ),
-};
+export const publicRoutes = [
+  {
+    path: "connexion",
+    element: (
+      <PublicRoute>
+        <Connexion />
+      </PublicRoute>
+    ),
+  },
+  {
+    path: "mot-de-passe-oublie",
+    element: (
+      <PublicRoute>
+        <ForgotPassword />
+      </PublicRoute>
+    ),
+  },
+  {
+    path: "reset-password",
+    element: (
+      <PublicRoute>
+        <ResetPassword />
+      </PublicRoute>
+    ),
+  },
+];
 
 export default vendeurRoutes;
