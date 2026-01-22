@@ -3,7 +3,7 @@ import userService from "@/services/userService";
 
 /**
  * Hook pour tracker la présence de l'utilisateur connecté
- * Met à jour le champ last_seen toutes les 3 minutes
+ * Met à jour le champ last_login_at toutes les 3 minutes
  *
  * @param {string} userId - ID de l'utilisateur connecté
  */

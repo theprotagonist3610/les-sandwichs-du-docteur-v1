@@ -2,7 +2,7 @@ import { supabase } from "@/config/supabase";
 
 /**
  * Toolkit de gestion des emplacements
- * Gère les emplacements (points de vente) avec permissions basées sur les rôles
+ * Gï¿½re les emplacements (points de vente) avec permissions basï¿½es sur les rï¿½les
  *
  * Schema:
  * {
@@ -29,7 +29,7 @@ import { supabase } from "@/config/supabase";
  */
 
 /**
- * Horaires par défaut pour un emplacement
+ * Horaires par dï¿½faut pour un emplacement
  */
 export const DEFAULT_HORAIRES = {
   lundi: { ouverture: "08:00", fermeture: "18:00" },
@@ -38,11 +38,11 @@ export const DEFAULT_HORAIRES = {
   jeudi: { ouverture: "08:00", fermeture: "18:00" },
   vendredi: { ouverture: "08:00", fermeture: "18:00" },
   samedi: { ouverture: "08:00", fermeture: "14:00" },
-  dimanche: { ouverture: null, fermeture: null }, // Fermé
+  dimanche: { ouverture: null, fermeture: null }, // Fermï¿½
 };
 
 /**
- * Structure d'adresse par défaut
+ * Structure d'adresse par dï¿½faut
  */
 export const DEFAULT_ADRESSE = {
   departement: "",
@@ -53,11 +53,11 @@ export const DEFAULT_ADRESSE = {
 };
 
 /**
- * Récupérer tous les emplacements
+ * Rï¿½cupï¿½rer tous les emplacements
  * Permissions:
- * - Admins: Tous les emplacements avec accès complet
+ * - Admins: Tous les emplacements avec accï¿½s complet
  * - Superviseurs: Tous les emplacements en lecture seule
- * - Vendeurs: Pas d'accès direct (géré au niveau RLS)
+ * - Vendeurs: Pas d'accï¿½s direct (gï¿½rï¿½ au niveau RLS)
  *
  * @param {Object} filters - Filtres optionnels
  * @param {string} filters.statut - Filtrer par statut
@@ -69,10 +69,7 @@ export const getAllEmplacements = async (filters = {}) => {
   try {
     let query = supabase
       .from("emplacements")
-      .select(`
-        *,
-        responsable:responsable_id(id, nom, prenoms, role, photo_url, telephone)
-      `)
+      .select("*")
       .order("created_at", { ascending: false });
 
     // Appliquer les filtres
@@ -92,13 +89,13 @@ export const getAllEmplacements = async (filters = {}) => {
 
     return { emplacements: data || [], error };
   } catch (error) {
-    console.error("Erreur lors de la récupération des emplacements:", error);
+    console.error("Erreur lors de la rï¿½cupï¿½ration des emplacements:", error);
     return { emplacements: [], error };
   }
 };
 
 /**
- * Récupérer un emplacement par son ID
+ * Rï¿½cupï¿½rer un emplacement par son ID
  * @param {string} emplacementId - ID de l'emplacement
  * @returns {Promise<{emplacement, error}>}
  */
@@ -106,28 +103,25 @@ export const getEmplacementById = async (emplacementId) => {
   try {
     const { data, error } = await supabase
       .from("emplacements")
-      .select(`
-        *,
-        responsable:responsable_id(id, nom, prenoms, role, photo_url, telephone, email)
-      `)
+      .select("*")
       .eq("id", emplacementId)
       .single();
 
     return { emplacement: data, error };
   } catch (error) {
-    console.error("Erreur lors de la récupération de l'emplacement:", error);
+    console.error("Erreur lors de la rï¿½cupï¿½ration de l'emplacement:", error);
     return { emplacement: null, error };
   }
 };
 
 /**
- * Créer un nouvel emplacement
+ * Crï¿½er un nouvel emplacement
  * Permissions: Admin uniquement
  *
- * @param {Object} emplacementData - Données de l'emplacement
+ * @param {Object} emplacementData - Donnï¿½es de l'emplacement
  * @param {string} emplacementData.nom - Nom de l'emplacement
  * @param {string} emplacementData.type - Type (base, stand, kiosque, boutique)
- * @param {Object} emplacementData.adresse - Adresse structurée
+ * @param {Object} emplacementData.adresse - Adresse structurï¿½e
  * @param {string} emplacementData.responsableId - ID du responsable
  * @param {Object} emplacementData.horaires - Horaires d'ouverture
  * @param {string} emplacementData.statut - Statut (actif, inactif, ferme_temporairement)
@@ -147,54 +141,52 @@ export const createEmplacement = async (emplacementData) => {
           statut: emplacementData.statut || "actif",
         },
       ])
-      .select(`
-        *,
-        responsable:responsable_id(id, nom, prenoms, role, photo_url, telephone)
-      `)
+      .select("*")
       .single();
 
     return { emplacement: data, error };
   } catch (error) {
-    console.error("Erreur lors de la création de l'emplacement:", error);
+    console.error("Erreur lors de la crï¿½ation de l'emplacement:", error);
     return { emplacement: null, error };
   }
 };
 
 /**
- * Mettre à jour un emplacement
+ * Mettre ï¿½ jour un emplacement
  * Permissions: Admin uniquement
  *
  * @param {string} emplacementId - ID de l'emplacement
- * @param {Object} updates - Mises à jour à appliquer
+ * @param {Object} updates - Mises ï¿½ jour ï¿½ appliquer
  * @returns {Promise<{emplacement, error}>}
  */
 export const updateEmplacement = async (emplacementId, updates) => {
   try {
-    // Retirer les champs qui ne doivent pas être mis à jour directement
+    // Retirer les champs qui ne doivent pas ï¿½tre mis ï¿½ jour directement
     const { id, created_at, updated_at, responsable, ...safeUpdates } = updates;
 
     // Mapper les noms de champs du camelCase au snake_case
     const mappedUpdates = {};
     if (safeUpdates.nom !== undefined) mappedUpdates.nom = safeUpdates.nom;
     if (safeUpdates.type !== undefined) mappedUpdates.type = safeUpdates.type;
-    if (safeUpdates.adresse !== undefined) mappedUpdates.adresse = safeUpdates.adresse;
-    if (safeUpdates.responsableId !== undefined) mappedUpdates.responsable_id = safeUpdates.responsableId;
-    if (safeUpdates.horaires !== undefined) mappedUpdates.horaires = safeUpdates.horaires;
-    if (safeUpdates.statut !== undefined) mappedUpdates.statut = safeUpdates.statut;
+    if (safeUpdates.adresse !== undefined)
+      mappedUpdates.adresse = safeUpdates.adresse;
+    if (safeUpdates.responsableId !== undefined)
+      mappedUpdates.responsable_id = safeUpdates.responsableId;
+    if (safeUpdates.horaires !== undefined)
+      mappedUpdates.horaires = safeUpdates.horaires;
+    if (safeUpdates.statut !== undefined)
+      mappedUpdates.statut = safeUpdates.statut;
 
     const { data, error } = await supabase
       .from("emplacements")
       .update(mappedUpdates)
       .eq("id", emplacementId)
-      .select(`
-        *,
-        responsable:responsable_id(id, nom, prenoms, role, photo_url, telephone)
-      `)
+      .select("*")
       .single();
 
     return { emplacement: data, error };
   } catch (error) {
-    console.error("Erreur lors de la mise à jour de l'emplacement:", error);
+    console.error("Erreur lors de la mise ï¿½ jour de l'emplacement:", error);
     return { emplacement: null, error };
   }
 };
@@ -231,23 +223,25 @@ export const updateEmplacementStatut = async (emplacementId, statut) => {
 };
 
 /**
- * Obtenir les coordonnées GPS d'une adresse via l'API de géolocalisation du navigateur
+ * Obtenir les coordonnï¿½es GPS d'une adresse via l'API de gï¿½olocalisation du navigateur
  * Note: Cette fonction utilise l'API Geolocation du navigateur.
- * Pour une géolocalisation d'adresse, considérer l'utilisation d'une API tierce comme Google Maps, OpenStreetMap Nominatim, etc.
+ * Pour une gï¿½olocalisation d'adresse, considï¿½rer l'utilisation d'une API tierce comme Google Maps, OpenStreetMap Nominatim, etc.
  *
- * @param {string} adresse - Adresse complète en texte
+ * @param {string} adresse - Adresse complï¿½te en texte
  * @returns {Promise<{lat, lng, error}>}
  */
 export const getCoordinatesFromAddress = async (adresse) => {
   try {
-    // Cette implémentation basique devrait être remplacée par une API de géocodage
+    // Cette implï¿½mentation basique devrait ï¿½tre remplacï¿½e par une API de gï¿½ocodage
     // Exemple avec Nominatim (OpenStreetMap) - API gratuite
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresse)}&limit=1`
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        adresse
+      )}&limit=1`
     );
 
     if (!response.ok) {
-      throw new Error("Erreur lors de la géolocalisation");
+      throw new Error("Erreur lors de la gï¿½olocalisation");
     }
 
     const data = await response.json();
@@ -262,17 +256,17 @@ export const getCoordinatesFromAddress = async (adresse) => {
       return {
         lat: null,
         lng: null,
-        error: { message: "Adresse non trouvée" },
+        error: { message: "Adresse non trouvï¿½e" },
       };
     }
   } catch (error) {
-    console.error("Erreur lors de la géolocalisation:", error);
+    console.error("Erreur lors de la gï¿½olocalisation:", error);
     return { lat: null, lng: null, error };
   }
 };
 
 /**
- * Mettre à jour les coordonnées GPS d'un emplacement
+ * Mettre ï¿½ jour les coordonnï¿½es GPS d'un emplacement
  * @param {string} emplacementId - ID de l'emplacement
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
@@ -280,14 +274,16 @@ export const getCoordinatesFromAddress = async (adresse) => {
  */
 export const updateEmplacementCoordinates = async (emplacementId, lat, lng) => {
   try {
-    // Récupérer l'adresse actuelle
-    const { emplacement, error: fetchError } = await getEmplacementById(emplacementId);
+    // Rï¿½cupï¿½rer l'adresse actuelle
+    const { emplacement, error: fetchError } = await getEmplacementById(
+      emplacementId
+    );
 
     if (fetchError || !emplacement) {
       return { emplacement: null, error: fetchError };
     }
 
-    // Mettre à jour la localisation dans l'adresse
+    // Mettre ï¿½ jour la localisation dans l'adresse
     const updatedAdresse = {
       ...emplacement.adresse,
       localisation: { lat, lng },
@@ -295,13 +291,13 @@ export const updateEmplacementCoordinates = async (emplacementId, lat, lng) => {
 
     return updateEmplacement(emplacementId, { adresse: updatedAdresse });
   } catch (error) {
-    console.error("Erreur lors de la mise à jour des coordonnées:", error);
+    console.error("Erreur lors de la mise ï¿½ jour des coordonnï¿½es:", error);
     return { emplacement: null, error };
   }
 };
 
 /**
- * Récupérer les statistiques des emplacements
+ * Rï¿½cupï¿½rer les statistiques des emplacements
  * @returns {Promise<{stats, error}>}
  */
 export const getEmplacementStats = async () => {
@@ -317,7 +313,9 @@ export const getEmplacementStats = async () => {
       total: data.length,
       actif: data.filter((e) => e.statut === "actif").length,
       inactif: data.filter((e) => e.statut === "inactif").length,
-      ferme_temporairement: data.filter((e) => e.statut === "ferme_temporairement").length,
+      ferme_temporairement: data.filter(
+        (e) => e.statut === "ferme_temporairement"
+      ).length,
       parType: {
         base: data.filter((e) => e.type === "base").length,
         stand: data.filter((e) => e.type === "stand").length,
@@ -334,37 +332,122 @@ export const getEmplacementStats = async () => {
 };
 
 /**
- * Récupérer les emplacements avec leurs coordonnées GPS pour affichage sur carte
+ * Rï¿½cupï¿½rer les emplacements avec leurs coordonnï¿½es GPS pour affichage sur carte
  * @returns {Promise<{emplacements, error}>}
  */
 export const getEmplacementsForMap = async () => {
   try {
-    const { data, error } = await supabase
-      .from("emplacements")
-      .select("id, nom, type, statut, adresse")
-      .not("adresse->localisation->lat", "is", null)
-      .not("adresse->localisation->lng", "is", null);
+    let q = supabase.from("promotions").select("*");
+    const { data, error } = await q;
+    console.log("Promotions debug:", { data, error });
+    console.group("ðŸ—ºï¸ getEmplacementsForMap - Debug");
 
-    // Filtrer et formater pour la carte
-    const emplacements = data?.map((e) => ({
+    // VÃ©rifier la connexion Supabase
+    console.log("ðŸ” VÃ©rification de la connexion Supabase...");
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    console.log("ðŸ‘¤ Utilisateur connectÃ©:", {
+      userId: user?.id,
+      email: user?.email,
+      error: userError,
+    });
+
+    // Ã‰tape 1: RÃ©cupÃ©rer TOUS les emplacements sans filtres
+    console.log("ðŸ“ Ã‰tape 1: RÃ©cupÃ©ration de TOUS les emplacements...");
+    const query = supabase.from("emplacements").select("*");
+    const { data: allData, error: allError } = await query;
+
+    console.log("âœ… RÃ©sultat de la requÃªte emplacements:", {
+      count: allData?.length || 0,
+      hasData: !!allData,
+      dataIsArray: Array.isArray(allData),
+      data: allData,
+      error: allError,
+      errorDetails: allError
+        ? {
+            message: allError.message,
+            details: allError.details,
+            hint: allError.hint,
+            code: allError.code,
+          }
+        : null,
+    });
+
+    if (allError) {
+      console.error("âŒ Erreur Supabase:", allError);
+      console.groupEnd();
+      return { emplacements: [], error: allError };
+    }
+
+    // Ã‰tape 2: Analyser la structure des adresses
+    console.log("ðŸ“ Ã‰tape 2: Analyse de la structure des adresses...");
+    allData?.forEach((emp, index) => {
+      console.log(`Emplacement ${index + 1}:`, {
+        id: emp.id,
+        nom: emp.nom,
+        type: emp.type,
+        statut: emp.statut,
+        adresse: emp.adresse,
+        "adresse.localisation": emp.adresse?.localisation,
+        "adresse.localisation.lat": emp.adresse?.localisation?.lat,
+        "adresse.localisation.lng": emp.adresse?.localisation?.lng,
+      });
+    });
+
+    // Ã‰tape 3: Filtrer les emplacements avec coordonnÃ©es
+    console.log("ðŸ“ Ã‰tape 3: Filtrage des emplacements avec coordonnÃ©es...");
+    const emplacementsWithCoords =
+      allData?.filter((e) => {
+        const hasLat = e.adresse?.localisation?.lat != null;
+        const hasLng = e.adresse?.localisation?.lng != null;
+        const isValid = hasLat && hasLng;
+
+        if (!isValid) {
+          console.log(`âš ï¸ Emplacement "${e.nom}" ignorÃ©:`, {
+            hasLat,
+            hasLng,
+            lat: e.adresse?.localisation?.lat,
+            lng: e.adresse?.localisation?.lng,
+          });
+        }
+
+        return isValid;
+      }) || [];
+
+    console.log(
+      `âœ… ${emplacementsWithCoords.length} emplacements avec coordonnÃ©es trouvÃ©s`
+    );
+
+    // Ã‰tape 4: Formater pour la carte
+    console.log("ðŸ“ Ã‰tape 4: Formatage pour la carte...");
+    const emplacements = emplacementsWithCoords.map((e) => ({
       id: e.id,
       nom: e.nom,
       type: e.type,
       statut: e.statut,
-      lat: e.adresse?.localisation?.lat,
-      lng: e.adresse?.localisation?.lng,
-    })) || [];
+      lat: e.adresse.localisation.lat,
+      lng: e.adresse.localisation.lng,
+    }));
 
-    return { emplacements, error };
+    console.log("âœ… Emplacements formatÃ©s:", emplacements);
+    console.groupEnd();
+
+    return { emplacements, error: null };
   } catch (error) {
-    console.error("Erreur lors de la récupération des emplacements pour la carte:", error);
+    console.error(
+      "âŒ Exception lors de la rÃ©cupÃ©ration des emplacements pour la carte:",
+      error
+    );
+    console.groupEnd();
     return { emplacements: [], error };
   }
 };
 
 /**
- * Vérifier si un utilisateur peut gérer les emplacements
- * @param {string} userRole - Rôle de l'utilisateur
+ * Vï¿½rifier si un utilisateur peut gï¿½rer les emplacements
+ * @param {string} userRole - Rï¿½le de l'utilisateur
  * @returns {boolean}
  */
 export const canManageEmplacements = (userRole) => {
@@ -372,8 +455,8 @@ export const canManageEmplacements = (userRole) => {
 };
 
 /**
- * Vérifier si un utilisateur peut voir les emplacements
- * @param {string} userRole - Rôle de l'utilisateur
+ * Vï¿½rifier si un utilisateur peut voir les emplacements
+ * @param {string} userRole - Rï¿½le de l'utilisateur
  * @returns {boolean}
  */
 export const canViewEmplacements = (userRole) => {

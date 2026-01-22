@@ -20,6 +20,11 @@ import Productions from "@/pages/outils/Productions";
 import Promotions from "@/pages/outils/Promotions";
 import Rapports from "@/pages/outils/Rapports";
 import Emplacements from "@/pages/outils/Emplacements";
+import Menu from "@/pages/outils/Menu";
+import GestionDesCommandes from "@/pages/commandes/GestionDesCommandes";
+import CommandesEnAttente from "@/pages/commandes/CommandesEnAttente";
+import Commande from "@/pages/commandes/Commande";
+import PanneauDeVente from "@/pages/commandes/PanneauDeVente";
 /**
  * Routes accessibles par les superviseurs et admins
  * Accès: Toutes les sections (Dashboard, Commandes, Stock, Statistiques, Comptabilite, Parametres, Utilisateurs)
@@ -76,6 +81,13 @@ export const superviseurRoutes = {
       path: "fournisseurs",
       element: <Fournisseurs />,
     },
+    {
+      path: "gestion-des-commandes",
+      element: <GestionDesCommandes />,
+    },
+    { path: "commandes-en-attente", element: <CommandesEnAttente /> },
+    { path: "commande", element: <Commande /> },
+    { path: "panneau-de-vente", element: <PanneauDeVente /> },
     { path: "livraisons", element: <Livraisons /> },
     { path: "livreurs", element: <Livreurs /> },
     { path: "messagerie", element: <Messagerie /> },
@@ -84,6 +96,7 @@ export const superviseurRoutes = {
     { path: "promotions", element: <Promotions /> },
     { path: "rapports", element: <Rapports /> },
     { path: "emplacements", element: <Emplacements /> },
+    { path: "menu", element: <Menu /> },
     {
       path: "profil",
       element: <Profil />,

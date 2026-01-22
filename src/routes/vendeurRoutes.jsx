@@ -12,7 +12,9 @@ import Outils from "@/pages/Outils";
 import Livraisons from "@/pages/outils/Livraisons";
 import Livreurs from "@/pages/outils/Livreurs";
 import Messagerie from "@/pages/outils/Messagerie";
-import path from "path";
+import PanneauDeVente from "@/pages/commandes/PanneauDeVente";
+import CommandesEnAttente from "@/pages/commandes/CommandesEnAttente";
+import Commande from "@/pages/commandes/Commande";
 /**
  * Routes accessibles par les vendeurs
  * Accès: Dashboard et Commandes uniquement
@@ -41,6 +43,9 @@ export const vendeurRoutes = {
       path: "outils",
       element: <Outils />,
     },
+    { path: "commandes-en-attente", element: <CommandesEnAttente /> },
+    { path: "commande", element: <Commande /> },
+    { path: "panneau-de-vente", element: <PanneauDeVente /> },
     {
       path: "adresses-livraison",
       element: <Adresse />,

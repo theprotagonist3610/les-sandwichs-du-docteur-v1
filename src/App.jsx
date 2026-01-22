@@ -8,8 +8,8 @@ import useActiveUserStore from "@/store/activeUserStore";
 import useUserPresence from "@/hooks/useUserPresence";
 
 function App() {
-  // Récupérer le rôle de l'utilisateur actif
-  const { user } = useActiveUserStore();
+  // Récupérer le rôle de l'utilisateur actif et la fonction de chargement
+  const { user, loadUserFromSession } = useActiveUserStore();
 
   // Tracker la présence de l'utilisateur connecté
   useUserPresence(user?.id);
@@ -19,6 +19,11 @@ function App() {
   const router = useMemo(() => {
     return createAppRouter(user?.role);
   }, [user?.role]);
+
+  // Charger l'utilisateur depuis la session Supabase au montage
+  useEffect(() => {
+    loadUserFromSession();
+  }, [loadUserFromSession]);
 
   // Initialiser les listeners de connectivité au montage
   useEffect(() => {

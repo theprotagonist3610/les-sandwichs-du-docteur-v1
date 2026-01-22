@@ -12,6 +12,7 @@ import {
   Store,
   PartyPopper,
   Gamepad2,
+  Hamburger,
 } from "lucide-react";
 
 /**
@@ -60,6 +61,16 @@ export const TOUS_LES_OUTILS = [
     icon: Store,
     color: "text-teal-600 dark:text-teal-400",
     bgColor: "bg-teal-50 dark:bg-teal-950",
+    roles: ["admin"], // Réservé aux admins
+  },
+  {
+    name: "menu",
+    label: "Menu",
+    path: "/menu",
+    description: "Gérez le menu.",
+    icon: Hamburger,
+    color: "text-rose-600 dark:text-rose-400",
+    bgColor: "bg-rose-50 dark:bg-rose-950",
     roles: ["admin"], // Réservé aux admins
   },
   {

@@ -68,18 +68,30 @@ const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = 
   }, [showUserPosition, userPosition]);
 
   const loadEmplacements = async () => {
+    console.group("🗺️ EmplacementsMap - loadEmplacements");
     setIsLoading(true);
+
     const { emplacements: data, error } =
       await emplacementToolkit.getEmplacementsForMap();
 
+    console.log("📥 Résultat de getEmplacementsForMap:", {
+      data,
+      error,
+      count: data?.length || 0,
+    });
+
     if (error) {
+      console.error("❌ Erreur lors du chargement:", error);
       toast.error("Erreur", {
         description: "Impossible de charger la carte",
       });
     } else {
+      console.log("✅ Emplacements chargés:", data);
       setEmplacements(data || []);
     }
+
     setIsLoading(false);
+    console.groupEnd();
   };
 
   // Calculer la distance en km entre deux coordonnées GPS (formule de Haversine)
