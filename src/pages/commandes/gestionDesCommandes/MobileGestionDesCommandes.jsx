@@ -50,6 +50,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import * as commandeToolkit from "@/utils/commandeToolkit";
 
 const MobileGestionDesCommandes = () => {
@@ -351,14 +352,17 @@ const MobileGestionDesCommandes = () => {
                 )}
               </Button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="h-[70vh]">
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <Filter className="w-5 h-5" />
-                  Filtres
-                </SheetTitle>
-              </SheetHeader>
-              <div className="space-y-4 mt-6">
+            <SheetContent side="bottom" className="h-[75vh] px-0">
+              <div className="px-6">
+                <SheetHeader>
+                  <SheetTitle className="flex items-center gap-2">
+                    <Filter className="w-5 h-5" />
+                    Filtres
+                  </SheetTitle>
+                </SheetHeader>
+              </div>
+              <ScrollArea className="h-[calc(75vh-80px)] mt-4">
+                <div className="space-y-4 px-6 pb-6">
                 {/* Type */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Type</label>
@@ -478,33 +482,32 @@ const MobileGestionDesCommandes = () => {
 
                       {/* Communes (multi-select) */}
                       <div className="space-y-2 mb-3">
-                        <label className="text-sm font-medium flex items-center justify-between">
+                        <div className="text-sm font-medium flex items-center justify-between">
                           Communes
                           {filterCommunes.length > 0 && (
                             <Badge variant="secondary" className="text-xs">
                               {filterCommunes.length}
                             </Badge>
                           )}
-                        </label>
+                        </div>
                         <div className="max-h-[120px] overflow-y-auto border rounded-md p-2 space-y-1">
                           {uniqueCommunes.length > 0 ? (
                             uniqueCommunes.map((commune) => (
-                              <div
+                              <label
                                 key={commune}
-                                className="flex items-center space-x-2 p-1.5 hover:bg-accent rounded cursor-pointer"
-                                onClick={() => {
-                                  setFilterCommunes((prev) =>
-                                    prev.includes(commune)
-                                      ? prev.filter((c) => c !== commune)
-                                      : [...prev, commune]
-                                  );
-                                }}>
+                                className="flex items-center space-x-2 p-1.5 hover:bg-accent rounded cursor-pointer">
                                 <Checkbox
                                   checked={filterCommunes.includes(commune)}
-                                  onCheckedChange={() => {}}
+                                  onCheckedChange={(checked) => {
+                                    setFilterCommunes((prev) =>
+                                      checked
+                                        ? [...prev, commune]
+                                        : prev.filter((c) => c !== commune)
+                                    );
+                                  }}
                                 />
                                 <span className="text-sm">{commune}</span>
-                              </div>
+                              </label>
                             ))
                           ) : (
                             <p className="text-xs text-muted-foreground text-center py-2">
@@ -516,33 +519,32 @@ const MobileGestionDesCommandes = () => {
 
                       {/* Quartiers (multi-select) */}
                       <div className="space-y-2 mb-3">
-                        <label className="text-sm font-medium flex items-center justify-between">
+                        <div className="text-sm font-medium flex items-center justify-between">
                           Quartiers
                           {filterQuartiers.length > 0 && (
                             <Badge variant="secondary" className="text-xs">
                               {filterQuartiers.length}
                             </Badge>
                           )}
-                        </label>
+                        </div>
                         <div className="max-h-[120px] overflow-y-auto border rounded-md p-2 space-y-1">
                           {uniqueQuartiers.length > 0 ? (
                             uniqueQuartiers.map((quartier) => (
-                              <div
+                              <label
                                 key={quartier}
-                                className="flex items-center space-x-2 p-1.5 hover:bg-accent rounded cursor-pointer"
-                                onClick={() => {
-                                  setFilterQuartiers((prev) =>
-                                    prev.includes(quartier)
-                                      ? prev.filter((q) => q !== quartier)
-                                      : [...prev, quartier]
-                                  );
-                                }}>
+                                className="flex items-center space-x-2 p-1.5 hover:bg-accent rounded cursor-pointer">
                                 <Checkbox
                                   checked={filterQuartiers.includes(quartier)}
-                                  onCheckedChange={() => {}}
+                                  onCheckedChange={(checked) => {
+                                    setFilterQuartiers((prev) =>
+                                      checked
+                                        ? [...prev, quartier]
+                                        : prev.filter((q) => q !== quartier)
+                                    );
+                                  }}
                                 />
                                 <span className="text-sm">{quartier}</span>
-                              </div>
+                              </label>
                             ))
                           ) : (
                             <p className="text-xs text-muted-foreground text-center py-2">
@@ -554,33 +556,32 @@ const MobileGestionDesCommandes = () => {
 
                       {/* Arrondissements (multi-select) */}
                       <div className="space-y-2">
-                        <label className="text-sm font-medium flex items-center justify-between">
+                        <div className="text-sm font-medium flex items-center justify-between">
                           Arrondissements
                           {filterArrondissements.length > 0 && (
                             <Badge variant="secondary" className="text-xs">
                               {filterArrondissements.length}
                             </Badge>
                           )}
-                        </label>
+                        </div>
                         <div className="max-h-[120px] overflow-y-auto border rounded-md p-2 space-y-1">
                           {uniqueArrondissements.length > 0 ? (
                             uniqueArrondissements.map((arrond) => (
-                              <div
+                              <label
                                 key={arrond}
-                                className="flex items-center space-x-2 p-1.5 hover:bg-accent rounded cursor-pointer"
-                                onClick={() => {
-                                  setFilterArrondissements((prev) =>
-                                    prev.includes(arrond)
-                                      ? prev.filter((a) => a !== arrond)
-                                      : [...prev, arrond]
-                                  );
-                                }}>
+                                className="flex items-center space-x-2 p-1.5 hover:bg-accent rounded cursor-pointer">
                                 <Checkbox
                                   checked={filterArrondissements.includes(arrond)}
-                                  onCheckedChange={() => {}}
+                                  onCheckedChange={(checked) => {
+                                    setFilterArrondissements((prev) =>
+                                      checked
+                                        ? [...prev, arrond]
+                                        : prev.filter((a) => a !== arrond)
+                                    );
+                                  }}
                                 />
                                 <span className="text-sm">{arrond}</span>
-                              </div>
+                              </label>
                             ))
                           ) : (
                             <p className="text-xs text-muted-foreground text-center py-2">
@@ -607,7 +608,8 @@ const MobileGestionDesCommandes = () => {
                     Appliquer
                   </Button>
                 </div>
-              </div>
+                </div>
+              </ScrollArea>
             </SheetContent>
           </Sheet>
 
@@ -748,6 +750,7 @@ const MobileGestionDesCommandes = () => {
                     onEdit={handleEditCommande}
                     onDelete={handleDeleteClick}
                     viewMode={viewMode}
+                    isMobile={true}
                   />
                 ))}
               </AnimatePresence>

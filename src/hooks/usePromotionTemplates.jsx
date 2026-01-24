@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { supabase } from "@/config/supabase";
 import {
   getAllPromotionTemplates,
   createPromotionTemplate,
@@ -91,6 +92,47 @@ const usePromotionTemplates = (options = {}) => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Vraiment vide - s'exécute UNE SEULE FOIS au montage
+
+  // REALTIME: Écouter les changements sur la table promotions (templates)
+  useEffect(() => {
+    const channel = supabase
+      .channel("promotions_templates_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // INSERT, UPDATE, DELETE
+          schema: "public",
+          table: "promotions",
+        },
+        (payload) => {
+          console.log("Realtime template change:", payload);
+
+          // Recharger les données
+          loadTemplates();
+
+          // Notifications optionnelles
+          if (payload.eventType === "INSERT") {
+            const newTemplate = payload.new;
+            toast.info("Nouveau template créé", {
+              description: newTemplate.denomination,
+            });
+          } else if (payload.eventType === "UPDATE") {
+            const updatedTemplate = payload.new;
+            toast.info("Template mis à jour", {
+              description: updatedTemplate.denomination,
+            });
+          } else if (payload.eventType === "DELETE") {
+            toast.info("Template supprimé");
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadTemplates]);
 
   // Créer un template
   const handleCreate = useCallback(

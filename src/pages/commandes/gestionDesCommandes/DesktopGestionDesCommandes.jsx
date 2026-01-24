@@ -534,25 +534,24 @@ const DesktopGestionDesCommandes = () => {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-2 max-h-[300px] overflow-y-auto">
+              <PopoverContent className="w-[220px] p-2 max-h-[300px] overflow-y-auto" align="start">
                 <div className="space-y-1">
                   {uniqueCommunes.map((commune) => (
-                    <div
+                    <label
                       key={commune}
-                      className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer"
-                      onClick={() => {
-                        setFilterCommunes((prev) =>
-                          prev.includes(commune)
-                            ? prev.filter((c) => c !== commune)
-                            : [...prev, commune],
-                        );
-                      }}>
+                      className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer">
                       <Checkbox
                         checked={filterCommunes.includes(commune)}
-                        onCheckedChange={() => {}}
+                        onCheckedChange={(checked) => {
+                          setFilterCommunes((prev) =>
+                            checked
+                              ? [...prev, commune]
+                              : prev.filter((c) => c !== commune),
+                          );
+                        }}
                       />
                       <span className="text-sm">{commune}</span>
-                    </div>
+                    </label>
                   ))}
                   {uniqueCommunes.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-2">
@@ -578,25 +577,24 @@ const DesktopGestionDesCommandes = () => {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-2 max-h-[300px] overflow-y-auto">
+              <PopoverContent className="w-[220px] p-2 max-h-[300px] overflow-y-auto" align="start">
                 <div className="space-y-1">
                   {uniqueQuartiers.map((quartier) => (
-                    <div
+                    <label
                       key={quartier}
-                      className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer"
-                      onClick={() => {
-                        setFilterQuartiers((prev) =>
-                          prev.includes(quartier)
-                            ? prev.filter((q) => q !== quartier)
-                            : [...prev, quartier],
-                        );
-                      }}>
+                      className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer">
                       <Checkbox
                         checked={filterQuartiers.includes(quartier)}
-                        onCheckedChange={() => {}}
+                        onCheckedChange={(checked) => {
+                          setFilterQuartiers((prev) =>
+                            checked
+                              ? [...prev, quartier]
+                              : prev.filter((q) => q !== quartier),
+                          );
+                        }}
                       />
                       <span className="text-sm">{quartier}</span>
-                    </div>
+                    </label>
                   ))}
                   {uniqueQuartiers.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-2">
@@ -622,25 +620,24 @@ const DesktopGestionDesCommandes = () => {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-2 max-h-[300px] overflow-y-auto">
+              <PopoverContent className="w-[220px] p-2 max-h-[300px] overflow-y-auto" align="start">
                 <div className="space-y-1">
                   {uniqueArrondissements.map((arrond) => (
-                    <div
+                    <label
                       key={arrond}
-                      className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer"
-                      onClick={() => {
-                        setFilterArrondissements((prev) =>
-                          prev.includes(arrond)
-                            ? prev.filter((a) => a !== arrond)
-                            : [...prev, arrond],
-                        );
-                      }}>
+                      className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer">
                       <Checkbox
                         checked={filterArrondissements.includes(arrond)}
-                        onCheckedChange={() => {}}
+                        onCheckedChange={(checked) => {
+                          setFilterArrondissements((prev) =>
+                            checked
+                              ? [...prev, arrond]
+                              : prev.filter((a) => a !== arrond),
+                          );
+                        }}
                       />
                       <span className="text-sm">{arrond}</span>
-                    </div>
+                    </label>
                   ))}
                   {uniqueArrondissements.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-2">

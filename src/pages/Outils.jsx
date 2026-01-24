@@ -1,7 +1,13 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import useActiveUserStore from "@/store/activeUserStore";
 import { ChevronRight } from "lucide-react";
 import { getOutilsParRole } from "@/constants/outils";
@@ -78,7 +84,6 @@ const DesktopOutils = () => {
             Accédez aux outils de gestion et d'automatisation
           </p>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {outilsDisponibles.map((outil) => {
             const Icon = outil.icon;
@@ -89,7 +94,8 @@ const DesktopOutils = () => {
                 className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 hover:scale-[1.02] group">
                 <CardHeader>
                   <div className="flex items-start gap-4">
-                    <div className={`p-4 rounded-xl ${outil.bgColor} group-hover:scale-110 transition-transform`}>
+                    <div
+                      className={`p-4 rounded-xl ${outil.bgColor} group-hover:scale-110 transition-transform`}>
                       <Icon className={`w-8 h-8 ${outil.color}`} />
                     </div>
                     <div className="flex-1">

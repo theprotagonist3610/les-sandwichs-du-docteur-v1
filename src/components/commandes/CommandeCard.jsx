@@ -52,6 +52,7 @@ const CommandeCard = ({
   canUpdate = true,
   canDelete = false,
   viewMode = "grid",
+  isMobile = false,
 }) => {
   const isLivraison =
     commande.type === commandeToolkit.TYPES_COMMANDE.LIVRAISON;
@@ -126,7 +127,92 @@ const CommandeCard = ({
   };
 
   // ============================================================================
-  // RENDU VUE LISTE
+  // RENDU VUE LISTE MOBILE
+  // ============================================================================
+
+  if (viewMode === "list" && isMobile) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 20 }}
+        transition={{ duration: 0.2 }}
+        className="w-full">
+        <Card className="flex flex-row items-center gap-3 p-3 hover:shadow-md transition-shadow">
+          {/* Colonne 1: Type + ID + Heure */}
+          <div className="flex items-center gap-2">
+            <div
+              className={`p-1.5 rounded-md ${
+                isLivraison
+                  ? "bg-blue-100 text-blue-600"
+                  : "bg-emerald-100 text-emerald-600"
+              }`}>
+              {isLivraison ? (
+                <Truck className="w-4 h-4" />
+              ) : (
+                <Store className="w-4 h-4" />
+              )}
+            </div>
+            <div>
+              <div className="font-mono text-xs font-semibold text-primary">
+                #{commande.id.slice(0, 6).toUpperCase()}
+              </div>
+              <div className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                <Clock className="w-2.5 h-2.5" />
+                {formatDateTime()}
+              </div>
+            </div>
+          </div>
+
+          {/* Colonne 2: Client + Contact */}
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-xs truncate">
+              {commande.client}
+            </div>
+            <div className="text-[10px] text-muted-foreground flex items-center gap-0.5 truncate">
+              <Phone className="w-2.5 h-2.5 flex-shrink-0" />
+              {commande.contact_client || "N/A"}
+            </div>
+          </div>
+
+          {/* Colonne 3: Articles + Prix/Badge paiement */}
+          <div className="flex flex-col items-end gap-0.5">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Package className="w-3 h-3" />
+              <span>{commande.details_commandes?.length || 0} art.</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-semibold text-primary">
+                {totalApresReduction.toLocaleString()} F
+              </span>
+              <Badge
+                className={`text-white text-[9px] px-1 py-0 ${getStatutPaiementClass(
+                  commande.statut_paiement,
+                )}`}>
+                {commande.statut_paiement === commandeToolkit.STATUTS_PAIEMENT.PAYEE ? "Payée" : "Non payée"}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-1">
+            {canUpdate && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 w-7 p-0"
+                onClick={() => onEdit(commande)}>
+                <Edit className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  // ============================================================================
+  // RENDU VUE LISTE DESKTOP
   // ============================================================================
 
   if (viewMode === "list") {

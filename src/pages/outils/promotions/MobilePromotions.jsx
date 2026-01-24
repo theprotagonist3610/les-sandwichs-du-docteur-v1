@@ -1,7 +1,4 @@
-import { useState, useEffect } from "react";
-import useBreakpoint from "@/hooks/useBreakpoint";
-import usePromotionTemplates from "@/hooks/usePromotionTemplates";
-import usePromotionInstances from "@/hooks/usePromotionInstances";
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,42 +15,35 @@ import PromotionInstanceCard from "@/components/promotions/PromotionInstanceCard
 import ActivationDialog from "@/components/promotions/ActivationDialog";
 import PromotionStats from "@/components/promotions/PromotionStats";
 
-const MobilePromotions = () => {
-  const { isMobile } = useBreakpoint();
-  const [visible, setVisible] = useState(false);
+/**
+ * Vue mobile des promotions
+ * Reçoit les données et handlers via props depuis le composant parent
+ */
+const MobilePromotions = ({
+  // Templates
+  templates,
+  loadingTemplates,
+  handleActivate,
+  handleDeleteTemplate,
+  handleSearchTemplates,
 
-  // Hooks pour les templates
-  const {
-    templates,
-    loading: loadingTemplates,
-    handleActivate,
-    handleDelete: handleDeleteTemplate,
-    handleSearch: handleSearchTemplates,
-  } = usePromotionTemplates();
-
-  // Hooks pour les instances
-  const {
-    instances,
-    stats,
-    loading: loadingInstances,
-    handlePause,
-    handleResume,
-    handleCancel,
-    handleComplete,
-    handleSearch: handleSearchInstances,
-  } = usePromotionInstances();
-
-  // États locaux
+  // Instances
+  instances,
+  stats,
+  loadingInstances,
+  handlePause,
+  handleResume,
+  handleCancel,
+  handleComplete,
+  handleSearchInstances,
+}) => {
+  // États locaux UI uniquement
   const [activeTab, setActiveTab] = useState("instances");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [showActivationDialog, setShowActivationDialog] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-
-  useEffect(() => {
-    setVisible(isMobile);
-  }, [isMobile]);
 
   // Gestion de la recherche
   const handleSearch = () => {
@@ -87,9 +77,7 @@ const MobilePromotions = () => {
   };
 
   return (
-    <div
-      className="min-h-screen space-y-4 p-4"
-      style={{ display: visible ? "block" : "none" }}>
+    <div className="min-h-screen space-y-4 p-4">
       {/* Header */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">

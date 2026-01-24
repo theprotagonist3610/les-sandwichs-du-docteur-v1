@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TestTube2, AlertCircle, CheckCircle } from "lucide-react";
 import KKiaPayButton from "./KKiaPayButton";
 import FeeXpayButton from "./FeeXpayButton";
-import FedaPayButton from "./FedaPayButton";
 
 /**
  * Interface de test des paiements
@@ -130,17 +129,6 @@ const PaymentTestInterface = ({ provider }) => {
             >
               Tester le paiement FeeXpay
             </FeeXpayButton>
-          ) : provider.provider_name === "fedapay" ? (
-            <FedaPayButton
-              provider={provider}
-              amount={amount}
-              customerInfo={customerInfo}
-              onSuccess={handleSuccess}
-              onFailed={handleFailed}
-              className="w-full"
-            >
-              Tester le paiement FedaPay
-            </FedaPayButton>
           ) : null}
         </div>
 

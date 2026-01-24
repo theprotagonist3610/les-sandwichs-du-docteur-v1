@@ -62,20 +62,79 @@ const usePromotionInstances = (options = {}) => {
     }
   }, []); // Plus de dépendance sur options
 
-  // Charger les statistiques
+  // Charger les statistiques avec calcul des performances depuis les commandes
   const loadStats = useCallback(async () => {
     try {
+      // 1. Charger les stats des instances
       const {
         success,
-        stats: data,
+        stats: instanceStats,
         error: err,
       } = await getPromotionInstancesStats();
 
-      if (success) {
-        setStats(data);
-      } else {
+      if (!success) {
         console.error("Erreur chargement stats:", err);
+        return;
       }
+
+      // 2. Charger les commandes avec promotions pour calculer les performances
+      const { data: commandes, error: commandesError } = await supabase
+        .from("commandes")
+        .select("id, promotion, details_paiement, created_at")
+        .not("promotion", "is", null);
+
+      let performanceStats = {
+        revenu_total: 0,
+        total_commandes: 0,
+        total_utilisations: instanceStats.utilisation_totale || 0,
+        panier_moyen: 0,
+      };
+
+      if (!commandesError && commandes && commandes.length > 0) {
+        // Filtrer les commandes qui ont une promotion valide
+        const commandesAvecPromo = commandes.filter(
+          (c) => c.promotion && (c.promotion.id || c.promotion.code)
+        );
+
+        performanceStats.total_commandes = commandesAvecPromo.length;
+        performanceStats.revenu_total = commandesAvecPromo.reduce(
+          (sum, c) => sum + (c.details_paiement?.total_apres_reduction || 0),
+          0
+        );
+        performanceStats.panier_moyen =
+          commandesAvecPromo.length > 0
+            ? performanceStats.revenu_total / commandesAvecPromo.length
+            : 0;
+      }
+
+      // 3. Transformer les stats dans le format attendu par PromotionStats
+      const formattedStats = {
+        // Stats de statut (ce que PromotionStats attend)
+        actives: instanceStats.by_status?.active || 0,
+        en_pause: instanceStats.by_status?.paused || 0,
+        terminees: instanceStats.by_status?.completed || 0,
+        annulees: instanceStats.by_status?.cancelled || 0,
+
+        // Stats de performance (calculées depuis les commandes)
+        revenu_total: performanceStats.revenu_total,
+        total_commandes: performanceStats.total_commandes,
+        total_utilisations: performanceStats.total_utilisations,
+        panier_moyen: performanceStats.panier_moyen,
+
+        // Stats par type
+        par_type: {
+          standard: instanceStats.by_type?.standard || 0,
+          flash: instanceStats.by_type?.flash || 0,
+          happy_hour: instanceStats.by_type?.happy_hour || 0,
+          recurrente: instanceStats.by_type?.recurrente || 0,
+        },
+
+        // Stats brutes pour référence
+        total: instanceStats.total || 0,
+        active_now: instanceStats.active || 0,
+      };
+
+      setStats(formattedStats);
     } catch (err) {
       console.error("Erreur inattendue stats:", err);
     }
@@ -113,26 +172,8 @@ const usePromotionInstances = (options = {}) => {
       }
     };
 
-    const fetchStats = async () => {
-      try {
-        const {
-          success,
-          stats: data,
-          error: err,
-        } = await getPromotionInstancesStats();
-
-        if (success) {
-          setStats(data);
-        } else {
-          console.error("Erreur chargement stats:", err);
-        }
-      } catch (err) {
-        console.error("Erreur inattendue stats:", err);
-      }
-    };
-
     fetchData();
-    fetchStats();
+    loadStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Vraiment vide - s'exécute UNE SEULE FOIS au montage
 
@@ -180,6 +221,33 @@ const usePromotionInstances = (options = {}) => {
       supabase.removeChannel(channel);
     };
   }, [loadInstances, loadStats]);
+
+  // REALTIME: Écouter les nouvelles commandes pour mettre à jour les stats de performance
+  useEffect(() => {
+    const channel = supabase
+      .channel("commandes_promo_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "commandes",
+        },
+        (payload) => {
+          // Recharger les stats si la commande a une promotion
+          if (payload.new?.promotion) {
+            console.log("Nouvelle commande avec promotion:", payload.new.id);
+            loadStats();
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadStats]);
 
   // Mettre à jour une instance
   const handleUpdate = useCallback(async (instanceId, updates) => {
