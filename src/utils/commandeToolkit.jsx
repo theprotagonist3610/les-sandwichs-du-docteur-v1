@@ -823,6 +823,32 @@ export const closeCommande = async (commandeId, statut, currentVersion) => {
 };
 
 /**
+ * Livrer et clôturer une commande en une seule opération
+ * Met à jour statut_livraison à 'livree' et statut_commande à 'terminee'
+ * @param {string} commandeId - ID de la commande
+ * @param {number} currentVersion - Version actuelle de la commande
+ * @returns {Promise<{commande, error}>}
+ */
+export const deliverAndCloseCommande = async (commandeId, currentVersion) => {
+  try {
+    const now = new Date();
+
+    // Mettre à jour les deux statuts en une seule opération
+    const updates = {
+      statut_livraison: STATUTS_LIVRAISON.LIVREE,
+      statut_commande: STATUTS_COMMANDE.TERMINEE,
+      date_reelle_livraison: now.toISOString().split("T")[0],
+      heure_reelle_livraison: now.toTimeString().split(" ")[0],
+    };
+
+    return await updateCommande(commandeId, updates, currentVersion);
+  } catch (error) {
+    console.error("Exception lors de la livraison et clôture:", error);
+    return { commande: null, error };
+  }
+};
+
+/**
  * Archiver les commandes terminées ou annulées d'une journée
  * Cette fonction clôture toutes les commandes du jour qui sont livrées ou annulées
  * @param {Date} date - Date des commandes à archiver (par défaut: aujourd'hui)
@@ -1331,6 +1357,7 @@ export default {
 
   // Clôture
   closeCommande,
+  deliverAndCloseCommande,
   archiveDailyCommandes,
 
   // Filtrage géographique

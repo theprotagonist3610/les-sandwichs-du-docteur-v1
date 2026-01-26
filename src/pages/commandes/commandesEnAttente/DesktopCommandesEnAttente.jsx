@@ -19,6 +19,7 @@ import {
   X,
   Grid3x3,
   List,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -277,6 +278,13 @@ const DesktopCommandesEnAttente = () => {
   // Marquer comme livré
   const handleMarkAsDelivered = async (commande) => {
     try {
+      // Vérifier que l'utilisateur est authentifié
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Erreur", { description: "Vous devez être connecté pour effectuer cette action" });
+        return;
+      }
+
       const { error: err } = await commandeToolkit.updateStatutLivraison(
         commande.id,
         commandeToolkit.STATUTS_LIVRAISON.LIVREE,
@@ -286,8 +294,39 @@ const DesktopCommandesEnAttente = () => {
       if (err) {
         toast.error("Erreur", { description: err.message });
       } else {
+        // Retirer la commande de la liste locale (elle n'est plus en attente)
+        setCommandes((prev) => prev.filter((c) => c.id !== commande.id));
         toast.success("Livraison confirmée", {
           description: `Commande de ${commande.client} livrée avec succès`,
+        });
+      }
+    } catch (err) {
+      toast.error("Erreur", { description: err.message });
+    }
+  };
+
+  // Livrer et clôturer la commande en une seule opération
+  const handleDeliverAndClose = async (commande) => {
+    try {
+      // Vérifier que l'utilisateur est authentifié
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Erreur", { description: "Vous devez être connecté pour effectuer cette action" });
+        return;
+      }
+
+      const { error } = await commandeToolkit.deliverAndCloseCommande(
+        commande.id,
+        commande.version
+      );
+
+      if (error) {
+        toast.error("Erreur", { description: error.message });
+      } else {
+        // Retirer la commande de la liste locale (elle est terminée)
+        setCommandes((prev) => prev.filter((c) => c.id !== commande.id));
+        toast.success("Commande livrée et clôturée", {
+          description: `Commande de ${commande.client} terminée avec succès`,
         });
       }
     } catch (err) {
@@ -304,14 +343,23 @@ const DesktopCommandesEnAttente = () => {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
-            <Clock className="w-10 h-10 text-orange-500" />
-            Commandes en Attente
-          </h1>
-          <p className="text-muted-foreground text-lg mt-1">
-            Commandes de livraison en attente d'être expédiées
-          </p>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/commandes")}
+            className="h-10 w-10">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
+              <Clock className="w-10 h-10 text-orange-500" />
+              Commandes en Attente
+            </h1>
+            <p className="text-muted-foreground text-lg mt-1">
+              Commandes de livraison en attente d'être expédiées
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -766,6 +814,7 @@ const DesktopCommandesEnAttente = () => {
                       commande={commande}
                       onEdit={handleEditCommande}
                       onDeliver={handleMarkAsDelivered}
+                      onDeliverAndClose={handleDeliverAndClose}
                       showDeliverButton={true}
                       viewMode={viewMode}
                     />

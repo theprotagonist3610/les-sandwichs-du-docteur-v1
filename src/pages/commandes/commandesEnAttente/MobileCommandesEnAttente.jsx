@@ -25,12 +25,12 @@ import {
   Loader2,
   Clock,
   Package,
-  Truck,
   CheckCircle,
   Filter,
-  MapPin,
+  ArrowLeft,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import CommandeCard from "@/components/commandes/CommandeCard";
 import * as commandeToolkit from "@/utils/commandeToolkit";
 import { toast } from "sonner";
 
@@ -179,28 +179,16 @@ const MobileCommandesEnAttente = () => {
     navigate(`/commande?id=${commande.id}`);
   };
 
-  // Démarrer la livraison
-  const handleStartDelivery = async (commande) => {
-    try {
-      const { error: err } = await commandeToolkit.updateStatutLivraison(
-        commande.id,
-        commandeToolkit.STATUTS_LIVRAISON.EN_COURS,
-        commande.version
-      );
-
-      if (err) {
-        toast.error("Erreur", { description: err.message });
-      } else {
-        toast.success("Livraison démarrée");
-      }
-    } catch (err) {
-      toast.error("Erreur", { description: err.message });
-    }
-  };
-
   // Marquer comme livré
   const handleMarkAsDelivered = async (commande) => {
     try {
+      // Vérifier que l'utilisateur est authentifié
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Erreur", { description: "Vous devez être connecté pour effectuer cette action" });
+        return;
+      }
+
       const { error: err } = await commandeToolkit.updateStatutLivraison(
         commande.id,
         commandeToolkit.STATUTS_LIVRAISON.LIVREE,
@@ -210,7 +198,36 @@ const MobileCommandesEnAttente = () => {
       if (err) {
         toast.error("Erreur", { description: err.message });
       } else {
+        // Retirer la commande de la liste locale (elle n'est plus en attente)
+        setCommandes((prev) => prev.filter((c) => c.id !== commande.id));
         toast.success("Livraison confirmée");
+      }
+    } catch (err) {
+      toast.error("Erreur", { description: err.message });
+    }
+  };
+
+  // Livrer et clôturer la commande en une seule opération
+  const handleDeliverAndClose = async (commande) => {
+    try {
+      // Vérifier que l'utilisateur est authentifié
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Erreur", { description: "Vous devez être connecté pour effectuer cette action" });
+        return;
+      }
+
+      const { error } = await commandeToolkit.deliverAndCloseCommande(
+        commande.id,
+        commande.version
+      );
+
+      if (error) {
+        toast.error("Erreur", { description: error.message });
+      } else {
+        // Retirer la commande de la liste locale (elle est terminée)
+        setCommandes((prev) => prev.filter((c) => c.id !== commande.id));
+        toast.success("Commande livrée et clôturée");
       }
     } catch (err) {
       toast.error("Erreur", { description: err.message });
@@ -225,6 +242,13 @@ const MobileCommandesEnAttente = () => {
       <div className="sticky top-0 z-20 bg-background border-b px-4 py-3">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/commandes")}
+              className="h-8 w-8 -ml-2">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
             <Clock className="w-6 h-6 text-orange-500" />
             <h1 className="text-lg font-semibold">En Attente</h1>
             <Badge variant="secondary">{commandes.length}</Badge>
@@ -357,80 +381,16 @@ const MobileCommandesEnAttente = () => {
                 key={commande.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="bg-card border rounded-lg p-4">
-                {/* Info client */}
-                <div
-                  className="cursor-pointer"
-                  onClick={() => handleEditCommande(commande)}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-semibold">{commande.client}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {commande.contact_client}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={
-                        commande.statut_paiement ===
-                        commandeToolkit.STATUTS_PAIEMENT.PAYEE
-                          ? "default"
-                          : commande.statut_paiement ===
-                              commandeToolkit.STATUTS_PAIEMENT
-                                .PARTIELLEMENT_PAYEE
-                            ? "secondary"
-                            : "destructive"
-                      }
-                      className="text-xs">
-                      {commande.statut_paiement ===
-                      commandeToolkit.STATUTS_PAIEMENT.PAYEE
-                        ? "Payée"
-                        : commande.statut_paiement ===
-                            commandeToolkit.STATUTS_PAIEMENT.PARTIELLEMENT_PAYEE
-                          ? "Partiel"
-                          : "Non payée"}
-                    </Badge>
-                  </div>
-
-                  {/* Lieu de livraison */}
-                  {commande.lieu_livraison && (
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
-                      <MapPin className="w-4 h-4" />
-                      <span>
-                        {commande.lieu_livraison.quartier ||
-                          commande.lieu_livraison.commune ||
-                          "Adresse non spécifiée"}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Total */}
-                  <p className="text-lg font-bold">
-                    {(
-                      commande.details_paiement?.total_apres_reduction || 0
-                    ).toLocaleString("fr-FR")}{" "}
-                    F
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 mt-3 pt-3 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleStartDelivery(commande)}>
-                    <Truck className="w-4 h-4 mr-1" />
-                    Démarrer
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1 bg-green-600 hover:bg-green-700"
-                    onClick={() => handleMarkAsDelivered(commande)}>
-                    <CheckCircle className="w-4 h-4 mr-1" />
-                    Livré
-                  </Button>
-                </div>
+                exit={{ opacity: 0, y: -10 }}>
+                <CommandeCard
+                  commande={commande}
+                  onEdit={handleEditCommande}
+                  onDeliver={handleMarkAsDelivered}
+                  onDeliverAndClose={handleDeliverAndClose}
+                  showDeliverButton={true}
+                  viewMode="list"
+                  isMobile={true}
+                />
               </motion.div>
             ))}
           </AnimatePresence>

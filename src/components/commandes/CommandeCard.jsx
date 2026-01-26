@@ -16,6 +16,7 @@ import {
   Tag,
   Percent,
   CheckCircle,
+  CheckCheck,
 } from "lucide-react";
 import * as commandeToolkit from "@/utils/commandeToolkit";
 
@@ -51,6 +52,7 @@ const CommandeCard = ({
   onEdit,
   onDelete,
   onDeliver,
+  onDeliverAndClose,
   canUpdate = true,
   canDelete = false,
   showDeliverButton = false,
@@ -216,6 +218,14 @@ const CommandeCard = ({
                 <CheckCircle className="w-3.5 h-3.5" />
               </Button>
             )}
+            {showDeliverButton && onDeliverAndClose && (
+              <Button
+                size="sm"
+                className="h-7 px-2 bg-primary hover:bg-primary/90"
+                onClick={() => onDeliverAndClose(commande)}>
+                <CheckCheck className="w-3.5 h-3.5" />
+              </Button>
+            )}
           </div>
         </Card>
       </motion.div>
@@ -346,6 +356,15 @@ const CommandeCard = ({
                 onClick={() => onDeliver(commande)}>
                 <CheckCircle className="w-4 h-4 mr-1" />
                 Livrer
+              </Button>
+            )}
+            {showDeliverButton && onDeliverAndClose && (
+              <Button
+                size="sm"
+                className="bg-primary hover:bg-primary/90"
+                onClick={() => onDeliverAndClose(commande)}>
+                <CheckCheck className="w-4 h-4 mr-1" />
+                Livrer et clôturer
               </Button>
             )}
             {canDelete && (
@@ -562,6 +581,15 @@ const CommandeCard = ({
                 onClick={() => onDeliver(commande)}>
                 <CheckCircle className="w-3 h-3 mr-0.5" />
                 Livrer
+              </Button>
+            )}
+            {showDeliverButton && onDeliverAndClose && (
+              <Button
+                size="sm"
+                className="h-6 px-2 text-[10px] bg-primary hover:bg-primary/90"
+                onClick={() => onDeliverAndClose(commande)}>
+                <CheckCheck className="w-3 h-3 mr-0.5" />
+                Clôturer
               </Button>
             )}
             {canDelete && (
