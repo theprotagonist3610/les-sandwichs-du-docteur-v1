@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useMenus } from "@/hooks/useMenus";
 import useCartStore from "@/store/cartStore";
 import useActiveUserStore from "@/store/activeUserStore";
+import usePointDeVenteStore from "@/store/pointDeVenteStore";
 import * as commandeToolkit from "@/utils/commandeToolkit";
 import {
   validateCodePromo,
@@ -21,6 +22,7 @@ export const usePanneauDeVente = () => {
 
   const { menus, loading: menusLoading, error: menusError, MENU_TYPES, MENU_STATUTS } = useMenus();
   const { user } = useActiveUserStore();
+  const { getPointDeVenteId } = usePointDeVenteStore();
 
   // Store du panier
   const cart = useCartStore();
@@ -294,6 +296,13 @@ export const usePanneauDeVente = () => {
       return { success: false, error: "Non authentifié" };
     }
 
+    // Vérifier qu'un point de vente est sélectionné
+    const pointDeVenteId = getPointDeVenteId();
+    if (!pointDeVenteId) {
+      toast.error("Aucun point de vente sélectionné");
+      return { success: false, error: "Point de vente manquant" };
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -313,10 +322,11 @@ export const usePanneauDeVente = () => {
         statut_paiement = commandeToolkit.STATUTS_PAIEMENT.NON_PAYEE;
       }
 
-      // Créer la commande
+      // Créer la commande avec le point de vente
       const { commande, error } = await commandeToolkit.createCommande(
         {
           ...commandeData,
+          point_de_vente: pointDeVenteId, // Ajouter le point de vente
           statut_paiement,
           statut_commande: commandeToolkit.STATUTS_COMMANDE.EN_COURS,
           statut_livraison:
@@ -357,7 +367,7 @@ export const usePanneauDeVente = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [canSubmit, user, cart]);
+  }, [canSubmit, user, cart, getPointDeVenteId]);
 
   // ============================================================================
   // ACTIONS UI

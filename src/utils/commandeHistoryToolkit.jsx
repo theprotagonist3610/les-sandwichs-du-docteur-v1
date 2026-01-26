@@ -584,6 +584,7 @@ export const getChangesSummary = (changes) => {
     livreur_id: "Livreur",
     instructions_livraison: "Instructions",
     frais_livraison: "Frais de livraison",
+    point_de_vente: "Point de vente",
   };
 
   const summaryParts = Object.keys(changes).map((key) => {

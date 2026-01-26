@@ -517,9 +517,17 @@ const useCommandeEditorStore = create((set, get) => ({
     set({ isSaving: true, globalError: null });
 
     try {
-      // Préparer les mises à jour (exclure id, vendeur, version, created_at)
-      const { id, vendeur, vendeur_id, version, created_at, ...updates } =
-        state.commande;
+      // Préparer les mises à jour (exclure id, vendeur, version, created_at et les infos de jointure)
+      const {
+        id,
+        vendeur,
+        vendeur_id,
+        vendeur_info,  // Données de jointure - ne pas envoyer
+        point_de_vente_info,  // Données de jointure - ne pas envoyer
+        version,
+        created_at,
+        ...updates
+      } = state.commande;
 
       const result = await commandeToolkit.updateCommande(
         state.commande.id,

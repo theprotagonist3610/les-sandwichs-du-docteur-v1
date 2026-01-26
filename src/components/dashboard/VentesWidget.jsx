@@ -67,46 +67,21 @@ const VentesWidget = ({ isMobile = false }) => {
 
   // Fonction pour charger les données - définie et stockée dans une ref
   const loadData = useCallback(async () => {
-    console.log(
-      "📊 [VentesWidget] loadData() appelé - Chargement des données...",
-    );
     setIsLoading(true);
 
     const result = await getCommandesDuJour(true);
-    console.log("📊 [VentesWidget] Résultat getCommandesDuJour:", {
-      nombreCommandes: result.commandes?.length,
-      fromCache: result.fromCache,
-      error: result.error,
-      premiereCommande: result.commandes?.[0]?.id,
-    });
 
     if (result.commandes) {
-      console.log(
-        "📊 [VentesWidget] Mise à jour du state avec",
-        result.commandes.length,
-        "commandes",
-      );
       setCommandes(result.commandes);
     } else {
-      console.warn("📊 [VentesWidget] Pas de commandes reçues, state inchangé");
       setCommandes([]);
     }
 
     setIsLoading(false);
-    console.log("📊 [VentesWidget] loadData() terminé");
   }, []);
 
-  // 👀 TRACER LES CHANGEMENTS DU STATE COMMANDES ET INCRÉMENTER refreshKey
+  // Incrémenter refreshKey pour forcer remontage des NumberTicker
   useEffect(() => {
-    console.log(`
-╔════════════════════════════════════════════════════════════╗
-║ 👀 [VentesWidget] STATE CHANGE: commandes                  ║
-║   Nombre: ${commandes.length}                              
-║   Commandes: ${commandes.length > 0 ? "✅ Chargées" : "❌ Vide"}                           
-║   Timestamp: ${new Date().toISOString()}                   
-╚════════════════════════════════════════════════════════════╝
-    `);
-    // 🔑 Incrémenter refreshKey pour forcer remontage des NumberTicker
     setRefreshKey((prev) => prev + 1);
   }, [commandes]);
 
@@ -117,7 +92,6 @@ const VentesWidget = ({ isMobile = false }) => {
 
   // Fonction pour célébrer une nouvelle vente - utilise les refs
   const celebrateNewSale = useCallback(() => {
-    console.log("🎉 [VentesWidget] Célébration nouvelle vente!");
     // Jouer le son de notification si activé
     if (soundSettingsRef.current.soundEnabled) {
       try {
@@ -138,16 +112,10 @@ const VentesWidget = ({ isMobile = false }) => {
     let cleanup = null;
 
     const setupRealtime = async () => {
-      console.log("🔧 [VentesWidget] Initialisation du listener Realtime");
-
       // Vérifier l'authentification
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      console.log(
-        "👤 [VentesWidget] Utilisateur connecté :",
-        user?.id || "NON CONNECTÉ",
-      );
 
       if (!user) {
         console.error("❌ [VentesWidget] Pas d'utilisateur connecté !");
@@ -174,19 +142,11 @@ const VentesWidget = ({ isMobile = false }) => {
           },
           async (payload) => {
             const newCommandeId = payload.new?.id;
-            console.log("✅ [VentesWidget] INSERT DÉTECTÉ !", {
-              timestamp: new Date().toISOString(),
-              payload,
-              newRecord: payload.new,
-            });
 
             // 💾 Sauvegarder la nouvelle commande dans le cache IndexedDB
             if (payload.new) {
               try {
                 await saveToCache(payload.new);
-                console.log(
-                  "💾 [VentesWidget] Commande sauvegardée dans le cache",
-                );
               } catch (err) {
                 console.error("❌ Erreur cache :", err);
               }
@@ -196,11 +156,8 @@ const VentesWidget = ({ isMobile = false }) => {
             celebrateNewSale();
 
             // Recharger les données du widget via la ref
-            console.log("📊 [VentesWidget] Appel de loadDataRef.current()...");
             if (loadDataRef.current) {
               await loadDataRef.current();
-            } else {
-              console.error("❌ [VentesWidget] loadDataRef.current est null!");
             }
 
             // 🔄 Déclencher rafraîchissement global pour TOUTES les vues
@@ -216,33 +173,19 @@ const VentesWidget = ({ isMobile = false }) => {
           },
           async (payload) => {
             const updatedCommandeId = payload.new?.id;
-            console.log("🔄 [VentesWidget] UPDATE DÉTECTÉ !", {
-              timestamp: new Date().toISOString(),
-              payload,
-              oldRecord: payload.old,
-              newRecord: payload.new,
-            });
 
             // 💾 Mettre à jour la commande dans le cache IndexedDB
             if (payload.new) {
               try {
                 await saveToCache(payload.new);
-                console.log(
-                  "💾 [VentesWidget] Commande mise à jour dans le cache",
-                );
               } catch (err) {
                 console.error("❌ Erreur cache :", err);
               }
             }
 
             // Mise à jour d'une commande - recharger données via la ref
-            console.log(
-              "📊 [VentesWidget] Appel de loadDataRef.current() pour UPDATE...",
-            );
             if (loadDataRef.current) {
               await loadDataRef.current();
-            } else {
-              console.error("❌ [VentesWidget] loadDataRef.current est null!");
             }
 
             // 🔄 Déclencher rafraîchissement global pour TOUTES les vues
@@ -251,15 +194,9 @@ const VentesWidget = ({ isMobile = false }) => {
         )
         .subscribe(
           (status) => {
-            console.log("📡 [VentesWidget] Statut Realtime :", status);
-            if (status === "SUBSCRIBED") {
-              console.log("✨ [VentesWidget] Realtime ABONNÉ avec succès !");
-            } else if (status === "CHANNEL_ERROR") {
+            if (status === "CHANNEL_ERROR") {
               console.error(
                 "❌ [VentesWidget] CHANNEL_ERROR - Problème de connexion",
-              );
-              console.error(
-                "   Vérifiez : RLS policies, Realtime activé, authentification",
               );
             } else if (status === "CLOSED") {
               console.error("❌ [VentesWidget] Canal FERMÉ");
@@ -267,7 +204,6 @@ const VentesWidget = ({ isMobile = false }) => {
               console.error(
                 "⏱️ [VentesWidget] TIMED_OUT - Connexion trop lente",
               );
-              console.error("   Tentative de reconnexion dans 3 secondes...");
               setTimeout(() => setupRealtime(), 3000);
             }
           },
@@ -280,9 +216,6 @@ const VentesWidget = ({ isMobile = false }) => {
         );
 
       cleanup = () => {
-        console.log(
-          "🧹 [VentesWidget] Nettoyage - suppression du canal Realtime",
-        );
         if (channel) {
           supabase.removeChannel(channel);
         }
@@ -301,13 +234,7 @@ const VentesWidget = ({ isMobile = false }) => {
 
   // Calculs en temps réel basés sur les commandes du jour
   const stats = useMemo(() => {
-    console.log(
-      "🔄 [VentesWidget] useMemo recalculé avec commandes.length =",
-      commandes.length,
-    );
-
     if (!commandes || commandes.length === 0) {
-      console.log("⚠️ [VentesWidget] useMemo: commandes vide");
       return {
         chiffreAffaires: 0,
         cadenceParHeure: 0,
@@ -318,6 +245,7 @@ const VentesWidget = ({ isMobile = false }) => {
         livraisonsEnAttente: 0,
         totalLivraisons: 0,
         tempsMoyenLivraison: 0,
+        pointsDeVente: [],
       };
     }
 
@@ -412,6 +340,34 @@ const VentesWidget = ({ isMobile = false }) => {
       tempsMoyenLivraison = totalMinutes / livraisonsTerminees.length;
     }
 
+    // Statistiques par point de vente
+    const pointsDeVenteStats = {};
+    commandes.forEach((cmd) => {
+      // Si la commande a des infos de point de vente
+      if (cmd.point_de_vente_info) {
+        const pdvId = cmd.point_de_vente_info.id;
+        const pdvNom = cmd.point_de_vente_info.nom;
+        const ca = cmd.details_paiement?.total_apres_reduction || 0;
+
+        if (!pointsDeVenteStats[pdvId]) {
+          pointsDeVenteStats[pdvId] = {
+            id: pdvId,
+            nom: pdvNom,
+            nbVentes: 0,
+            ca: 0,
+          };
+        }
+
+        pointsDeVenteStats[pdvId].nbVentes += 1;
+        pointsDeVenteStats[pdvId].ca += ca;
+      }
+    });
+
+    // Convertir en tableau et trier par CA décroissant
+    const pointsDeVente = Object.values(pointsDeVenteStats).sort(
+      (a, b) => b.ca - a.ca
+    );
+
     return {
       chiffreAffaires,
       cadenceParHeure,
@@ -422,6 +378,7 @@ const VentesWidget = ({ isMobile = false }) => {
       livraisonsEnAttente,
       totalLivraisons,
       tempsMoyenLivraison,
+      pointsDeVente,
     };
   }, [commandes]);
 
@@ -728,6 +685,66 @@ const VentesWidget = ({ isMobile = false }) => {
             </p>
           </div>
         </div>
+
+        {/* Points de vente */}
+        {stats.pointsDeVente.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 mb-2">
+              <Store
+                className={`${isMobile ? "w-4 h-4" : "w-5 h-5"} text-emerald-500`}
+              />
+              <h3
+                className={`${
+                  isMobile ? "text-sm" : "text-base"
+                } font-semibold text-foreground`}>
+                Points de vente
+              </h3>
+            </div>
+
+            <div className="space-y-1.5">
+              {stats.pointsDeVente.map((pdv) => (
+                <div
+                  key={pdv.id}
+                  className="bg-background/60 rounded-lg border border-border p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className={`${
+                          isMobile ? "text-xs" : "text-sm"
+                        } font-medium text-foreground truncate`}>
+                        {pdv.nom}
+                      </p>
+                      <p
+                        className={`${
+                          isMobile ? "text-[10px]" : "text-xs"
+                        } text-muted-foreground`}>
+                        <NumberTicker
+                          key={`pdv-${pdv.id}-ventes-${refreshKey}`}
+                          value={pdv.nbVentes}
+                          duration={1000}
+                        />{" "}
+                        vente{pdv.nbVentes > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p
+                        className={`${
+                          isMobile ? "text-sm" : "text-base"
+                        } font-semibold text-emerald-600 dark:text-emerald-400`}>
+                        <NumberTicker
+                          key={`pdv-${pdv.id}-ca-${refreshKey}`}
+                          value={pdv.ca}
+                          duration={1000}
+                          formatter={(val) => `${formatMontant(val)} F`}
+                        />
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

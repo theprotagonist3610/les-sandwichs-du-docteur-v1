@@ -9,10 +9,6 @@ import { useEffect } from "react";
  */
 export const useAudioAutoplay = () => {
   useEffect(() => {
-    console.log(
-      "🔓 [useAudioAutoplay] Attente d'interaction utilisateur pour débloquer l'audio...",
-    );
-
     const unlockAudio = async () => {
       try {
         // Créer un contexte audio et le reprendre s'il est suspendu
@@ -21,13 +17,7 @@ export const useAudioAutoplay = () => {
         )();
 
         if (audioContext.state === "suspended") {
-          console.log(
-            "🔊 [useAudioAutoplay] AudioContext suspendu - Reprise...",
-          );
           await audioContext.resume();
-          console.log("✅ [useAudioAutoplay] AudioContext déverrouillé !");
-        } else {
-          console.log("✅ [useAudioAutoplay] AudioContext déjà actif");
         }
 
         // Créer un oscillo silencieux et le jouer/arrêter pour confirmer
@@ -40,10 +30,6 @@ export const useAudioAutoplay = () => {
 
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.001);
-
-        console.log(
-          "🎵 [useAudioAutoplay] Son silencieux joué - Autoplay DÉBLOQUÉ !",
-        );
       } catch (error) {
         console.error(
           "❌ [useAudioAutoplay] Erreur lors du déverrouillage :",
@@ -55,8 +41,6 @@ export const useAudioAutoplay = () => {
       document.removeEventListener("click", unlockAudio);
       document.removeEventListener("touchstart", unlockAudio);
       document.removeEventListener("keydown", unlockAudio);
-
-      console.log("🧹 [useAudioAutoplay] Listeners supprimés");
     };
 
     // Écouter le premier clic, touch ou appui clavier

@@ -13,10 +13,11 @@ const STORE_NAME = "commandes_du_jour";
 // ============================================================================
 
 /**
- * Requête select avec jointure sur la table users pour récupérer les infos du vendeur
- * La relation est définie via la colonne "vendeur" qui est une FK vers users.id
+ * Requête select avec jointures sur les tables users et emplacements
+ * - vendeur_info: infos du vendeur via FK "vendeur" vers users.id
+ * - point_de_vente_info: infos du point de vente via FK "point_de_vente" vers emplacements.id
  */
-const SELECT_COMMANDE_WITH_VENDEUR = `
+const SELECT_COMMANDE_WITH_RELATIONS = `
   *,
   vendeur_info:users!vendeur(
     id,
@@ -24,8 +25,62 @@ const SELECT_COMMANDE_WITH_VENDEUR = `
     prenoms,
     email,
     role
+  ),
+  point_de_vente_info:emplacements!point_de_vente(
+    id,
+    nom,
+    type,
+    adresse,
+    statut
   )
 `;
+
+// ============================================================================
+// POINT DE VENTE PAR DÉFAUT (EMPLACEMENT DE TYPE "BASE")
+// ============================================================================
+
+// Cache pour l'ID de l'emplacement de base
+let _baseEmplacementId = null;
+
+/**
+ * Récupérer l'ID de l'emplacement de type "base" (point de vente par défaut)
+ * Utilise un cache en mémoire pour éviter les requêtes répétées
+ * @returns {Promise<string|null>} ID de l'emplacement de base
+ */
+export const getBaseEmplacementId = async () => {
+  // Retourner le cache si disponible
+  if (_baseEmplacementId) {
+    return _baseEmplacementId;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("emplacements")
+      .select("id")
+      .eq("type", "base")
+      .single();
+
+    if (error) {
+      console.error("Erreur lors de la récupération de l'emplacement de base:", error);
+      return null;
+    }
+
+    // Mettre en cache
+    _baseEmplacementId = data?.id || null;
+    return _baseEmplacementId;
+  } catch (error) {
+    console.error("Exception lors de la récupération de l'emplacement de base:", error);
+    return null;
+  }
+};
+
+/**
+ * Réinitialiser le cache de l'emplacement de base
+ * Utile si l'emplacement de base change
+ */
+export const clearBaseEmplacementCache = () => {
+  _baseEmplacementId = null;
+};
 
 /**
  * Initialiser la base de données IndexedDB
@@ -188,7 +243,7 @@ export const syncCache = async () => {
     // Récupérer les commandes du jour depuis Supabase avec infos vendeur
     const { data: commandesSupabase, error } = await supabase
       .from("commandes")
-      .select(SELECT_COMMANDE_WITH_VENDEUR)
+      .select(SELECT_COMMANDE_WITH_RELATIONS)
       .gte("created_at", `${todayDate}T00:00:00`)
       .lte("created_at", `${todayDate}T23:59:59`)
       .order("created_at", { ascending: false });
@@ -238,7 +293,8 @@ export const syncCache = async () => {
  *   details_commandes: JSON (array),
  *   promotion: JSON,
  *   details_paiement: JSON,
- *   vendeur: uuid,
+ *   vendeur: uuid (FK vers users),
+ *   point_de_vente: uuid (FK vers emplacements - obligatoire),
  *   version: number (pour gestion des collisions),
  *   created_at: timestamp,
  *   updated_at: timestamp
@@ -298,6 +354,7 @@ export const DEFAULT_DETAILS_PAIEMENT = {
 
 /**
  * Structure par défaut d'une commande
+ * Note: point_de_vente sera automatiquement défini à l'emplacement de base si non fourni
  */
 export const DEFAULT_COMMANDE = {
   type: TYPES_COMMANDE.SUR_PLACE,
@@ -316,6 +373,7 @@ export const DEFAULT_COMMANDE = {
   details_commandes: [],
   promotion: null,
   details_paiement: DEFAULT_DETAILS_PAIEMENT,
+  point_de_vente: null, // Sera défini à l'emplacement de base par défaut lors de la création
 };
 
 // ============================================================================
@@ -330,11 +388,27 @@ export const DEFAULT_COMMANDE = {
  */
 export const createCommande = async (commandeData, vendeurId) => {
   try {
+    // Récupérer l'emplacement de base par défaut si point_de_vente n'est pas fourni
+    let pointDeVente = commandeData.point_de_vente;
+    if (!pointDeVente) {
+      pointDeVente = await getBaseEmplacementId();
+      if (!pointDeVente) {
+        return {
+          commande: null,
+          error: {
+            message: "Aucun emplacement de base trouvé. Veuillez configurer un emplacement de type 'base'.",
+            code: "NO_BASE_EMPLACEMENT",
+          },
+        };
+      }
+    }
+
     // Fusionner avec les valeurs par défaut
     const newCommande = {
       ...DEFAULT_COMMANDE,
       ...commandeData,
       vendeur: vendeurId,
+      point_de_vente: pointDeVente,
     };
 
     const { data, error } = await supabase
@@ -371,7 +445,7 @@ export const getCommandeById = async (commandeId) => {
   try {
     const { data, error } = await supabase
       .from("commandes")
-      .select(SELECT_COMMANDE_WITH_VENDEUR)
+      .select(SELECT_COMMANDE_WITH_RELATIONS)
       .eq("id", commandeId)
       .single();
 
@@ -398,13 +472,14 @@ export const getCommandeById = async (commandeId) => {
  * @param {string} filters.livreur - ID du livreur
  * @param {string} filters.client - Nom du client
  * @param {Date} filters.date_livraison - Date de livraison
+ * @param {string} filters.point_de_vente - ID du point de vente (emplacement)
  * @returns {Promise<{commandes, error}>}
  */
 export const getAllCommandes = async (filters = {}) => {
   try {
     let query = supabase
       .from("commandes")
-      .select(SELECT_COMMANDE_WITH_VENDEUR)
+      .select(SELECT_COMMANDE_WITH_RELATIONS)
       .order("created_at", { ascending: false });
 
     // Appliquer les filtres
@@ -436,6 +511,10 @@ export const getAllCommandes = async (filters = {}) => {
       query = query.ilike("client", `%${filters.client}%`);
     }
 
+    if (filters.point_de_vente) {
+      query = query.eq("point_de_vente", filters.point_de_vente);
+    }
+
     if (filters.date_livraison) {
       query = query.eq("date_livraison", filters.date_livraison);
     }
@@ -461,31 +540,20 @@ export const getAllCommandes = async (filters = {}) => {
  * @returns {Promise<{commandes, error, fromCache}>}
  */
 export const getCommandesDuJour = async (forceSync = false) => {
-  console.log("[getCommandesDuJour] Appelé avec forceSync:", forceSync, "navigator.onLine:", navigator.onLine);
-
   try {
     // Si on force la synchro ou si on est en ligne, essayer de récupérer depuis Supabase
     if (forceSync || navigator.onLine) {
       const todayDate = getTodayDateString();
-      console.log("[getCommandesDuJour] Date du jour:", todayDate);
 
-      console.log("[getCommandesDuJour] Requête Supabase en cours...");
       const { data: commandesSupabase, error } = await supabase
         .from("commandes")
-        .select(SELECT_COMMANDE_WITH_VENDEUR)
+        .select(SELECT_COMMANDE_WITH_RELATIONS)
         .gte("created_at", `${todayDate}T00:00:00`)
         .lte("created_at", `${todayDate}T23:59:59`)
         .order("created_at", { ascending: false });
 
-      console.log("[getCommandesDuJour] Réponse Supabase:", {
-        nombreCommandes: commandesSupabase?.length,
-        error: error,
-        premiereCommande: commandesSupabase?.[0]?.id,
-      });
-
       if (!error && commandesSupabase) {
         // Sauvegarder dans le cache
-        console.log("[getCommandesDuJour] Sauvegarde dans le cache...");
         for (const commande of commandesSupabase) {
           await saveToCache(commande);
         }
@@ -493,20 +561,17 @@ export const getCommandesDuJour = async (forceSync = false) => {
         // Nettoyer les anciennes commandes
         await cleanCache();
 
-        console.log("[getCommandesDuJour] Retour des données Supabase (fromCache: false)");
         return { commandes: commandesSupabase, error: null, fromCache: false };
       }
 
       // Si erreur réseau, tomber sur le cache
       if (error) {
-        console.warn("[getCommandesDuJour] Erreur Supabase, utilisation du cache local:", error);
+        console.warn("Erreur Supabase, utilisation du cache local:", error);
       }
     }
 
     // Récupérer depuis le cache
-    console.log("[getCommandesDuJour] Récupération depuis le cache...");
     const cachedCommandes = await getFromCache();
-    console.log("[getCommandesDuJour] Commandes du cache:", cachedCommandes?.length);
     return {
       commandes: cachedCommandes,
       error: null,
@@ -514,7 +579,7 @@ export const getCommandesDuJour = async (forceSync = false) => {
     };
   } catch (error) {
     console.error(
-      "[getCommandesDuJour] Exception lors de la récupération des commandes du jour:",
+      "Exception lors de la récupération des commandes du jour:",
       error,
     );
 
@@ -527,7 +592,7 @@ export const getCommandesDuJour = async (forceSync = false) => {
         fromCache: true,
       };
     } catch (cacheError) {
-      console.error("[getCommandesDuJour] Erreur lors de la récupération du cache:", cacheError);
+      console.error("Erreur lors de la récupération du cache:", cacheError);
       return { commandes: [], error: cacheError, fromCache: false };
     }
   }
@@ -1088,11 +1153,15 @@ export const exportToCSV = (commandes) => {
     "Total Après Réduction",
     "Vendeur",
     "Livreur",
+    "Point de Vente",
     "Date Création",
   ];
 
   // Créer les lignes
   const rows = commandes.map((commande) => {
+    // Récupérer le nom du point de vente si disponible via la jointure
+    const pointDeVenteNom = commande.point_de_vente_info?.nom || commande.point_de_vente || "";
+
     return [
       commande.id,
       commande.type,
@@ -1108,6 +1177,7 @@ export const exportToCSV = (commandes) => {
       commande.details_paiement?.total_apres_reduction || 0,
       commande.vendeur || "",
       commande.livreur || "",
+      pointDeVenteNom,
       commande.created_at,
     ]
       .map((value) => `"${value}"`)
@@ -1235,6 +1305,9 @@ export const validateCommande = (commandeData) => {
     }
   }
 
+  // Note: point_de_vente n'est pas validé ici car il est automatiquement
+  // défini à l'emplacement de base dans createCommande si non fourni
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -1349,7 +1422,7 @@ export default {
   createCommande,
   getCommandeById,
   getAllCommandes,
-  getCommandesDuJour, // Nouvelle fonction avec cache
+  getCommandesDuJour,
   updateCommande,
   deleteCommande,
 
@@ -1359,6 +1432,10 @@ export default {
   getFromCache,
   saveToCache,
   removeFromCache,
+
+  // Point de vente par défaut
+  getBaseEmplacementId,
+  clearBaseEmplacementCache,
 
   // Paiements
   calculateTotal,

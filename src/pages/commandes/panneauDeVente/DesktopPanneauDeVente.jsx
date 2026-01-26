@@ -21,6 +21,7 @@ import {
   PaymentPanel,
   PaymentConfirmation,
 } from "@/components/panneauDeVente";
+import PointDeVenteSelector from "@/components/panneauDeVente/PointDeVenteSelector";
 
 /**
  * Interface desktop du Panneau de Vente (POS)
@@ -108,6 +109,9 @@ const DesktopPanneauDeVente = () => {
     <div
       className="min-h-screen flex flex-col bg-muted/30"
       style={{ display: visible ? "flex" : "none" }}>
+      {/* Dialog de sélection du point de vente */}
+      <PointDeVenteSelector />
+
       {/* Header */}
       <div className="bg-background border-b px-6 py-4">
         <div className="flex items-center justify-between max-w-[1800px] mx-auto">

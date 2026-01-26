@@ -236,8 +236,8 @@ export const getCoordinatesFromAddress = async (adresse) => {
     // Exemple avec Nominatim (OpenStreetMap) - API gratuite
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        adresse
-      )}&limit=1`
+        adresse,
+      )}&limit=1`,
     );
 
     if (!response.ok) {
@@ -275,9 +275,8 @@ export const getCoordinatesFromAddress = async (adresse) => {
 export const updateEmplacementCoordinates = async (emplacementId, lat, lng) => {
   try {
     // R�cup�rer l'adresse actuelle
-    const { emplacement, error: fetchError } = await getEmplacementById(
-      emplacementId
-    );
+    const { emplacement, error: fetchError } =
+      await getEmplacementById(emplacementId);
 
     if (fetchError || !emplacement) {
       return { emplacement: null, error: fetchError };
@@ -314,7 +313,7 @@ export const getEmplacementStats = async () => {
       actif: data.filter((e) => e.statut === "actif").length,
       inactif: data.filter((e) => e.statut === "inactif").length,
       ferme_temporairement: data.filter(
-        (e) => e.statut === "ferme_temporairement"
+        (e) => e.statut === "ferme_temporairement",
       ).length,
       parType: {
         base: data.filter((e) => e.type === "base").length,
@@ -417,7 +416,7 @@ export const getEmplacementsForMap = async () => {
       }) || [];
 
     console.log(
-      `✅ ${emplacementsWithCoords.length} emplacements avec coordonnées trouvés`
+      `✅ ${emplacementsWithCoords.length} emplacements avec coordonnées trouvés`,
     );
 
     // Étape 4: Formater pour la carte
@@ -438,7 +437,7 @@ export const getEmplacementsForMap = async () => {
   } catch (error) {
     console.error(
       "❌ Exception lors de la récupération des emplacements pour la carte:",
-      error
+      error,
     );
     console.groupEnd();
     return { emplacements: [], error };
@@ -463,6 +462,42 @@ export const canViewEmplacements = (userRole) => {
   return userRole === "admin" || userRole === "superviseur";
 };
 
+/**
+ * R�cup�rer les emplacements accessibles selon le r�le de l'utilisateur
+ * - Admin/Superviseur: Tous les emplacements actifs
+ * - Vendeur: Uniquement les emplacements dont il est responsable
+ *
+ * @param {string} userId - ID de l'utilisateur
+ * @param {string} userRole - R�le de l'utilisateur
+ * @returns {Promise<{emplacements, error}>}
+ */
+export const getEmplacementsAccessibles = async (userId, userRole) => {
+  try {
+    let query = supabase
+      .from("emplacements")
+      .select("*")
+      .eq("statut", "actif")
+      .order("nom", { ascending: true });
+
+    // Si vendeur, filtrer par responsable
+    // Les admins/superviseurs ont accès à tous les emplacements
+    if (userRole === "vendeur") {
+      query = query.eq("responsable_id", userId);
+    }
+    // Pour admin et superviseur, aucun filtre - tous les emplacements accessibles
+
+    const { data, error } = await query;
+
+    return { emplacements: data || [], error };
+  } catch (error) {
+    console.error(
+      "Erreur lors de la récupération des emplacements accessibles:",
+      error,
+    );
+    return { emplacements: [], error };
+  }
+};
+
 export default {
   getAllEmplacements,
   getEmplacementById,
@@ -476,6 +511,7 @@ export default {
   getEmplacementsForMap,
   canManageEmplacements,
   canViewEmplacements,
+  getEmplacementsAccessibles,
   DEFAULT_HORAIRES,
   DEFAULT_ADRESSE,
 };

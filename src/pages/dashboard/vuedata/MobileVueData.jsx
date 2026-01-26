@@ -1,5 +1,5 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import useActiveUserStore from "@/store/activeUserStore";
 
 // Widgets
@@ -11,6 +11,7 @@ import StatsWidget from "@/components/dashboard/StatsWidget";
 import ComptaWidget from "@/components/dashboard/ComptaWidget";
 import StockWidget from "@/components/dashboard/StockWidget";
 import UsersWidget from "@/components/dashboard/UsersWidget";
+import DashboardCarousel from "@/components/dashboard/DashboardCarousel";
 
 const MobileVueData = () => {
   const { isMobile } = useBreakpoint();
@@ -25,25 +26,33 @@ const MobileVueData = () => {
   const isSupervisorOrAdmin =
     user?.role === "superviseur" || user?.role === "admin";
 
+  // Construire la liste des widgets à afficher dans le carousel
+  const widgets = useMemo(() => {
+    const baseWidgets = [
+      <TodayWidget key="today" isMobile={true} />,
+      <VentesWidget key="ventes" isMobile={true} />,
+      <ClotureWidget key="cloture" isMobile={true} />,
+      <TaskWidget key="task" isMobile={true} />,
+    ];
+
+    // Ajouter les widgets réservés aux superviseurs et admins
+    if (isSupervisorOrAdmin) {
+      baseWidgets.push(
+        <StatsWidget key="stats" isMobile={true} />,
+        <ComptaWidget key="compta" isMobile={true} />,
+        <StockWidget key="stock" isMobile={true} />,
+        <UsersWidget key="users" isMobile={true} />
+      );
+    }
+
+    return baseWidgets;
+  }, [isSupervisorOrAdmin]);
+
   return (
     <div
-      className="min-h-screen space-y-4"
+      className="min-h-screen pb-20"
       style={{ display: visible ? "block" : "none" }}>
-      {/* Widgets accessibles à tous les rôles */}
-      <TodayWidget isMobile={true} />
-      <VentesWidget isMobile={true} />
-      <ClotureWidget isMobile={true} />
-      <TaskWidget isMobile={true} />
-
-      {/* Widgets réservés aux superviseurs et admins */}
-      {isSupervisorOrAdmin && (
-        <>
-          <StatsWidget isMobile={true} />
-          <ComptaWidget isMobile={true} />
-          <StockWidget isMobile={true} />
-          <UsersWidget isMobile={true} />
-        </>
-      )}
+      <DashboardCarousel>{widgets}</DashboardCarousel>
     </div>
   );
 };

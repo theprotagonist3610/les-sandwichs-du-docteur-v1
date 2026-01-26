@@ -23,6 +23,7 @@ import {
   PaymentConfirmation,
   QuantityDialog,
 } from "@/components/panneauDeVente";
+import PointDeVenteSelector from "@/components/panneauDeVente/PointDeVenteSelector";
 
 /**
  * Interface mobile du Panneau de Vente (POS)
@@ -162,6 +163,9 @@ const MobilePanneauDeVente = () => {
     <div
       className="min-h-screen flex flex-col bg-background"
       style={{ display: visible ? "flex" : "none" }}>
+      {/* Dialog de sélection du point de vente */}
+      <PointDeVenteSelector />
+
       {/* Header avec bouton panier */}
       <div className="sticky top-0 z-20 bg-background border-b px-4 py-3">
         <div className="flex items-center justify-between">

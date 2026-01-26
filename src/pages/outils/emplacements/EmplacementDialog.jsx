@@ -112,7 +112,6 @@ const EmplacementDialog = ({
       const { data, error } = await supabase
         .from("users")
         .select("id, nom, prenoms, role")
-        .in("role", ["admin", "superviseur"])
         .order("nom");
 
       if (error) throw error;
