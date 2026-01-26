@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Menu,
   X,
@@ -46,8 +46,8 @@ const MobileNavbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  // Navigation links recuperes du router
-  const navLinks = [
+  // Navigation links recuperes du router - tous les liens disponibles
+  const allNavLinks = [
     { path: "/", label: "Dashboard", icon: Home },
     { path: "/commandes", label: "Commandes", icon: ShoppingCart },
     { path: "/stock", label: "Stock", icon: Package },
@@ -56,10 +56,18 @@ const MobileNavbar = () => {
     { path: "/outils", label: "Outils", icon: ToolCase },
     { path: "/parametres", label: "Parametres", icon: Settings },
     { path: "/utilisateurs", label: "Utilisateurs", icon: Users },
-    // ...(user?.role === "admin"
-    //   ? [{ path: "/taches-recurrentes", label: "Tâches récurrentes", icon: Calendar }]
-    //   : []),
   ];
+
+  // Liens accessibles pour les vendeurs uniquement
+  const vendeurPaths = ["/", "/commandes", "/outils", "/parametres"];
+
+  // Filtrer les liens selon le rôle de l'utilisateur
+  const navLinks = useMemo(() => {
+    if (user?.role === "vendeur") {
+      return allNavLinks.filter((link) => vendeurPaths.includes(link.path));
+    }
+    return allNavLinks;
+  }, [user?.role]);
 
   const toggleTheme = () => {
     // Cycle: light -> dark -> auto -> light

@@ -1,4 +1,4 @@
-import Actions from "./utilisateurs/Presence";
+import Actions from "./utilisateurs/Actions";
 import Presence from "./utilisateurs/Presence";
 import UserApprovalList from "@/components/users/UserApprovalList";
 import useBreakpoint from "@/hooks/useBreakpoint";
@@ -120,5 +120,5 @@ const Utilisateurs = () => {
 export default WithPermission(
   Utilisateurs,
   (userRole) => canViewUsers(userRole),
-  "/"
+  "/",
 );

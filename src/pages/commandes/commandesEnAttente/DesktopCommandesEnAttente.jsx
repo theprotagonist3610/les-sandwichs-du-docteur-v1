@@ -27,7 +27,6 @@ import {
   Clock,
   Package,
   ChevronsUpDown,
-  Truck,
   CheckCircle,
 } from "lucide-react";
 import {
@@ -195,38 +194,41 @@ const DesktopCommandesEnAttente = () => {
   ].sort();
 
   // Filtrer les commandes
-  const filteredCommandes = commandes.filter((commande) => {
-    const matchSearch =
-      !searchTerm ||
-      commande.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      commande.contact_client
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      commande.id?.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredCommandes = commandes
+    .filter((commande) => {
+      const matchSearch =
+        !searchTerm ||
+        commande.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        commande.contact_client
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        commande.id?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchStatutPaiement =
-      filterStatutPaiement === "all" ||
-      commande.statut_paiement === filterStatutPaiement;
+      const matchStatutPaiement =
+        filterStatutPaiement === "all" ||
+        commande.statut_paiement === filterStatutPaiement;
 
-    // Filtres géographiques
-    const matchCommune =
-      filterCommunes.length === 0 ||
-      filterCommunes.includes(commande.lieu_livraison?.commune);
-    const matchQuartier =
-      filterQuartiers.length === 0 ||
-      filterQuartiers.includes(commande.lieu_livraison?.quartier);
-    const matchArrondissement =
-      filterArrondissements.length === 0 ||
-      filterArrondissements.includes(commande.lieu_livraison?.arrondissement);
+      // Filtres géographiques
+      const matchCommune =
+        filterCommunes.length === 0 ||
+        filterCommunes.includes(commande.lieu_livraison?.commune);
+      const matchQuartier =
+        filterQuartiers.length === 0 ||
+        filterQuartiers.includes(commande.lieu_livraison?.quartier);
+      const matchArrondissement =
+        filterArrondissements.length === 0 ||
+        filterArrondissements.includes(commande.lieu_livraison?.arrondissement);
 
-    return (
-      matchSearch &&
-      matchStatutPaiement &&
-      matchCommune &&
-      matchQuartier &&
-      matchArrondissement
-    );
-  });
+      return (
+        matchSearch &&
+        matchStatutPaiement &&
+        matchCommune &&
+        matchQuartier &&
+        matchArrondissement
+      );
+    })
+    // Trier du plus récent au plus ancien
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   // Pagination
   const totalPages = Math.ceil(filteredCommandes.length / itemsPerPage);
@@ -270,27 +272,6 @@ const DesktopCommandesEnAttente = () => {
   // Naviguer vers la commande pour édition
   const handleEditCommande = (commande) => {
     navigate(`/commande?id=${commande.id}`);
-  };
-
-  // Marquer comme "en cours de livraison"
-  const handleStartDelivery = async (commande) => {
-    try {
-      const { error: err } = await commandeToolkit.updateStatutLivraison(
-        commande.id,
-        commandeToolkit.STATUTS_LIVRAISON.EN_COURS,
-        commande.version
-      );
-
-      if (err) {
-        toast.error("Erreur", { description: err.message });
-      } else {
-        toast.success("Livraison démarrée", {
-          description: `Commande de ${commande.client} en cours de livraison`,
-        });
-      }
-    } catch (err) {
-      toast.error("Erreur", { description: err.message });
-    }
   };
 
   // Marquer comme livré
@@ -780,31 +761,14 @@ const DesktopCommandesEnAttente = () => {
                     key={commande.id}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="relative">
+                    exit={{ opacity: 0, scale: 0.95 }}>
                     <CommandeCard
                       commande={commande}
                       onEdit={handleEditCommande}
+                      onDeliver={handleMarkAsDelivered}
+                      showDeliverButton={true}
                       viewMode={viewMode}
                     />
-                    {/* Actions rapides */}
-                    <div className="absolute bottom-4 right-4 flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleStartDelivery(commande)}
-                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200">
-                        <Truck className="w-4 h-4 mr-1" />
-                        Démarrer
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleMarkAsDelivered(commande)}
-                        className="bg-green-600 hover:bg-green-700">
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Livré
-                      </Button>
-                    </div>
                   </motion.div>
                 ))}
               </AnimatePresence>

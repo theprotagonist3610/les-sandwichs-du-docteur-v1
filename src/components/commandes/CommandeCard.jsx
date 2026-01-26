@@ -15,6 +15,7 @@ import {
   CircleDollarSign,
   Tag,
   Percent,
+  CheckCircle,
 } from "lucide-react";
 import * as commandeToolkit from "@/utils/commandeToolkit";
 
@@ -49,8 +50,10 @@ const CommandeCard = ({
   commande,
   onEdit,
   onDelete,
+  onDeliver,
   canUpdate = true,
   canDelete = false,
+  showDeliverButton = false,
   viewMode = "grid",
   isMobile = false,
 }) => {
@@ -205,6 +208,14 @@ const CommandeCard = ({
                 <Edit className="w-3.5 h-3.5" />
               </Button>
             )}
+            {showDeliverButton && onDeliver && (
+              <Button
+                size="sm"
+                className="h-7 px-2 bg-green-600 hover:bg-green-700"
+                onClick={() => onDeliver(commande)}>
+                <CheckCircle className="w-3.5 h-3.5" />
+              </Button>
+            )}
           </div>
         </Card>
       </motion.div>
@@ -326,6 +337,15 @@ const CommandeCard = ({
                 variant="outline"
                 onClick={() => onEdit(commande)}>
                 <Edit className="w-4 h-4" />
+              </Button>
+            )}
+            {showDeliverButton && onDeliver && (
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700"
+                onClick={() => onDeliver(commande)}>
+                <CheckCircle className="w-4 h-4 mr-1" />
+                Livrer
               </Button>
             )}
             {canDelete && (
@@ -533,6 +553,15 @@ const CommandeCard = ({
                 onClick={() => onEdit(commande)}>
                 <Edit className="w-3 h-3 mr-0.5" />
                 Éditer
+              </Button>
+            )}
+            {showDeliverButton && onDeliver && (
+              <Button
+                size="sm"
+                className="h-6 px-2 text-[10px] bg-green-600 hover:bg-green-700"
+                onClick={() => onDeliver(commande)}>
+                <CheckCircle className="w-3 h-3 mr-0.5" />
+                Livrer
               </Button>
             )}
             {canDelete && (

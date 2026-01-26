@@ -148,20 +148,23 @@ const MobileCommandesEnAttente = () => {
   }, [visible]);
 
   // Filtrer les commandes
-  const filteredCommandes = commandes.filter((commande) => {
-    const matchSearch =
-      !searchTerm ||
-      commande.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      commande.contact_client
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
+  const filteredCommandes = commandes
+    .filter((commande) => {
+      const matchSearch =
+        !searchTerm ||
+        commande.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        commande.contact_client
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase());
 
-    const matchStatutPaiement =
-      filterStatutPaiement === "all" ||
-      commande.statut_paiement === filterStatutPaiement;
+      const matchStatutPaiement =
+        filterStatutPaiement === "all" ||
+        commande.statut_paiement === filterStatutPaiement;
 
-    return matchSearch && matchStatutPaiement;
-  });
+      return matchSearch && matchStatutPaiement;
+    })
+    // Trier du plus récent au plus ancien
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   // Stats rapides
   const statsNonPayees = commandes.filter(

@@ -42,8 +42,8 @@ const DesktopNavbar = () => {
     return getOutilsParRole(user?.role);
   }, [user?.role]);
 
-  // Navigation links avec dropdowns
-  const navLinks = [
+  // Navigation links avec dropdowns - tous les liens disponibles
+  const allNavLinks = [
     {
       path: "/",
       label: "Dashboard",
@@ -85,6 +85,17 @@ const DesktopNavbar = () => {
       options: [], // Options a ajouter plus tard
     },
   ];
+
+  // Liens accessibles pour les vendeurs uniquement
+  const vendeurPaths = ["/", "/commandes", "/outils", "/parametres"];
+
+  // Filtrer les liens selon le rôle de l'utilisateur
+  const navLinks = useMemo(() => {
+    if (user?.role === "vendeur") {
+      return allNavLinks.filter((link) => vendeurPaths.includes(link.path));
+    }
+    return allNavLinks;
+  }, [user?.role, outilsDisponibles]);
 
   const toggleTheme = () => {
     // Cycle: light -> dark -> auto -> light
