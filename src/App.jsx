@@ -35,7 +35,7 @@ function App() {
     <>
       <RouterProvider router={router} />
       <CookiesAgreement />
-      <Toaster />
+      <Toaster position="top-right" />
     </>
   );
 }

@@ -111,14 +111,16 @@ const MobileRegister = ({ toggleForm }) => {
     if (result.success) {
       // Compte créé en attente d'approbation admin
       toast.success("Inscription réussie !", {
-        description: result.message || "Votre compte a été créé et est en attente d'approbation.",
+        description:
+          result.message ||
+          "Votre compte a été créé et est en attente d'approbation.",
         duration: 10000,
       });
 
-      // Rediriger vers la page de connexion après 4 secondes
+      // Revenir à la vue login après 2 secondes
       setTimeout(() => {
-        navigate("/connexion");
-      }, 4000);
+        toggleForm();
+      }, 2000);
     } else {
       toast.error("Erreur lors de l'inscription", {
         description: result.error || "Une erreur est survenue",

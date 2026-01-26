@@ -97,7 +97,7 @@ export const canEditUser = (
   userRole,
   currentUserId,
   targetUserId,
-  targetUserRole = null
+  targetUserRole = null,
 ) => {
   // Un utilisateur peut toujours modifier son propre profil
   if (currentUserId === targetUserId) {
@@ -163,7 +163,7 @@ export const canResetUserPassword = (
   userRole,
   currentUserId,
   targetUserId,
-  targetUserRole = null
+  targetUserRole = null,
 ) => {
   // Personne ne peut réinitialiser son propre mot de passe via cette fonction
   // (ils utilisent la fonction de changement de mot de passe normale)
@@ -194,7 +194,7 @@ export const canResetUserPassword = (
 export const canViewConnectionHistory = (
   userRole,
   currentUserId,
-  targetUserId
+  targetUserId,
 ) => {
   // Un utilisateur peut voir son propre historique
   if (currentUserId === targetUserId) {
@@ -238,7 +238,7 @@ export const canManageStock = (userRole) => {
  * @returns {boolean}
  */
 export const canAccessSettings = (userRole) => {
-  return isAdmin(userRole);
+  return true; // Tous les utilisateurs peuvent accéder aux paramètres (style, notifications, sons, préférences)
 };
 
 /**

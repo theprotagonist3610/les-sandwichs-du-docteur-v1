@@ -15,6 +15,7 @@ import Messagerie from "@/pages/outils/Messagerie";
 import PanneauDeVente from "@/pages/commandes/PanneauDeVente";
 import CommandesEnAttente from "@/pages/commandes/CommandesEnAttente";
 import Commande from "@/pages/commandes/Commande";
+import Parametres from "@/pages/Parametres";
 /**
  * Routes accessibles par les vendeurs
  * Accès: Dashboard et Commandes uniquement
@@ -42,6 +43,10 @@ export const vendeurRoutes = {
     {
       path: "outils",
       element: <Outils />,
+    },
+    {
+      path: "parametres",
+      element: <Parametres />,
     },
     { path: "commandes-en-attente", element: <CommandesEnAttente /> },
     { path: "commande/:id", element: <Commande /> },

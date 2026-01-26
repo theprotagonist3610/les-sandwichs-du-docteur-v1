@@ -28,6 +28,7 @@ import useCommandeRefreshStore from "@/store/commandeRefreshStore";
 const VentesWidget = ({ isMobile = false }) => {
   const [commandes, setCommandes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0); // 🔑 Clé pour forcer remontage des NumberTicker
 
   // Hooks pour confetti et son
   const { successConfetti } = useConfetti();
@@ -95,7 +96,7 @@ const VentesWidget = ({ isMobile = false }) => {
     console.log("📊 [VentesWidget] loadData() terminé");
   }, []);
 
-  // 👀 TRACER LES CHANGEMENTS DU STATE COMMANDES
+  // 👀 TRACER LES CHANGEMENTS DU STATE COMMANDES ET INCRÉMENTER refreshKey
   useEffect(() => {
     console.log(`
 ╔════════════════════════════════════════════════════════════╗
@@ -105,6 +106,8 @@ const VentesWidget = ({ isMobile = false }) => {
 ║   Timestamp: ${new Date().toISOString()}                   
 ╚════════════════════════════════════════════════════════════╝
     `);
+    // 🔑 Incrémenter refreshKey pour forcer remontage des NumberTicker
+    setRefreshKey((prev) => prev + 1);
   }, [commandes]);
 
   // Mettre à jour la ref loadData
@@ -323,10 +326,10 @@ const VentesWidget = ({ isMobile = false }) => {
       return sum + (cmd.details_paiement?.total_apres_reduction || 0);
     }, 0);
 
-    // Cadence de vente par heure
+    // Cadence de vente par heure (depuis l'ouverture à 6h)
     const now = new Date();
     const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setHours(6, 0, 0, 0); // Ouverture à 6h
     const hoursElapsed = Math.max(1, (now - startOfDay) / (1000 * 60 * 60));
     const cadenceParHeure = commandes.length / hoursElapsed;
 
@@ -597,6 +600,7 @@ const VentesWidget = ({ isMobile = false }) => {
                 isMobile ? "text-sm" : "text-base"
               } font-semibold text-foreground`}>
               <NumberTicker
+                key={`sur-place-nombre-${refreshKey}`}
                 value={stats.ventesSurPlace.nombre}
                 duration={1000}
               />{" "}
@@ -607,6 +611,7 @@ const VentesWidget = ({ isMobile = false }) => {
                 isMobile ? "text-[10px]" : "text-xs"
               } text-green-600 dark:text-green-400`}>
               <NumberTicker
+                key={`sur-place-ca-${refreshKey}`}
                 value={stats.ventesSurPlace.ca}
                 duration={1000}
                 formatter={(val) => `${formatMontant(val)} F`}
@@ -630,6 +635,7 @@ const VentesWidget = ({ isMobile = false }) => {
                 isMobile ? "text-sm" : "text-base"
               } font-semibold text-foreground`}>
               <NumberTicker
+                key={`livraison-nombre-${refreshKey}`}
                 value={stats.ventesLivraison.nombre}
                 duration={1000}
               />{" "}
@@ -640,6 +646,7 @@ const VentesWidget = ({ isMobile = false }) => {
                 isMobile ? "text-[10px]" : "text-xs"
               } text-cyan-600 dark:text-cyan-400`}>
               <NumberTicker
+                key={`livraison-ca-${refreshKey}`}
                 value={stats.ventesLivraison.ca}
                 duration={1000}
                 formatter={(val) => `${formatMontant(val)} F`}
