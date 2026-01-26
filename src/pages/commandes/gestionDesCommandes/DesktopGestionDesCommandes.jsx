@@ -284,7 +284,7 @@ const DesktopGestionDesCommandes = () => {
 
   // Naviguer vers la commande pour édition
   const handleEditCommande = (commande) => {
-    navigate(`/commande?id=${commande.id}`);
+    navigate(`/commande/${commande.id}`);
   };
 
   // Confirmer la suppression

@@ -461,11 +461,15 @@ export const getAllCommandes = async (filters = {}) => {
  * @returns {Promise<{commandes, error, fromCache}>}
  */
 export const getCommandesDuJour = async (forceSync = false) => {
+  console.log("[getCommandesDuJour] Appelé avec forceSync:", forceSync, "navigator.onLine:", navigator.onLine);
+
   try {
     // Si on force la synchro ou si on est en ligne, essayer de récupérer depuis Supabase
     if (forceSync || navigator.onLine) {
       const todayDate = getTodayDateString();
+      console.log("[getCommandesDuJour] Date du jour:", todayDate);
 
+      console.log("[getCommandesDuJour] Requête Supabase en cours...");
       const { data: commandesSupabase, error } = await supabase
         .from("commandes")
         .select(SELECT_COMMANDE_WITH_VENDEUR)
@@ -473,8 +477,15 @@ export const getCommandesDuJour = async (forceSync = false) => {
         .lte("created_at", `${todayDate}T23:59:59`)
         .order("created_at", { ascending: false });
 
+      console.log("[getCommandesDuJour] Réponse Supabase:", {
+        nombreCommandes: commandesSupabase?.length,
+        error: error,
+        premiereCommande: commandesSupabase?.[0]?.id,
+      });
+
       if (!error && commandesSupabase) {
         // Sauvegarder dans le cache
+        console.log("[getCommandesDuJour] Sauvegarde dans le cache...");
         for (const commande of commandesSupabase) {
           await saveToCache(commande);
         }
@@ -482,17 +493,20 @@ export const getCommandesDuJour = async (forceSync = false) => {
         // Nettoyer les anciennes commandes
         await cleanCache();
 
+        console.log("[getCommandesDuJour] Retour des données Supabase (fromCache: false)");
         return { commandes: commandesSupabase, error: null, fromCache: false };
       }
 
       // Si erreur réseau, tomber sur le cache
       if (error) {
-        console.warn("Erreur Supabase, utilisation du cache local:", error);
+        console.warn("[getCommandesDuJour] Erreur Supabase, utilisation du cache local:", error);
       }
     }
 
     // Récupérer depuis le cache
+    console.log("[getCommandesDuJour] Récupération depuis le cache...");
     const cachedCommandes = await getFromCache();
+    console.log("[getCommandesDuJour] Commandes du cache:", cachedCommandes?.length);
     return {
       commandes: cachedCommandes,
       error: null,
@@ -500,7 +514,7 @@ export const getCommandesDuJour = async (forceSync = false) => {
     };
   } catch (error) {
     console.error(
-      "Exception lors de la récupération des commandes du jour:",
+      "[getCommandesDuJour] Exception lors de la récupération des commandes du jour:",
       error,
     );
 
@@ -513,7 +527,7 @@ export const getCommandesDuJour = async (forceSync = false) => {
         fromCache: true,
       };
     } catch (cacheError) {
-      console.error("Erreur lors de la récupération du cache:", cacheError);
+      console.error("[getCommandesDuJour] Erreur lors de la récupération du cache:", cacheError);
       return { commandes: [], error: cacheError, fromCache: false };
     }
   }

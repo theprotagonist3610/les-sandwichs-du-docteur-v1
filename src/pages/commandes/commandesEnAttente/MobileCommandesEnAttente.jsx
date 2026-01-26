@@ -176,7 +176,7 @@ const MobileCommandesEnAttente = () => {
 
   // Naviguer vers la commande
   const handleEditCommande = (commande) => {
-    navigate(`/commande?id=${commande.id}`);
+    navigate(`/commande/${commande.id}`);
   };
 
   // Marquer comme livré

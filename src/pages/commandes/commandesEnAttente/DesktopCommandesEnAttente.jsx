@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import useBreakpoint from "@/hooks/useBreakpoint";
+import useCommandeRefresh from "@/hooks/useCommandeRefresh";
 import { supabase } from "@/config/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,7 @@ const DesktopCommandesEnAttente = () => {
 
   // Charger les commandes en attente
   const loadCommandes = useCallback(async () => {
+    console.log("🔄 [DesktopCommandesEnAttente] loadCommandes() appelée");
     setLoading(true);
     setError(null);
     try {
@@ -85,17 +87,33 @@ const DesktopCommandesEnAttente = () => {
         });
 
       if (err) {
+        console.error(
+          "❌ [DesktopCommandesEnAttente] Erreur chargement :",
+          err,
+        );
         setError(err.message || "Erreur lors du chargement des commandes");
       } else {
+        console.log(
+          "✅ [DesktopCommandesEnAttente] Commandes chargées :",
+          data?.length || 0,
+        );
         setCommandes(data || []);
       }
     } catch (err) {
+      console.error("❌ [DesktopCommandesEnAttente] Exception :", err);
       setError("Une erreur est survenue lors du chargement des commandes");
       console.error(err);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // 🔄 Hook pour rafraîchir automatiquement quand une commande change
+  console.log(
+    "🎯 [DesktopCommandesEnAttente] useCommandeRefresh va être appelé avec loadCommandes :",
+    typeof loadCommandes,
+  );
+  useCommandeRefresh(loadCommandes, false, "DesktopCommandesEnAttente");
 
   // Charger au montage
   useEffect(() => {
@@ -145,22 +163,20 @@ const DesktopCommandesEnAttente = () => {
                 commandeToolkit.STATUTS_COMMANDE.EN_COURS
             ) {
               setCommandes((prev) =>
-                prev.filter((c) => c.id !== updatedCommande.id)
+                prev.filter((c) => c.id !== updatedCommande.id),
               );
             } else {
               // Mettre à jour la commande existante
               setCommandes((prev) =>
                 prev.map((c) =>
-                  c.id === updatedCommande.id ? updatedCommande : c
-                )
+                  c.id === updatedCommande.id ? updatedCommande : c,
+                ),
               );
             }
           } else if (payload.eventType === "DELETE") {
-            setCommandes((prev) =>
-              prev.filter((c) => c.id !== payload.old.id)
-            );
+            setCommandes((prev) => prev.filter((c) => c.id !== payload.old.id));
           }
-        }
+        },
       )
       .subscribe();
 
@@ -174,7 +190,7 @@ const DesktopCommandesEnAttente = () => {
     ...new Set(
       commandes
         .filter((c) => c.lieu_livraison?.commune)
-        .map((c) => c.lieu_livraison.commune)
+        .map((c) => c.lieu_livraison.commune),
     ),
   ].sort();
 
@@ -182,7 +198,7 @@ const DesktopCommandesEnAttente = () => {
     ...new Set(
       commandes
         .filter((c) => c.lieu_livraison?.quartier)
-        .map((c) => c.lieu_livraison.quartier)
+        .map((c) => c.lieu_livraison.quartier),
     ),
   ].sort();
 
@@ -190,7 +206,7 @@ const DesktopCommandesEnAttente = () => {
     ...new Set(
       commandes
         .filter((c) => c.lieu_livraison?.arrondissement)
-        .map((c) => c.lieu_livraison.arrondissement)
+        .map((c) => c.lieu_livraison.arrondissement),
     ),
   ].sort();
 
@@ -272,23 +288,27 @@ const DesktopCommandesEnAttente = () => {
 
   // Naviguer vers la commande pour édition
   const handleEditCommande = (commande) => {
-    navigate(`/commande?id=${commande.id}`);
+    navigate(`/commande/${commande.id}`);
   };
 
   // Marquer comme livré
   const handleMarkAsDelivered = async (commande) => {
     try {
       // Vérifier que l'utilisateur est authentifié
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
-        toast.error("Erreur", { description: "Vous devez être connecté pour effectuer cette action" });
+        toast.error("Erreur", {
+          description: "Vous devez être connecté pour effectuer cette action",
+        });
         return;
       }
 
       const { error: err } = await commandeToolkit.updateStatutLivraison(
         commande.id,
         commandeToolkit.STATUTS_LIVRAISON.LIVREE,
-        commande.version
+        commande.version,
       );
 
       if (err) {
@@ -309,15 +329,19 @@ const DesktopCommandesEnAttente = () => {
   const handleDeliverAndClose = async (commande) => {
     try {
       // Vérifier que l'utilisateur est authentifié
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
-        toast.error("Erreur", { description: "Vous devez être connecté pour effectuer cette action" });
+        toast.error("Erreur", {
+          description: "Vous devez être connecté pour effectuer cette action",
+        });
         return;
       }
 
       const { error } = await commandeToolkit.deliverAndCloseCommande(
         commande.id,
-        commande.version
+        commande.version,
       );
 
       if (error) {
@@ -405,7 +429,7 @@ const DesktopCommandesEnAttente = () => {
                   commandes.filter(
                     (c) =>
                       c.statut_paiement ===
-                      commandeToolkit.STATUTS_PAIEMENT.NON_PAYEE
+                      commandeToolkit.STATUTS_PAIEMENT.NON_PAYEE,
                   ).length
                 }
               </p>
@@ -426,7 +450,7 @@ const DesktopCommandesEnAttente = () => {
                   commandes.filter(
                     (c) =>
                       c.statut_paiement ===
-                      commandeToolkit.STATUTS_PAIEMENT.PARTIELLEMENT_PAYEE
+                      commandeToolkit.STATUTS_PAIEMENT.PARTIELLEMENT_PAYEE,
                   ).length
                 }
               </p>
@@ -445,7 +469,7 @@ const DesktopCommandesEnAttente = () => {
                   commandes.filter(
                     (c) =>
                       c.statut_paiement ===
-                      commandeToolkit.STATUTS_PAIEMENT.PAYEE
+                      commandeToolkit.STATUTS_PAIEMENT.PAYEE,
                   ).length
                 }
               </p>
@@ -535,7 +559,7 @@ const DesktopCommandesEnAttente = () => {
                 variant="outline"
                 className={cn(
                   "w-[180px] h-10 justify-between",
-                  filterCommunes.length > 0 && "border-blue-500"
+                  filterCommunes.length > 0 && "border-blue-500",
                 )}>
                 {filterCommunes.length === 0
                   ? "Communes"
@@ -557,7 +581,7 @@ const DesktopCommandesEnAttente = () => {
                         setFilterCommunes((prev) =>
                           checked
                             ? [...prev, commune]
-                            : prev.filter((c) => c !== commune)
+                            : prev.filter((c) => c !== commune),
                         );
                       }}
                     />
@@ -580,7 +604,7 @@ const DesktopCommandesEnAttente = () => {
                 variant="outline"
                 className={cn(
                   "w-[180px] h-10 justify-between",
-                  filterQuartiers.length > 0 && "border-blue-500"
+                  filterQuartiers.length > 0 && "border-blue-500",
                 )}>
                 {filterQuartiers.length === 0
                   ? "Quartiers"
@@ -602,7 +626,7 @@ const DesktopCommandesEnAttente = () => {
                         setFilterQuartiers((prev) =>
                           checked
                             ? [...prev, quartier]
-                            : prev.filter((q) => q !== quartier)
+                            : prev.filter((q) => q !== quartier),
                         );
                       }}
                     />
@@ -625,7 +649,7 @@ const DesktopCommandesEnAttente = () => {
                 variant="outline"
                 className={cn(
                   "w-[180px] h-10 justify-between",
-                  filterArrondissements.length > 0 && "border-blue-500"
+                  filterArrondissements.length > 0 && "border-blue-500",
                 )}>
                 {filterArrondissements.length === 0
                   ? "Arrondissements"
@@ -647,7 +671,7 @@ const DesktopCommandesEnAttente = () => {
                         setFilterArrondissements((prev) =>
                           checked
                             ? [...prev, arrond]
-                            : prev.filter((a) => a !== arrond)
+                            : prev.filter((a) => a !== arrond),
                         );
                       }}
                     />
@@ -714,7 +738,7 @@ const DesktopCommandesEnAttente = () => {
                   className="w-3 h-3 ml-1 cursor-pointer"
                   onClick={() =>
                     setFilterCommunes((prev) =>
-                      prev.filter((c) => c !== commune)
+                      prev.filter((c) => c !== commune),
                     )
                   }
                 />
@@ -731,7 +755,7 @@ const DesktopCommandesEnAttente = () => {
                   className="w-3 h-3 ml-1 cursor-pointer"
                   onClick={() =>
                     setFilterQuartiers((prev) =>
-                      prev.filter((q) => q !== quartier)
+                      prev.filter((q) => q !== quartier),
                     )
                   }
                 />
@@ -748,7 +772,7 @@ const DesktopCommandesEnAttente = () => {
                   className="w-3 h-3 ml-1 cursor-pointer"
                   onClick={() =>
                     setFilterArrondissements((prev) =>
-                      prev.filter((a) => a !== arrond)
+                      prev.filter((a) => a !== arrond),
                     )
                   }
                 />
@@ -786,9 +810,7 @@ const DesktopCommandesEnAttente = () => {
             animate={{ opacity: 1 }}
             className="text-center py-12">
             <Clock className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-medium">
-              Aucune commande en attente
-            </h3>
+            <h3 className="text-lg font-medium">Aucune commande en attente</h3>
             <p className="text-muted-foreground mt-2">
               {hasActiveFilters
                 ? "Essayez de modifier vos filtres"

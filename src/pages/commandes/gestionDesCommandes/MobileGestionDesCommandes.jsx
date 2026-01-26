@@ -247,7 +247,7 @@ const MobileGestionDesCommandes = () => {
   };
 
   const handleEditCommande = (commande) => {
-    navigate(`/commande?id=${commande.id}`);
+    navigate(`/commande/${commande.id}`);
   };
 
   const handleConfirmDelete = async () => {

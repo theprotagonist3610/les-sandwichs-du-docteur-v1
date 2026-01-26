@@ -86,7 +86,7 @@ export const superviseurRoutes = {
       element: <GestionDesCommandes />,
     },
     { path: "commandes-en-attente", element: <CommandesEnAttente /> },
-    { path: "commande", element: <Commande /> },
+    { path: "commande/:id", element: <Commande /> },
     { path: "panneau-de-vente", element: <PanneauDeVente /> },
     { path: "livraisons", element: <Livraisons /> },
     { path: "livreurs", element: <Livreurs /> },
