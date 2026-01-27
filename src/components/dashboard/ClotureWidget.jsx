@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import dayClosureService from "@/services/DayClosureService";
 import useActiveUserStore from "@/store/activeUserStore";
+import MetricsComparison from "./MetricsComparison";
 
 /**
  * Widget de clôture journalière
@@ -47,13 +48,48 @@ const ClotureWidget = ({ isMobile = false }) => {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // États pour prévisions vs temps réel
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonData, setComparisonData] = useState(null);
+  const [loadingComparison, setLoadingComparison] = useState(false);
+
   // Date du jour
   const today = new Date().toISOString().split("T")[0];
 
-  // Vérifier l'état au chargement
+  // Vérifier l'état au chargement et charger les comparaisons
   useEffect(() => {
     checkClosureStatus();
+    loadComparisonData();
   }, []);
+
+  // Rafraîchir les comparaisons toutes les 5 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!existingClosure) {
+        loadComparisonData();
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [existingClosure]);
+
+  /**
+   * Charge les données de comparaison prévisions vs temps réel
+   */
+  const loadComparisonData = async () => {
+    setLoadingComparison(true);
+    try {
+      const { success, comparison } = await dayClosureService.getRealtimeVsForecast(today);
+      if (success && comparison) {
+        setComparisonData(comparison);
+        setShowComparison(true);
+      }
+    } catch (error) {
+      console.error("Erreur loadComparisonData:", error);
+    } finally {
+      setLoadingComparison(false);
+    }
+  };
 
   /**
    * Vérifie si la clôture peut être effectuée et si elle existe déjà
@@ -63,6 +99,7 @@ const ClotureWidget = ({ isMobile = false }) => {
     try {
       // Vérifier si une clôture existe déjà
       const { success: closureSuccess, closure } = await dayClosureService.getClosure(today);
+
       if (closureSuccess && closure) {
         setExistingClosure(closure);
         setCanClose(false);
@@ -213,20 +250,34 @@ const ClotureWidget = ({ isMobile = false }) => {
     if (canClose) {
       return (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-            <span className={`${isMobile ? "text-sm" : "text-base"} text-muted-foreground`}>
-              Prêt pour clôture
-            </span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+              <span className={`${isMobile ? "text-sm" : "text-base"} text-muted-foreground`}>
+                Prêt pour clôture
+              </span>
+            </div>
+            <Badge variant="secondary">{commandesCount} commandes</Badge>
           </div>
 
-          <div className="p-3 bg-background/50 rounded-lg border border-border">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted-foreground">Commandes du jour</span>
-              <Badge variant="secondary">{commandesCount}</Badge>
+          {/* Comparaison prévisions vs temps réel */}
+          {showComparison && comparisonData ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Prévisions vs Temps Réel
+                </span>
+                {loadingComparison && (
+                  <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              <MetricsComparison comparison={comparisonData} />
             </div>
-            <p className="text-xs text-muted-foreground">{checkReason}</p>
-          </div>
+          ) : (
+            <div className="p-3 bg-background/50 rounded-lg border border-border">
+              <p className="text-xs text-muted-foreground">{checkReason}</p>
+            </div>
+          )}
 
           <Button
             onClick={openClosureDialog}

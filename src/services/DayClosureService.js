@@ -11,6 +11,9 @@ import {
   calculateDayMetrics,
   saveDayClosure,
   deleteDayClosure,
+  generateDayForecast,
+  calculateRealtimeMetrics,
+  compareMetrics,
 } from "@/utils/dayClosureToolkit";
 
 /**
@@ -221,19 +224,8 @@ class DayClosureService {
         };
       }
 
-      // Vérifier qu'il n'y a pas de commandes en cours
-      const commandesEnCours = commandes.filter(
-        (c) => c.statut_commande === "en_cours"
-      );
-
-      if (commandesEnCours.length > 0) {
-        return {
-          canClose: false,
-          reason: `${commandesEnCours.length} commande(s) encore en cours`,
-          commandesCount: commandes.length,
-        };
-      }
-
+      // La clôture est possible dès qu'il y a des commandes
+      // Les commandes "en_cours" sont autorisées (commandes en avance pour livraison future)
       return {
         canClose: true,
         reason: "Clôture possible",
@@ -360,6 +352,95 @@ class DayClosureService {
         success: false,
         stats: null,
         error: error.message || "Erreur lors du calcul des statistiques",
+      };
+    }
+  }
+
+  /**
+   * Génère les prévisions pour la journée en cours
+   * @returns {Promise<{success: boolean, forecast: Object, error: string}>}
+   */
+  async generateForecast() {
+    try {
+      const forecast = await generateDayForecast();
+
+      return {
+        success: true,
+        forecast,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Erreur generateForecast:", error);
+      return {
+        success: false,
+        forecast: null,
+        error: error.message || "Erreur lors de la génération des prévisions",
+      };
+    }
+  }
+
+  /**
+   * Récupère les métriques en temps réel et les compare aux prévisions
+   * @param {string} date - Date au format YYYY-MM-DD
+   * @returns {Promise<{success: boolean, realtime: Object, forecast: Object, comparison: Object, error: string}>}
+   */
+  async getRealtimeVsForecast(date) {
+    try {
+      // 1. Récupérer la clôture (qui contient les prévisions)
+      const closure = await getDayClosureByDate(date);
+
+      // 2. Calculer les métriques en temps réel
+      const realtime = await calculateRealtimeMetrics(date);
+
+      // 3. Si pas de prévisions dans la clôture, les générer
+      let forecast = closure?.previsions || null;
+      if (!forecast) {
+        const forecastData = await generateDayForecast();
+        forecast = forecastData.previsions;
+      }
+
+      // 4. Comparer les métriques
+      const comparison = compareMetrics(realtime, forecast);
+
+      return {
+        success: true,
+        realtime,
+        forecast,
+        comparison,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Erreur getRealtimeVsForecast:", error);
+      return {
+        success: false,
+        realtime: null,
+        forecast: null,
+        comparison: null,
+        error: error.message || "Erreur lors de la comparaison",
+      };
+    }
+  }
+
+  /**
+   * Récupère uniquement les métriques en temps réel pour une date
+   * @param {string} date - Date au format YYYY-MM-DD
+   * @returns {Promise<{success: boolean, metrics: Object, error: string}>}
+   */
+  async getRealtimeMetrics(date) {
+    try {
+      const metrics = await calculateRealtimeMetrics(date);
+
+      return {
+        success: true,
+        metrics,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Erreur getRealtimeMetrics:", error);
+      return {
+        success: false,
+        metrics: null,
+        error: error.message || "Erreur lors du calcul des métriques",
       };
     }
   }

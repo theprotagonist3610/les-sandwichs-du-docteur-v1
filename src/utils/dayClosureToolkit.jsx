@@ -31,7 +31,11 @@ export const getCommandesByDate = async (date) => {
       .lte("created_at", endOfDay)
       .order("created_at", { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error("Erreur getCommandesByDate:", error);
+      throw error;
+    }
+
     return data || [];
   } catch (error) {
     console.error("Erreur getCommandesByDate:", error);
@@ -178,9 +182,14 @@ export const calculateDayMetrics = async (commandes) => {
   const panierMoyen = nombreVentesTotal > 0 ? chiffreAffaires / nombreVentesTotal : 0;
   const ticketMoyen = panierMoyen; // Même chose dans ce contexte
 
-  // Cadence de vente (ventes par heure)
-  const cadenceVente =
-    dureeOuvertureMinutes > 0 ? nombreVentesTotal / (dureeOuvertureMinutes / 60) : 0;
+  // Cadence de vente (ventes par heure depuis 6h du matin)
+  // Cohérent avec VentesWidget pour comparaison en temps réel
+  const dateJour = ouverture;
+  const startOfDay = new Date(dateJour);
+  startOfDay.setHours(6, 0, 0, 0); // Ouverture à 6h
+  const endOfDay = fermeture;
+  const hoursElapsed = Math.max(1, (endOfDay - startOfDay) / (1000 * 60 * 60));
+  const cadenceVente = nombreVentesTotal / hoursElapsed;
 
   // Taux de livraison
   const tauxLivraison =
@@ -668,6 +677,315 @@ const getEmptyMetrics = () => ({
   temps_moyen_preparation_minutes: 0,
   temps_moyen_livraison_minutes: 0,
 });
+
+// =====================================================
+// CALCUL DES PRÉVISIONS
+// =====================================================
+
+/**
+ * Récupère les clôtures historiques des N derniers jours
+ * @param {number} daysBack - Nombre de jours à récupérer (défaut: 30)
+ * @returns {Promise<Array>} Tableau des clôtures historiques
+ */
+export const getHistoricalClosures = async (daysBack = 30) => {
+  try {
+    // Calculer la date de début (daysBack jours avant aujourd'hui)
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() - 1); // Exclure aujourd'hui
+
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const startDateStr = startDate.toISOString().split("T")[0];
+    const endDateStr = endDate.toISOString().split("T")[0];
+
+    const { data, error } = await supabase
+      .from("days")
+      .select("*")
+      .gte("jour", startDateStr)
+      .lte("jour", endDateStr)
+      .order("jour", { ascending: false });
+
+    if (error) {
+      console.error("Erreur getHistoricalClosures:", error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error("Erreur getHistoricalClosures:", error);
+    return [];
+  }
+};
+
+/**
+ * Calcule les moyennes pondérées des métriques historiques
+ * Pondération: 50% derniers 7j, 30% derniers 15j, 20% derniers 30j
+ * @param {Array} historicalData - Données historiques des clôtures
+ * @returns {Object} Moyennes pondérées de toutes les métriques
+ */
+const calculateWeightedAverages = (historicalData) => {
+  if (!historicalData || historicalData.length === 0) {
+    return getEmptyMetrics();
+  }
+
+  // Séparer les données par période
+  const last7Days = historicalData.slice(0, 7);
+  const last15Days = historicalData.slice(0, 15);
+  const last30Days = historicalData.slice(0, 30);
+
+  // Métriques numériques à calculer
+  const numericFields = [
+    "nombre_ventes_total",
+    "nombre_ventes_sur_place",
+    "nombre_ventes_livraison",
+    "nombre_ventes_emporter",
+    "nombre_paiements_momo",
+    "nombre_paiements_cash",
+    "nombre_paiements_autre",
+    "nombre_paiements_mixtes",
+    "montant_percu_momo",
+    "montant_percu_cash",
+    "montant_percu_autre",
+    "chiffre_affaires",
+    "panier_moyen",
+    "ticket_moyen",
+    "cadence_vente",
+    "taux_livraison",
+    "meilleur_produit_quantite",
+    "nombre_produits_distincts",
+    "nombre_promotions_utilisees",
+    "montant_total_remises",
+    "nombre_points_vente_actifs",
+    "meilleur_point_vente_ca",
+    "nombre_vendeurs_actifs",
+    "meilleur_vendeur_ventes",
+    "nombre_clients_uniques",
+    "taux_clients_reguliers",
+    "ventes_heure_pointe",
+    "nombre_commandes_annulees",
+    "nombre_commandes_en_preparation",
+    "nombre_commandes_livrees",
+    "nombre_commandes_retirees",
+    "taux_completion",
+    "temps_moyen_preparation_minutes",
+    "temps_moyen_livraison_minutes",
+    "duree_ouverture_minutes",
+  ];
+
+  // Calculer les moyennes pour chaque période
+  const calcAverage = (data, field) => {
+    if (data.length === 0) return 0;
+    const sum = data.reduce((acc, day) => acc + (parseFloat(day[field]) || 0), 0);
+    return sum / data.length;
+  };
+
+  // Calcul pondéré
+  const weightedAverages = {};
+  numericFields.forEach((field) => {
+    const avg7 = calcAverage(last7Days, field);
+    const avg15 = calcAverage(last15Days, field);
+    const avg30 = calcAverage(last30Days, field);
+
+    // Pondération adaptative selon le nombre de jours disponibles
+    let weighted = 0;
+    if (last7Days.length >= 7) {
+      weighted = avg7 * 0.5 + avg15 * 0.3 + avg30 * 0.2;
+    } else if (last15Days.length >= 7) {
+      weighted = avg7 * 0.6 + avg15 * 0.4;
+    } else {
+      weighted = avg7; // Utiliser uniquement les données disponibles
+    }
+
+    weightedAverages[field] = Math.round(weighted * 100) / 100;
+  });
+
+  return weightedAverages;
+};
+
+/**
+ * Calcule le score de confiance basé sur la variance historique
+ * Plus la variance est faible, plus le score de confiance est élevé
+ * @param {Array} historicalData - Données historiques
+ * @returns {number} Score de confiance entre 0 et 1
+ */
+const calculateConfidenceScore = (historicalData) => {
+  if (!historicalData || historicalData.length < 3) {
+    return 0; // Pas assez de données
+  }
+
+  // Calculer la variance sur le chiffre d'affaires (métrique clé)
+  const values = historicalData.map((d) => parseFloat(d.chiffre_affaires) || 0);
+  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+
+  if (mean === 0) return 0;
+
+  const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+  const stdDev = Math.sqrt(variance);
+  const coefficientOfVariation = stdDev / mean;
+
+  // Convertir le coefficient de variation en score de confiance
+  // CV faible = confiance élevée, CV élevé = confiance faible
+  // CV < 0.2 (20%) = très stable = confiance ~1.0
+  // CV > 0.5 (50%) = très volatile = confiance ~0.5
+  let confidence = Math.max(0, Math.min(1, 1 - coefficientOfVariation));
+
+  // Bonus pour le nombre de jours de données
+  const dataBonus = Math.min(historicalData.length / 30, 1) * 0.1;
+  confidence = Math.min(1, confidence + dataBonus);
+
+  return Math.round(confidence * 100) / 100;
+};
+
+/**
+ * Génère les prévisions pour une journée
+ * Basé sur les moyennes pondérées des 7, 15 et 30 derniers jours
+ * @returns {Promise<Object>} Objet avec previsions, metadata et confiance
+ */
+export const generateDayForecast = async () => {
+  try {
+    // 1. Récupérer les données historiques (30 derniers jours)
+    const historicalData = await getHistoricalClosures(30);
+
+    // 2. Si pas de données, retourner des prévisions vides
+    if (historicalData.length === 0) {
+      return {
+        previsions: getEmptyMetrics(),
+        previsions_generees_le: new Date().toISOString(),
+        previsions_base_sur_jours: 0,
+        previsions_confiance: 0,
+      };
+    }
+
+    // 3. Calculer les moyennes pondérées
+    const weightedAverages = calculateWeightedAverages(historicalData);
+
+    // 4. Calculer le score de confiance
+    const confidenceScore = calculateConfidenceScore(historicalData);
+
+    // 5. Construire l'objet de prévisions avec métadonnées
+    const previsions = {
+      ...weightedAverages,
+      _metadata: {
+        algorithme: "weighted_average",
+        ponderation: {
+          last_7_days: 0.5,
+          last_15_days: 0.3,
+          last_30_days: 0.2,
+        },
+        jours_utilises: historicalData.map((d) => d.jour),
+        nombre_jours: historicalData.length,
+        variance: {
+          chiffre_affaires: calculateVariance(historicalData, "chiffre_affaires"),
+          nombre_ventes_total: calculateVariance(historicalData, "nombre_ventes_total"),
+        },
+        generee_le: new Date().toISOString(),
+      },
+    };
+
+    return {
+      previsions,
+      previsions_generees_le: new Date().toISOString(),
+      previsions_base_sur_jours: historicalData.length,
+      previsions_confiance: confidenceScore,
+    };
+  } catch (error) {
+    console.error("Erreur generateDayForecast:", error);
+    return {
+      previsions: getEmptyMetrics(),
+      previsions_generees_le: new Date().toISOString(),
+      previsions_base_sur_jours: 0,
+      previsions_confiance: 0,
+    };
+  }
+};
+
+/**
+ * Calcule la variance pour une métrique donnée
+ * @param {Array} data - Données historiques
+ * @param {string} field - Champ à analyser
+ * @returns {number} Variance normalisée (coefficient de variation)
+ */
+const calculateVariance = (data, field) => {
+  if (!data || data.length === 0) return 0;
+
+  const values = data.map((d) => parseFloat(d[field]) || 0);
+  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+
+  if (mean === 0) return 0;
+
+  const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+  const stdDev = Math.sqrt(variance);
+  const coefficientOfVariation = stdDev / mean;
+
+  return Math.round(coefficientOfVariation * 100) / 100;
+};
+
+/**
+ * Calcule les métriques en temps réel pour une date donnée
+ * SANS filtrage par statut - approche consultative
+ * @param {string} date - Date au format YYYY-MM-DD
+ * @returns {Promise<Object>} Métriques en temps réel
+ */
+export const calculateRealtimeMetrics = async (date) => {
+  try {
+    // Récupérer TOUTES les commandes du jour (pas de filtre de statut)
+    const commandes = await getCommandesByDate(date);
+
+    if (commandes.length === 0) {
+      return getEmptyMetrics();
+    }
+
+    // Calculer les métriques (fonction existante)
+    const metrics = await calculateDayMetrics(commandes);
+
+    return metrics;
+  } catch (error) {
+    console.error("Erreur calculateRealtimeMetrics:", error);
+    return getEmptyMetrics();
+  }
+};
+
+/**
+ * Compare les métriques réelles avec les prévisions
+ * @param {Object} realtime - Métriques en temps réel
+ * @param {Object} forecast - Prévisions
+ * @returns {Object} Objet de comparaison avec écarts et pourcentages
+ */
+export const compareMetrics = (realtime, forecast) => {
+  const comparison = {};
+
+  // Métriques clés à comparer
+  const keysToCompare = [
+    "nombre_ventes_total",
+    "chiffre_affaires",
+    "panier_moyen",
+    "nombre_paiements_momo",
+    "nombre_paiements_cash",
+    "montant_percu_momo",
+    "montant_percu_cash",
+    "cadence_vente",
+    "taux_livraison",
+  ];
+
+  keysToCompare.forEach((key) => {
+    const realtimeVal = parseFloat(realtime[key]) || 0;
+    const forecastVal = parseFloat(forecast[key]) || 0;
+
+    const difference = realtimeVal - forecastVal;
+    const percentChange = forecastVal !== 0 ? (difference / forecastVal) * 100 : 0;
+
+    comparison[key] = {
+      realtime: realtimeVal,
+      forecast: forecastVal,
+      difference: Math.round(difference * 100) / 100,
+      percentChange: Math.round(percentChange * 100) / 100,
+      status: difference > 0 ? "above" : difference < 0 ? "below" : "equal",
+    };
+  });
+
+  return comparison;
+};
 
 // =====================================================
 // ENREGISTREMENT DES CLÔTURES
