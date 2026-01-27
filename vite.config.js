@@ -33,10 +33,6 @@ export default defineConfig({
           },
         ],
       },
-        "favicon.ico",
-        "apple-touch-icon-180x180.png",
-        "maskable-icon-512x512.png",
-      ],
       manifest: {
         name: "Les Sandwichs du Docteur",
         short_name: "Sandwichs Doc",
