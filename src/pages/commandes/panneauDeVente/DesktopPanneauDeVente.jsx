@@ -5,13 +5,9 @@ import useCartStore from "@/store/cartStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ShoppingCart, Trash2, MapPin, Store } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
-
 import {
   MenuCatalog,
   CartItem,
@@ -37,7 +33,8 @@ const DesktopPanneauDeVente = () => {
 
   // Point de vente
   const { selectedPointDeVente } = usePointDeVenteStore();
-  const [showPointDeVenteSelector, setShowPointDeVenteSelector] = useState(false);
+  const [showPointDeVenteSelector, setShowPointDeVenteSelector] =
+    useState(false);
 
   // Hook principal
   const {
