@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { initializeConnectivityListeners } from "@/store/connectivityStore";
 import useActiveUserStore from "@/store/activeUserStore";
 import useUserPresence from "@/hooks/useUserPresence";
+import usePWAUpdate from "@/hooks/usePWAUpdate";
 
 function App() {
   // Récupérer le rôle de l'utilisateur actif et la fonction de chargement
@@ -13,6 +14,9 @@ function App() {
 
   // Tracker la présence de l'utilisateur connecté
   useUserPresence(user?.id);
+
+  // Vérifier les mises à jour de la PWA et recharger automatiquement
+  usePWAUpdate();
 
   // Créer le router en fonction du rôle de l'utilisateur
   // Le router se recrée automatiquement quand l'utilisateur change

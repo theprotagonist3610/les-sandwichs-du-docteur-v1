@@ -10,7 +10,29 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: [
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB (au lieu de 2 MiB par défaut)
+        // Forcer une vérification plus fréquente des mises à jour
+        skipWaiting: true,
+        clientsClaim: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "supabase-cache",
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24, // 24 heures
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+        ],
+      },
         "favicon.ico",
         "apple-touch-icon-180x180.png",
         "maskable-icon-512x512.png",
@@ -47,26 +69,6 @@ export default defineConfig({
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
-          },
-        ],
-      },
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB (au lieu de 2 MiB par défaut)
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "supabase-cache",
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24, // 24 heures
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
           },
         ],
       },
