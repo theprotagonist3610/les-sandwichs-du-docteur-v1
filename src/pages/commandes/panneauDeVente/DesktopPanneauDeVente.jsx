@@ -122,16 +122,16 @@ const DesktopPanneauDeVente = () => {
         <div className="flex items-center justify-between max-w-[1800px] mx-auto">
           <div className="flex flex-col gap-1">
             <h1 className="text-xl font-semibold">Panneau de Vente</h1>
-            {/* Point de vente actif */}
-            {selectedPointDeVente && (
-              <button
-                onClick={() => setShowPointDeVenteSelector(true)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <MapPin className="w-3.5 h-3.5" />
-                <span className="font-medium">{selectedPointDeVente.nom}</span>
-                <Store className="w-3 h-3" />
-              </button>
-            )}
+            {/* Point de vente actif (toujours affiché) */}
+            <button
+              onClick={() => setShowPointDeVenteSelector(true)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <MapPin className="w-3.5 h-3.5" />
+              <span className="font-medium">
+                {selectedPointDeVente?.nom || "Sélectionner un point de vente"}
+              </span>
+              <Store className="w-3 h-3" />
+            </button>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ShoppingCart className="w-4 h-4" />

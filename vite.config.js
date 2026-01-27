@@ -13,9 +13,13 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB (au lieu de 2 MiB par défaut)
-        // Forcer une vérification plus fréquente des mises à jour
+        // Forcer la mise à jour immédiate du service worker
         skipWaiting: true,
         clientsClaim: true,
+        // Nettoyer les anciens caches lors des mises à jour
+        cleanupOutdatedCaches: true,
+        // Forcer le navigateur à ne pas utiliser le cache HTTP pour les requêtes de précache
+        sourcemap: false,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,

@@ -22,16 +22,17 @@ import { toast } from "sonner";
  */
 const PointDeVenteSelector = ({ open: controlledOpen, onOpenChange: controlledOnOpenChange } = {}) => {
   const { user } = useActiveUserStore();
-  const { selectedPointDeVente, setPointDeVente, hasPointDeVente } =
+  const { selectedPointDeVente, setPointDeVente, isSelected } =
     usePointDeVenteStore();
 
   const [emplacements, setEmplacements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
 
-  // Dialog bloquant si pas de point de vente sélectionné
-  // Ou contrôlé manuellement via les props
-  const isOpen = controlledOpen !== undefined ? controlledOpen : !hasPointDeVente();
+  // Dialog TOUJOURS ouvert si aucun point de vente n'est sélectionné (prioritaire)
+  // Ou contrôlé manuellement via les props si un point de vente est déjà sélectionné
+  const hasValidSelection = isSelected && selectedPointDeVente !== null;
+  const isOpen = !hasValidSelection || controlledOpen;
 
   // Charger les emplacements accessibles
   useEffect(() => {
@@ -123,11 +124,15 @@ const PointDeVenteSelector = ({ open: controlledOpen, onOpenChange: controlledOn
   };
 
   const handleOpenChange = (open) => {
+    // Ne JAMAIS permettre de fermer si aucun point de vente n'est sélectionné
+    if (!open && !hasValidSelection) {
+      return;
+    }
+
     // Si contrôlé manuellement, utiliser le callback fourni
     if (controlledOnOpenChange) {
       controlledOnOpenChange(open);
     }
-    // Sinon, ne rien faire (dialog bloquant)
   };
 
   return (

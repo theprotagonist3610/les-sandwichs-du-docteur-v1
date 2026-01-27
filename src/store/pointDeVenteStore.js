@@ -26,8 +26,10 @@ const usePointDeVenteStore = create(
 
       /**
        * Réinitialiser la sélection (changement de page, déconnexion, etc.)
+       * Nettoie aussi le sessionStorage pour éviter la restauration par persist
        */
       clearPointDeVente: () => {
+        sessionStorage.removeItem("point-de-vente-storage");
         set({
           selectedPointDeVente: null,
           isSelected: false,

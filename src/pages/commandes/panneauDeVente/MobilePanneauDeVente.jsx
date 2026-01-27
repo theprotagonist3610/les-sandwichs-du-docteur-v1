@@ -179,16 +179,16 @@ const MobilePanneauDeVente = () => {
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-0.5">
             <h1 className="text-lg font-semibold leading-tight">Nouvelle commande</h1>
-            {/* Point de vente actif */}
-            {selectedPointDeVente && (
-              <button
-                onClick={() => setShowPointDeVenteSelector(true)}
-                className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
-                <MapPin className="w-3 h-3" />
-                <span className="font-medium">{selectedPointDeVente.nom}</span>
-                <Store className="w-2.5 h-2.5" />
-              </button>
-            )}
+            {/* Point de vente actif (toujours affiché) */}
+            <button
+              onClick={() => setShowPointDeVenteSelector(true)}
+              className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+              <MapPin className="w-3 h-3" />
+              <span className="font-medium">
+                {selectedPointDeVente?.nom || "Sélectionner"}
+              </span>
+              <Store className="w-2.5 h-2.5" />
+            </button>
           </div>
           <Button
             variant="outline"
