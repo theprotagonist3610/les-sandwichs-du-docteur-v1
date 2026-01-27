@@ -10,7 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, MapPin, Store } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import {
@@ -24,6 +24,7 @@ import {
   QuantityDialog,
 } from "@/components/panneauDeVente";
 import PointDeVenteSelector from "@/components/panneauDeVente/PointDeVenteSelector";
+import usePointDeVenteStore from "@/store/pointDeVenteStore";
 
 /**
  * Interface mobile du Panneau de Vente (POS)
@@ -37,6 +38,10 @@ const MobilePanneauDeVente = () => {
   const cartPayments = useCartStore((state) => state.details_paiement);
   const updateItemQuantity = useCartStore((state) => state.updateItemQuantity);
   const addItem = useCartStore((state) => state.addItem);
+
+  // Point de vente
+  const { selectedPointDeVente } = usePointDeVenteStore();
+  const [showPointDeVenteSelector, setShowPointDeVenteSelector] = useState(false);
 
   // Hook principal
   const {
@@ -164,12 +169,27 @@ const MobilePanneauDeVente = () => {
       className="min-h-screen flex flex-col bg-background"
       style={{ display: visible ? "flex" : "none" }}>
       {/* Dialog de sélection du point de vente */}
-      <PointDeVenteSelector />
+      <PointDeVenteSelector
+        open={showPointDeVenteSelector}
+        onOpenChange={setShowPointDeVenteSelector}
+      />
 
       {/* Header avec bouton panier */}
-      <div className="sticky top-0 z-20 bg-background border-b px-4 py-3">
+      <div className="sticky top-0 z-20 bg-background border-b px-4 py-3 h-[73px] flex flex-col justify-center">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Nouvelle commande</h1>
+          <div className="flex flex-col gap-0.5">
+            <h1 className="text-lg font-semibold leading-tight">Nouvelle commande</h1>
+            {/* Point de vente actif */}
+            {selectedPointDeVente && (
+              <button
+                onClick={() => setShowPointDeVenteSelector(true)}
+                className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                <MapPin className="w-3 h-3" />
+                <span className="font-medium">{selectedPointDeVente.nom}</span>
+                <Store className="w-2.5 h-2.5" />
+              </button>
+            )}
+          </div>
           <Button
             variant="outline"
             className="relative"
@@ -190,21 +210,19 @@ const MobilePanneauDeVente = () => {
       </div>
 
       {/* Catalogue (scrollable) - Mode compact sans images */}
-      <div className="p-4">
-        <MenuCatalog
-          menus={menus}
-          loading={menusLoading}
-          error={menusError}
-          activeCategory={activeCategory}
-          onCategoryChange={setActiveCategory}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          onAddToCart={handleMenuClick}
-          cartItems={cartItems}
-          categories={categories}
-          compact={true}
-        />
-      </div>
+      <MenuCatalog
+        menus={menus}
+        loading={menusLoading}
+        error={menusError}
+        activeCategory={activeCategory}
+        onCategoryChange={setActiveCategory}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onAddToCart={handleMenuClick}
+        cartItems={cartItems}
+        categories={categories}
+        compact={true}
+      />
 
       {/* Bouton sticky "Voir panier" */}
       {!cartIsEmpty && (
@@ -276,9 +294,15 @@ const MobilePanneauDeVente = () => {
               </div>
             ) : (
               <>
-                {/* Zone scrollable du panier */}
-                <div className="flex-1 overflow-y-auto">
-                  <div className="px-4 py-3 space-y-1">
+                {/* Zone scrollable unique avec tout le contenu */}
+                <div
+                  className="flex-1 overflow-y-auto px-4 pb-4"
+                  style={{
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehavior: 'contain'
+                  }}>
+                  {/* Articles du panier */}
+                  <div className="py-3 space-y-1">
                     <AnimatePresence>
                       {cartItems.map((item) => (
                         <CartItem
@@ -294,7 +318,7 @@ const MobilePanneauDeVente = () => {
                   </div>
 
                   {/* Code promo */}
-                  <div className="px-4 py-3 border-t">
+                  <div className="py-3 border-t">
                     <PromoInput
                       promotion={promotion}
                       onApply={applyPromoCode}
@@ -303,7 +327,7 @@ const MobilePanneauDeVente = () => {
                   </div>
 
                   {/* Infos client */}
-                  <div className="px-4 py-3 border-t pb-6">
+                  <div className="py-3 border-t">
                     <p className="text-sm font-medium mb-3">
                       Informations commande
                     </p>

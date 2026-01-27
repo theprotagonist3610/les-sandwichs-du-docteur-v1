@@ -9,7 +9,7 @@ import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
-import { ShoppingCart, Trash2 } from "lucide-react";
+import { ShoppingCart, Trash2, MapPin, Store } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 
 import {
@@ -22,6 +22,7 @@ import {
   PaymentConfirmation,
 } from "@/components/panneauDeVente";
 import PointDeVenteSelector from "@/components/panneauDeVente/PointDeVenteSelector";
+import usePointDeVenteStore from "@/store/pointDeVenteStore";
 
 /**
  * Interface desktop du Panneau de Vente (POS)
@@ -33,6 +34,10 @@ const DesktopPanneauDeVente = () => {
 
   // Accès direct au store pour les paiements
   const cartPayments = useCartStore((state) => state.details_paiement);
+
+  // Point de vente
+  const { selectedPointDeVente } = usePointDeVenteStore();
+  const [showPointDeVenteSelector, setShowPointDeVenteSelector] = useState(false);
 
   // Hook principal
   const {
@@ -110,12 +115,27 @@ const DesktopPanneauDeVente = () => {
       className="min-h-screen flex flex-col bg-muted/30"
       style={{ display: visible ? "flex" : "none" }}>
       {/* Dialog de sélection du point de vente */}
-      <PointDeVenteSelector />
+      <PointDeVenteSelector
+        open={showPointDeVenteSelector}
+        onOpenChange={setShowPointDeVenteSelector}
+      />
 
       {/* Header */}
       <div className="bg-background border-b px-6 py-4">
         <div className="flex items-center justify-between max-w-[1800px] mx-auto">
-          <h1 className="text-xl font-semibold">Panneau de Vente</h1>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl font-semibold">Panneau de Vente</h1>
+            {/* Point de vente actif */}
+            {selectedPointDeVente && (
+              <button
+                onClick={() => setShowPointDeVenteSelector(true)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <MapPin className="w-3.5 h-3.5" />
+                <span className="font-medium">{selectedPointDeVente.nom}</span>
+                <Store className="w-3 h-3" />
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ShoppingCart className="w-4 h-4" />
             <span>
@@ -141,6 +161,7 @@ const DesktopPanneauDeVente = () => {
               onAddToCart={addToCart}
               cartItems={cartItems}
               categories={categories}
+              compact={false}
               className="h-full"
             />
           </Card>

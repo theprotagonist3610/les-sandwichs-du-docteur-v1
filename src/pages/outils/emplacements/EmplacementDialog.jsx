@@ -242,7 +242,7 @@ const EmplacementDialog = ({
       if (isEditing) {
         result = await emplacementToolkit.updateEmplacement(
           emplacement.id,
-          emplacementData
+          emplacementData,
         );
       } else {
         result = await emplacementToolkit.createEmplacement(emplacementData);
@@ -250,6 +250,10 @@ const EmplacementDialog = ({
 
       if (result.error) {
         throw result.error;
+      }
+
+      if (!result.emplacement) {
+        throw new Error("Aucun emplacement retourné");
       }
 
       toast.success("Succès", {
@@ -546,7 +550,7 @@ const EmplacementDialog = ({
                           handleHorairesChange(
                             jour,
                             "ouverture",
-                            e.target.value || null
+                            e.target.value || null,
                           )
                         }
                       />
@@ -565,7 +569,7 @@ const EmplacementDialog = ({
                           handleHorairesChange(
                             jour,
                             "fermeture",
-                            e.target.value || null
+                            e.target.value || null,
                           )
                         }
                       />
@@ -588,8 +592,8 @@ const EmplacementDialog = ({
               {isLoading
                 ? "Enregistrement..."
                 : isEditing
-                ? "Modifier"
-                : "Créer"}
+                  ? "Modifier"
+                  : "Créer"}
             </Button>
           </DialogFooter>
         </form>

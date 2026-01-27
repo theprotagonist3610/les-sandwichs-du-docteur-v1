@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
  * @param {boolean} isInCart - Si l'article est dans le panier
  * @param {number} quantityInCart - Quantité dans le panier
  * @param {boolean} compact - Mode compact sans image (mobile)
+ * @param {boolean} hideImage - Cache l'image en mode desktop (garde le layout desktop)
  * @param {string} className - Classes CSS additionnelles
  */
 const MenuCard = ({
@@ -20,6 +21,7 @@ const MenuCard = ({
   isInCart,
   quantityInCart,
   compact = false,
+  hideImage = false,
   className,
 }) => {
   // État image
@@ -71,7 +73,7 @@ const MenuCard = ({
     );
   }
 
-  // Mode standard (desktop) - avec image
+  // Mode standard (desktop) - avec ou sans image
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -89,34 +91,43 @@ const MenuCard = ({
           className
         )}
         onClick={() => onAdd(menu)}>
-        {/* Image */}
-        <div className="relative aspect-square bg-muted">
-          {hasImage ? (
-            <img
-              src={menu.image_url}
-              alt={menu.nom}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
-              <ImageOff className="w-8 h-8 text-muted-foreground/50" />
-            </div>
-          )}
+        {/* Image - masquée si hideImage */}
+        {!hideImage && (
+          <div className="relative aspect-square bg-muted">
+            {hasImage ? (
+              <img
+                src={menu.image_url}
+                alt={menu.nom}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
+                <ImageOff className="w-8 h-8 text-muted-foreground/50" />
+              </div>
+            )}
 
-          {/* Badge quantité */}
-          {isInCart && quantityInCart > 0 && (
+            {/* Badge quantité */}
+            {isInCart && quantityInCart > 0 && (
+              <Badge className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-0.5 shadow-md">
+                × {quantityInCart}
+              </Badge>
+            )}
+
+            {/* Overlay au tap */}
+            <div className="absolute inset-0 bg-primary/10 opacity-0 active:opacity-100 transition-opacity" />
+          </div>
+        )}
+
+        {/* Infos */}
+        <div className="p-2.5 space-y-1">
+          {/* Badge quantité - en haut si pas d'image */}
+          {hideImage && isInCart && quantityInCart > 0 && (
             <Badge className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-0.5 shadow-md">
               × {quantityInCart}
             </Badge>
           )}
 
-          {/* Overlay au tap */}
-          <div className="absolute inset-0 bg-primary/10 opacity-0 active:opacity-100 transition-opacity" />
-        </div>
-
-        {/* Infos */}
-        <div className="p-2.5 space-y-1">
           {/* Nom */}
           <h3 className="font-medium text-sm leading-tight line-clamp-1">
             {menu.nom}

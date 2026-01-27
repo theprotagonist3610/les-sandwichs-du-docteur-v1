@@ -161,7 +161,7 @@ export const createEmplacement = async (emplacementData) => {
  */
 export const updateEmplacement = async (emplacementId, updates) => {
   try {
-    // Retirer les champs qui ne doivent pas �tre mis � jour directement
+    // Retirer les champs qui ne doivent pas être mis à jour directement
     const { id, created_at, updated_at, responsable, ...safeUpdates } = updates;
 
     // Mapper les noms de champs du camelCase au snake_case
@@ -177,16 +177,48 @@ export const updateEmplacement = async (emplacementId, updates) => {
     if (safeUpdates.statut !== undefined)
       mappedUpdates.statut = safeUpdates.statut;
 
+    // Vérifier d'abord si l'emplacement existe
+    const { data: existingData, error: checkError } = await supabase
+      .from("emplacements")
+      .select("*")
+      .eq("id", emplacementId)
+      .maybeSingle();
+
+    if (checkError) {
+      return { emplacement: null, error: checkError };
+    } else if (!existingData) {
+      return {
+        emplacement: null,
+        error: { message: "Emplacement introuvable avec cet ID" },
+      };
+    }
+
+    console.log("📤 Envoi de la requête UPDATE à Supabase...");
     const { data, error } = await supabase
       .from("emplacements")
       .update(mappedUpdates)
       .eq("id", emplacementId)
       .select("*")
-      .single();
+      .maybeSingle();
 
-    return { emplacement: data, error };
+    if (error) {
+      return { emplacement: null, error };
+    }
+
+    if (!data) {
+      return {
+        emplacement: null,
+        error: {
+          message: "Mise à jour refusée - Vérifiez les permissions RLS",
+        },
+      };
+    }
+
+    console.log("✅ Mise à jour réussie:", data);
+    console.groupEnd();
+    return { emplacement: data, error: null };
   } catch (error) {
-    console.error("Erreur lors de la mise � jour de l'emplacement:", error);
+    console.error("Erreur lors de la mise à jour de l'emplacement:", error);
     return { emplacement: null, error };
   }
 };

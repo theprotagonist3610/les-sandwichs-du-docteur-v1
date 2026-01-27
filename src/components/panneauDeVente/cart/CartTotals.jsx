@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import { Truck, Percent, Tag } from "lucide-react";
+import { Truck, Percent, Tag, MapPin } from "lucide-react";
+import usePointDeVenteStore from "@/store/pointDeVenteStore";
 
 /**
  * Affichage des totaux du panier
@@ -13,8 +14,23 @@ const CartTotals = ({
   promotion,
   className,
 }) => {
+  const { selectedPointDeVente } = usePointDeVenteStore();
+
   return (
     <div className={cn("space-y-2", className)}>
+      {/* Point de vente - Non modifiable */}
+      {selectedPointDeVente && (
+        <div className="flex justify-between items-center text-sm pb-2 border-b bg-muted/30 -mx-3 px-3 py-2 rounded">
+          <span className="text-muted-foreground flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5" />
+            Point de vente
+          </span>
+          <span className="font-medium text-xs text-foreground">
+            {selectedPointDeVente.nom}
+          </span>
+        </div>
+      )}
+
       {/* Sous-total */}
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">Sous-total</span>

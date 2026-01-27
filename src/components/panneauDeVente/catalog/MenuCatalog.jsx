@@ -32,7 +32,7 @@ const MenuCatalog = ({
   // Mode compact (mobile) - Layout fixed indépendant
   if (compact) {
     return (
-      <div className="fixed inset-0 top-[57px] bottom-0 bg-background flex flex-col">
+      <div className="fixed inset-0 top-[73px] bottom-0 bg-background flex flex-col">
         {/* Header fixe: recherche + catégories */}
         <div className="flex-shrink-0 px-4 pt-4 pb-2 bg-background">
           {/* Barre de recherche */}
@@ -167,7 +167,7 @@ const MenuCatalog = ({
                   onAdd={onAddToCart}
                   isInCart={getCartQuantity(menu.id) > 0}
                   quantityInCart={getCartQuantity(menu.id)}
-                  compact={false}
+                  hideImage={true}
                 />
               ))}
             </AnimatePresence>

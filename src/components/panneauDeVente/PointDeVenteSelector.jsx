@@ -18,8 +18,9 @@ import { toast } from "sonner";
 /**
  * Composant de sélection du point de vente
  * Dialog bloquant qui s'affiche si aucun point de vente n'est sélectionné
+ * Peut aussi être contrôlé manuellement via les props open/onOpenChange
  */
-const PointDeVenteSelector = () => {
+const PointDeVenteSelector = ({ open: controlledOpen, onOpenChange: controlledOnOpenChange } = {}) => {
   const { user } = useActiveUserStore();
   const { selectedPointDeVente, setPointDeVente, hasPointDeVente } =
     usePointDeVenteStore();
@@ -27,6 +28,10 @@ const PointDeVenteSelector = () => {
   const [emplacements, setEmplacements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
+
+  // Dialog bloquant si pas de point de vente sélectionné
+  // Ou contrôlé manuellement via les props
+  const isOpen = controlledOpen !== undefined ? controlledOpen : !hasPointDeVente();
 
   // Charger les emplacements accessibles
   useEffect(() => {
@@ -62,6 +67,13 @@ const PointDeVenteSelector = () => {
     loadEmplacements();
   }, [user]);
 
+  // Pré-sélectionner le point de vente actuel quand le dialog s'ouvre
+  useEffect(() => {
+    if (isOpen && selectedPointDeVente) {
+      setSelectedId(selectedPointDeVente.id);
+    }
+  }, [isOpen, selectedPointDeVente]);
+
   // Confirmer la sélection
   const handleConfirm = () => {
     const emplacement = emplacements.find((e) => e.id === selectedId);
@@ -73,6 +85,11 @@ const PointDeVenteSelector = () => {
 
     setPointDeVente(emplacement);
     toast.success(`Point de vente sélectionné : ${emplacement.nom}`);
+
+    // Fermer le dialog si contrôlé manuellement
+    if (controlledOnOpenChange) {
+      controlledOnOpenChange(false);
+    }
   };
 
   // Obtenir l'icône selon le type
@@ -105,11 +122,16 @@ const PointDeVenteSelector = () => {
     return parts.length > 0 ? parts.join(", ") : "Adresse non spécifiée";
   };
 
-  // Dialog bloquant si pas de point de vente sélectionné
-  const isOpen = !hasPointDeVente();
+  const handleOpenChange = (open) => {
+    // Si contrôlé manuellement, utiliser le callback fourni
+    if (controlledOnOpenChange) {
+      controlledOnOpenChange(open);
+    }
+    // Sinon, ne rien faire (dialog bloquant)
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         className="max-w-2xl max-h-[90vh] overflow-auto"
         hideCloseButton>
