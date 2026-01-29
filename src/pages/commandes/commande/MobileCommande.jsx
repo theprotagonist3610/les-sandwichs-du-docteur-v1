@@ -1,5 +1,6 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { useCommandeEditor } from "@/hooks/useCommandeEditor";
 import { Loader2, User, ShoppingBag, Truck, CreditCard, History } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +19,7 @@ import {
 const MobileCommande = () => {
   const { isMobile } = useBreakpoint();
   const [visible, setVisible] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     setVisible(isMobile);
@@ -100,6 +102,29 @@ const MobileCommande = () => {
     // Utilitaires
     isFieldDirty,
   } = useCommandeEditor();
+
+  // Ref pour éviter les doubles traitements du retour d'adresse
+  const addressReturnHandledRef = useRef(false);
+
+  // Gérer le retour depuis la page adresses-livraison avec une nouvelle adresse
+  useEffect(() => {
+    if (
+      location.state?.newAdresseId &&
+      adresses?.length > 0 &&
+      !addressReturnHandledRef.current
+    ) {
+      // Marquer comme traité immédiatement
+      addressReturnHandledRef.current = true;
+
+      // Trouver l'adresse dans la liste et la sélectionner
+      const newAdresse = adresses.find(a => a.id === location.state.newAdresseId);
+      if (newAdresse) {
+        setAdresse(newAdresse);
+      }
+      // Nettoyer le state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state?.newAdresseId, adresses]);
 
   // Loading state
   if (isLoading) {
@@ -241,6 +266,7 @@ const MobileCommande = () => {
                 onAssignLivreur={assignLivreur}
                 onSelectAdresse={() => setShowAdresseModal(true)}
                 isFieldDirty={isFieldDirty}
+                selectedAdresse={adresses?.find(a => a.id === commande.adresse_id)}
               />
             </TabsContent>
           )}
@@ -287,10 +313,7 @@ const MobileCommande = () => {
         adresses={adresses}
         currentAdresseId={commande.adresse_id}
         onSelect={setAdresse}
-        onCreateNew={() => {
-          // TODO: Ouvrir le formulaire de création d'adresse
-          setShowAdresseModal(false);
-        }}
+        commandeId={commande.id}
       />
 
       <ConfirmDialog

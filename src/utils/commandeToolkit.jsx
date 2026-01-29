@@ -109,11 +109,24 @@ export const initDB = () => {
 };
 
 /**
+ * Obtenir la date locale au format ISO (YYYY-MM-DD)
+ * Utilise le fuseau horaire local au lieu de UTC
+ * @param {Date} date - Date à formater (par défaut: maintenant)
+ * @returns {string}
+ */
+export const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+/**
  * Obtenir la date du jour au format ISO (YYYY-MM-DD)
  * @returns {string}
  */
 export const getTodayDateString = () => {
-  return new Date().toISOString().split("T")[0];
+  return getLocalDateString();
 };
 
 /**
@@ -860,7 +873,7 @@ export const updateStatutLivraison = async (
   // Si la livraison est terminée, enregistrer la date et l'heure réelles
   if (nouveauStatut === STATUTS_LIVRAISON.LIVREE) {
     const now = new Date();
-    updates.date_reelle_livraison = now.toISOString().split("T")[0];
+    updates.date_reelle_livraison = getLocalDateString(now);
     updates.heure_reelle_livraison = now.toTimeString().split(" ")[0];
   }
 
@@ -916,7 +929,7 @@ export const deliverAndCloseCommande = async (commandeId, currentVersion) => {
     const updates = {
       statut_livraison: STATUTS_LIVRAISON.LIVREE,
       statut_commande: STATUTS_COMMANDE.TERMINEE,
-      date_reelle_livraison: now.toISOString().split("T")[0],
+      date_reelle_livraison: getLocalDateString(now),
       heure_reelle_livraison: now.toTimeString().split(" ")[0],
     };
 
@@ -935,7 +948,7 @@ export const deliverAndCloseCommande = async (commandeId, currentVersion) => {
  */
 export const archiveDailyCommandes = async (date = new Date()) => {
   try {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = getLocalDateString(date);
 
     // Récupérer toutes les commandes du jour qui sont livrées ou annulées
     // mais dont le statut_commande est encore 'en_cours'
@@ -1204,7 +1217,7 @@ export const downloadCSV = (commandes, filename = null) => {
   }
 
   const finalFilename =
-    filename || `commandes_${new Date().toISOString().split("T")[0]}.csv`;
+    filename || `commandes_${getLocalDateString()}.csv`;
 
   // Créer un blob et déclencher le téléchargement
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1238,7 +1251,7 @@ export const downloadJSON = (commandes, filename = null) => {
   const json = exportToJSON(commandes);
 
   const finalFilename =
-    filename || `commandes_${new Date().toISOString().split("T")[0]}.json`;
+    filename || `commandes_${getLocalDateString()}.json`;
 
   // Créer un blob et déclencher le téléchargement
   const blob = new Blob([json], { type: "application/json;charset=utf-8;" });

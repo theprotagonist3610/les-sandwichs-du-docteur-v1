@@ -12,12 +12,13 @@ import {
   MapPinOff,
   ChevronDown,
   ChevronUp,
-  Pencil,
+  Loader2,
 } from "lucide-react";
 import emplacementToolkit from "@/utils/emplacementToolkit";
 import { toast } from "sonner";
+import useEmplacementMetrics from "@/hooks/useEmplacementMetrics";
 
-const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = false, onEdit }) => {
+const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = false }) => {
   const canvasRef = useRef(null);
   const [emplacements, setEmplacements] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,6 +27,9 @@ const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = 
   const [userPosition, setUserPosition] = useState(null);
   const [showUnlocatedList, setShowUnlocatedList] = useState(false);
   const [showDistanceCircles, setShowDistanceCircles] = useState(true);
+
+  // Hook pour les métriques en temps réel
+  const { metricsMap, isLoading: metricsLoading } = useEmplacementMetrics();
 
   // Dimensions adaptatives selon le mode
   const dimensions = isMobile
@@ -681,15 +685,6 @@ const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = 
                     </div>
                   </foreignObject>
 
-                  {/* Nom */}
-                  <text
-                    x={x}
-                    y={y + (isMobile ? 22 : 28)}
-                    textAnchor="middle"
-                    className={`fill-gray-800 font-medium ${isMobile ? "text-[9px]" : "text-xs"}`}>
-                    {emp.nom}
-                  </text>
-
                   {/* Panneau statistiques */}
                   {showStats && (
                     <foreignObject
@@ -698,10 +693,41 @@ const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = 
                       width={panelWidth}
                       height={panelHeight}>
                       {(() => {
-                        const objectifJournalier = 500; // Donnée statique pour l'instant
-                        const ca = parseFloat(emp.stats?.ca) || 0;
-                        const progression = Math.min((ca / objectifJournalier) * 100, 100);
-                        const progressColor = progression >= 100 ? 'hsl(var(--chart-2))' : progression >= 70 ? 'hsl(var(--accent))' : 'hsl(var(--destructive))';
+                        // Récupérer les métriques en temps réel depuis le hook
+                        const empMetrics = metricsMap.get(emp.id) || { ventes: 0, livraisons: 0, ca: 0 };
+
+                        // Calculer le CA total de tous les emplacements
+                        let caTotal = 0;
+                        metricsMap.forEach((metrics) => {
+                          caTotal += metrics.ca;
+                        });
+
+                        // Calculer le pourcentage de ce point de vente par rapport au CA total
+                        const ca = empMetrics.ca;
+                        const progression = caTotal > 0 ? Math.min((ca / caTotal) * 100, 100) : 0;
+
+                        // Coloration adaptative basée sur la part de marché
+                        // Si 3+ emplacements: vert >30%, bleu 15-30%, orange 5-15%, rouge <5%
+                        // Si 2 emplacements: vert >40%, bleu 25-40%, orange 10-25%, rouge <10%
+                        const nombreEmplacements = metricsMap.size;
+                        let progressColor;
+
+                        if (nombreEmplacements <= 2) {
+                          progressColor = progression >= 40 ? '#22c55e' :  // green-500
+                                         progression >= 25 ? '#10b981' :  // emerald-500
+                                         progression >= 10 ? '#f59e0b' :  // amber-500
+                                         '#ef4444';                        // red-500
+                        } else if (nombreEmplacements <= 4) {
+                          progressColor = progression >= 30 ? '#22c55e' :  // green-500
+                                         progression >= 20 ? '#10b981' :  // emerald-500
+                                         progression >= 10 ? '#f59e0b' :  // amber-500
+                                         '#ef4444';                        // red-500
+                        } else {
+                          progressColor = progression >= 25 ? '#22c55e' :  // green-500
+                                         progression >= 15 ? '#10b981' :  // emerald-500
+                                         progression >= 8 ? '#f59e0b' :   // amber-500
+                                         '#ef4444';                        // red-500
+                        }
 
                         return (
                           <div className={`bg-card border-2 border-border rounded-md shadow-lg flex gap-1.5 ${isMobile ? "p-1 text-[9px]" : "p-1.5 text-[10px]"}`}>
@@ -723,47 +749,37 @@ const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = 
 
                             {/* Contenu statistiques */}
                             <div className="flex-1 space-y-0.5">
+                              {/* Indicateur de chargement si les données sont en cours de chargement */}
+                              {metricsLoading && (
+                                <div className="absolute top-1 right-1">
+                                  <Loader2 className="w-2.5 h-2.5 animate-spin text-muted-foreground" />
+                                </div>
+                              )}
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Ventes</span>
                                 <span className="font-semibold text-foreground">
-                                  {emp.stats?.ventes ?? "-"}
+                                  {empMetrics.ventes}
                                 </span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Livraisons</span>
                                 <span className="font-semibold text-foreground">
-                                  {emp.stats?.livraisons ?? "-"}
+                                  {empMetrics.livraisons}
                                 </span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">CA</span>
                                 <span className="font-semibold" style={{ color: 'hsl(var(--chart-2))' }}>
-                                  {emp.stats?.ca ?? "-"}
+                                  {empMetrics.ca.toLocaleString('fr-FR')} F
                                 </span>
                               </div>
-                              {onEdit && (
-                                isMobile ? (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onEdit(emp);
-                                    }}
-                                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded py-0.5 mt-0.5 flex items-center justify-center transition-colors"
-                                  >
-                                    <Pencil className="w-2.5 h-2.5" />
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onEdit(emp);
-                                    }}
-                                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded text-[9px] py-1 mt-0.5 font-semibold transition-colors"
-                                  >
-                                    Modifier
-                                  </button>
-                                )
-                              )}
+
+                              {/* Footer avec nom de l'emplacement */}
+                              <div className="mt-1 pt-1 border-t border-border">
+                                <span className="font-semibold text-foreground text-center block truncate">
+                                  {emp.nom}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );

@@ -1,5 +1,6 @@
 import useBreakpoint from "@/hooks/useBreakpoint";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { useCommandeEditor } from "@/hooks/useCommandeEditor";
 import { Loader2 } from "lucide-react";
 import {
@@ -17,6 +18,7 @@ import {
 const DesktopCommande = () => {
   const { isDesktop } = useBreakpoint();
   const [visible, setVisible] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     setVisible(isDesktop);
@@ -95,6 +97,29 @@ const DesktopCommande = () => {
     // Utilitaires
     isFieldDirty,
   } = useCommandeEditor();
+
+  // Ref pour éviter les doubles traitements du retour d'adresse
+  const addressReturnHandledRef = useRef(false);
+
+  // Gérer le retour depuis la page adresses-livraison avec une nouvelle adresse
+  useEffect(() => {
+    if (
+      location.state?.newAdresseId &&
+      adresses?.length > 0 &&
+      !addressReturnHandledRef.current
+    ) {
+      // Marquer comme traité immédiatement
+      addressReturnHandledRef.current = true;
+
+      // Trouver l'adresse dans la liste et la sélectionner
+      const newAdresse = adresses.find(a => a.id === location.state.newAdresseId);
+      if (newAdresse) {
+        setAdresse(newAdresse);
+      }
+      // Nettoyer le state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state?.newAdresseId, adresses]);
 
   // Loading state
   if (isLoading) {
@@ -179,6 +204,7 @@ const DesktopCommande = () => {
                 onAssignLivreur={assignLivreur}
                 onSelectAdresse={() => setShowAdresseModal(true)}
                 isFieldDirty={isFieldDirty}
+                selectedAdresse={adresses?.find(a => a.id === commande.adresse_id)}
               />
             </div>
 
@@ -234,10 +260,7 @@ const DesktopCommande = () => {
         adresses={adresses}
         currentAdresseId={commande.adresse_id}
         onSelect={setAdresse}
-        onCreateNew={() => {
-          // TODO: Ouvrir le formulaire de création d'adresse
-          setShowAdresseModal(false);
-        }}
+        commandeId={commande.id}
       />
 
       <ConfirmDialog

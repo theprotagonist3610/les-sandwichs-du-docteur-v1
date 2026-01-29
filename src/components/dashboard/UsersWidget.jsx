@@ -6,17 +6,13 @@ import {
   Users,
   UserCheck,
   UserX,
-  TrendingUp,
-  TrendingDown,
   UserCog,
-  Plus,
   ArrowRight,
   Dot,
 } from "lucide-react";
 import {
   getAllUsers,
   getUserStats,
-  getPreUsers,
   isUserOnline,
 } from "@/services/userService";
 import { toast } from "sonner";
@@ -24,7 +20,6 @@ import { toast } from "sonner";
 const UsersWidget = ({ isMobile = false }) => {
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
-  const [preUsers, setPreUsers] = useState([]);
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -45,13 +40,6 @@ const UsersWidget = ({ isMobile = false }) => {
       setUsers(usersData);
     }
 
-    // Charger les pré-utilisateurs
-    const { preUsers: preUsersData, error: preUsersError } =
-      await getPreUsers();
-    if (!preUsersError && preUsersData) {
-      setPreUsers(preUsersData);
-    }
-
     // Charger les statistiques par rôle
     const { stats: statsData, error: statsError } = await getUserStats();
     if (!statsError && statsData) {
@@ -68,46 +56,32 @@ const UsersWidget = ({ isMobile = false }) => {
   const vendeurs = users.filter((u) => u.role === "vendeur").length;
   const superviseurs = users.filter((u) => u.role === "superviseur").length;
   const admins = users.filter((u) => u.role === "admin").length;
-  const onlineUsers = users.filter((u) => isUserOnline(u.last_seen));
-
-  // Calculer la variation (exemple: +5% ce mois)
-  // TODO: Implémenter la logique de comparaison avec le mois précédent
-  const variation = 5.2; // Mock data
+  const onlineUsers = users.filter((u) => isUserOnline(u.last_login_at));
 
   const statsCards = [
     {
-      title: "Total Utilisateurs",
+      title: "Total",
       value: totalUsers,
       icon: Users,
       color: "text-blue-600 dark:text-blue-400",
-      bgColor: "bg-blue-50 dark:bg-blue-950",
-      trend: variation,
     },
     {
       title: "Actifs",
       value: activeUsers,
       icon: UserCheck,
       color: "text-green-600 dark:text-green-400",
-      bgColor: "bg-green-50 dark:bg-green-950",
-      percentage:
-        totalUsers > 0 ? ((activeUsers / totalUsers) * 100).toFixed(1) : 0,
     },
     {
       title: "Inactifs",
       value: inactiveUsers,
       icon: UserX,
       color: "text-red-600 dark:text-red-400",
-      bgColor: "bg-red-50 dark:bg-red-950",
-      percentage:
-        totalUsers > 0 ? ((inactiveUsers / totalUsers) * 100).toFixed(1) : 0,
     },
     {
-      title: "Pré-utilisateurs",
-      value: preUsers.length,
+      title: "En ligne",
+      value: onlineUsers.length,
       icon: UserCog,
-      color: "text-amber-600 dark:text-amber-400",
-      bgColor: "bg-amber-50 dark:bg-amber-950",
-      description: "En attente d'activation",
+      color: "text-green-500 dark:text-green-400",
     },
   ];
 
@@ -116,259 +90,113 @@ const UsersWidget = ({ isMobile = false }) => {
       title: "Vendeurs",
       value: vendeurs,
       color: "text-orange-600 dark:text-orange-400",
-      percentage:
-        totalUsers > 0 ? ((vendeurs / totalUsers) * 100).toFixed(1) : 0,
+      bgColor: "bg-orange-500",
     },
     {
       title: "Superviseurs",
       value: superviseurs,
       color: "text-cyan-600 dark:text-cyan-400",
-      percentage:
-        totalUsers > 0 ? ((superviseurs / totalUsers) * 100).toFixed(1) : 0,
+      bgColor: "bg-cyan-500",
     },
     {
       title: "Admins",
       value: admins,
       color: "text-indigo-600 dark:text-indigo-400",
-      percentage: totalUsers > 0 ? ((admins / totalUsers) * 100).toFixed(1) : 0,
+      bgColor: "bg-indigo-500",
     },
   ];
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="animate-pulse">
-            <CardHeader className="pb-2">
-              <div className="h-4 bg-muted rounded w-24" />
-            </CardHeader>
-            <CardContent>
-              <div className="h-8 bg-muted rounded w-16 mb-2" />
-              <div className="h-3 bg-muted rounded w-20" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Card className="animate-pulse">
+        <CardHeader className={isMobile ? "px-3 py-2" : "px-4 py-3"}>
+          <div className="h-4 bg-muted rounded w-24" />
+        </CardHeader>
+        <CardContent className={isMobile ? "px-3 pb-3" : "px-4 pb-4"}>
+          <div className="h-20 bg-muted rounded" />
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header avec actions rapides */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2
-            className={`font-bold text-foreground ${
-              isMobile ? "text-lg" : "text-xl"
-            }`}>
+    <Card>
+      <CardHeader className={isMobile ? "px-3 py-2" : "px-4 py-3"}>
+        <div className="flex items-center justify-between">
+          <CardTitle className={isMobile ? "text-sm" : "text-base"}>
             Utilisateurs
-          </h2>
-          <p
-            className={`text-muted-foreground ${
-              isMobile ? "text-xs" : "text-sm"
-            }`}>
-            Vue d'ensemble des utilisateurs de la plateforme
-          </p>
-        </div>
-        <div className={`flex gap-2 ${isMobile ? "flex-col" : ""}`}>
+          </CardTitle>
           <Button
-            size={isMobile ? "sm" : "default"}
+            size="sm"
+            variant="ghost"
             onClick={() => navigate("/utilisateurs")}
-            className="gap-2">
-            <Plus className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-            Ajouter
-          </Button>
-          <Button
-            size={isMobile ? "sm" : "default"}
-            variant="outline"
-            onClick={() => navigate("/utilisateurs")}
-            className="gap-2">
-            Voir tout
-            <ArrowRight className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
+            className="gap-1 h-7 text-xs">
+            Tout
+            <ArrowRight className="w-3 h-3" />
           </Button>
         </div>
-      </div>
-
-      {/* Statistiques de connexion */}
-      <Card className="border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-950/20">
-        <CardContent className={isMobile ? "px-4 py-3" : "py-4"}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Dot className="w-8 h-8 text-green-500 animate-pulse absolute -left-1 -top-1" />
-                <div className="w-3 h-3 bg-green-500 rounded-full" />
-              </div>
-              <div>
-                <p
-                  className={`font-semibold text-foreground ${
-                    isMobile ? "text-base" : "text-lg"
-                  }`}>
-                  {onlineUsers.length}{" "}
-                  {onlineUsers.length > 1 ? "utilisateurs" : "utilisateur"} en
-                  ligne
-                </p>
-                <p
-                  className={`text-muted-foreground ${
-                    isMobile ? "text-xs" : "text-sm"
-                  }`}>
-                  Connectés maintenant
-                </p>
-              </div>
-            </div>
-            <Button
-              size={isMobile ? "sm" : "default"}
-              variant="ghost"
-              onClick={() => navigate("/utilisateurs")}
-              className="gap-2">
-              Voir présence
-              <ArrowRight className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-            </Button>
+      </CardHeader>
+      <CardContent className={isMobile ? "px-3 pb-3 space-y-2.5" : "px-4 pb-4 space-y-3"}>
+        {/* Indicateur en ligne - version ultra compacte */}
+        <div className="flex items-center gap-2 p-2 bg-green-50/50 dark:bg-green-950/20 rounded-md border border-green-200 dark:border-green-900">
+          <div className="relative">
+            <Dot className="w-5 h-5 text-green-500 animate-pulse absolute -left-0.5 -top-0.5" />
+            <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
           </div>
-        </CardContent>
-      </Card>
+          <span className={`font-semibold text-foreground ${isMobile ? "text-xs" : "text-sm"}`}>
+            {onlineUsers.length} en ligne
+          </span>
+        </div>
 
-      {/* Cartes de statistiques principales */}
-      <div
-        className={`grid ${
-          isMobile ? "grid-cols-2 gap-3" : "grid-cols-2 lg:grid-cols-4 gap-4"
-        }`}>
-        {statsCards.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <Card
-              key={index}
-              className="hover:shadow-lg transition-shadow cursor-pointer border-border">
-              <CardHeader className={isMobile ? "pb-2 px-3 pt-3" : "pb-2"}>
-                <div className="flex items-center justify-between">
-                  <CardTitle
-                    className={`${
-                      isMobile ? "text-xs" : "text-sm"
-                    } font-medium text-muted-foreground`}>
-                    {stat.title}
-                  </CardTitle>
-                  <div className={`${stat.bgColor} p-2 rounded-lg`}>
-                    <Icon
-                      className={`${isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} ${
-                        stat.color
-                      }`}
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className={isMobile ? "px-3 pb-3" : ""}>
-                <div
-                  className={`${
-                    isMobile ? "text-xl" : "text-2xl"
-                  } font-bold text-foreground`}>
+        {/* Grille de statistiques - version compacte */}
+        <div className="grid grid-cols-4 gap-2">
+          {statsCards.map((stat, index) => {
+            const Icon = stat.icon;
+            return (
+              <div
+                key={index}
+                className="text-center p-2 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors">
+                <Icon className={`w-4 h-4 ${stat.color} mx-auto mb-1`} />
+                <div className={`font-bold text-foreground ${isMobile ? "text-base" : "text-lg"}`}>
                   {stat.value}
                 </div>
-                {stat.percentage && (
-                  <p
-                    className={`${
-                      isMobile ? "text-[10px]" : "text-xs"
-                    } text-muted-foreground mt-1`}>
-                    {stat.percentage}% du total
-                  </p>
-                )}
-                {stat.description && (
-                  <p
-                    className={`${
-                      isMobile ? "text-[10px]" : "text-xs"
-                    } text-muted-foreground mt-1`}>
-                    {stat.description}
-                  </p>
-                )}
-                {stat.trend !== undefined && (
-                  <div
-                    className={`flex items-center gap-1 mt-1 ${
-                      isMobile ? "text-[10px]" : "text-xs"
-                    }`}>
-                    {stat.trend > 0 ? (
-                      <>
-                        <TrendingUp
-                          className={`${
-                            isMobile ? "w-3 h-3" : "w-3.5 h-3.5"
-                          } text-green-600`}
-                        />
-                        <span className="text-green-600 font-medium">
-                          +{stat.trend}%
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <TrendingDown
-                          className={`${
-                            isMobile ? "w-3 h-3" : "w-3.5 h-3.5"
-                          } text-red-600`}
-                        />
-                        <span className="text-red-600 font-medium">
-                          {stat.trend}%
-                        </span>
-                      </>
-                    )}
-                    <span className="text-muted-foreground">ce mois</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {stat.title}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-      {/* Cartes de répartition par rôle */}
-      <Card>
-        <CardHeader className={isMobile ? "px-4 py-3" : ""}>
-          <CardTitle className={isMobile ? "text-sm" : "text-base"}>
-            Répartition par Rôle
-          </CardTitle>
-        </CardHeader>
-        <CardContent className={isMobile ? "px-4 pb-4" : ""}>
-          <div
-            className={`grid ${
-              isMobile ? "grid-cols-3 gap-3" : "grid-cols-3 gap-6"
-            }`}>
+        {/* Répartition par rôle - version compacte */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2">
+            Par rôle
+          </p>
+          <div className="grid grid-cols-3 gap-2">
             {roleCards.map((role, index) => (
-              <div key={index} className="text-center">
-                <div
-                  className={`${isMobile ? "text-2xl" : "text-3xl"} font-bold ${
-                    role.color
-                  }`}>
+              <div key={index} className="text-center p-2 rounded-lg bg-muted/30 border border-border">
+                <div className={`${isMobile ? "text-lg" : "text-xl"} font-bold ${role.color}`}>
                   {role.value}
                 </div>
-                <div
-                  className={`${
-                    isMobile ? "text-xs" : "text-sm"
-                  } text-muted-foreground mt-1`}>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
                   {role.title}
                 </div>
-                <div
-                  className={`${
-                    isMobile ? "text-[10px]" : "text-xs"
-                  } font-medium text-foreground mt-0.5`}>
-                  {role.percentage}%
-                </div>
-                {/* Barre de progression */}
-                <div className="w-full bg-muted rounded-full h-1.5 mt-2">
+                {/* Mini barre de progression */}
+                <div className="w-full bg-muted rounded-full h-1 mt-1.5">
                   <div
-                    className={`h-1.5 rounded-full transition-all duration-300`}
+                    className={`h-1 rounded-full ${role.bgColor}`}
                     style={{
-                      width: `${role.percentage}%`,
-                      backgroundColor: `hsl(var(--${
-                        role.color.includes("orange")
-                          ? "chart-1"
-                          : role.color.includes("cyan")
-                          ? "chart-3"
-                          : "chart-4"
-                      }))`,
+                      width: `${totalUsers > 0 ? (role.value / totalUsers) * 100 : 0}%`,
                     }}
                   />
                 </div>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

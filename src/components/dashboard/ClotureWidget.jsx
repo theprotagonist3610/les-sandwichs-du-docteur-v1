@@ -26,6 +26,7 @@ import {
 import dayClosureService from "@/services/DayClosureService";
 import useActiveUserStore from "@/store/activeUserStore";
 import MetricsComparison from "./MetricsComparison";
+import { getLocalDateString } from "@/utils/commandeToolkit";
 
 /**
  * Widget de clôture journalière
@@ -53,14 +54,54 @@ const ClotureWidget = ({ isMobile = false }) => {
   const [comparisonData, setComparisonData] = useState(null);
   const [loadingComparison, setLoadingComparison] = useState(false);
 
-  // Date du jour
-  const today = new Date().toISOString().split("T")[0];
+  // Date du jour (en state pour détecter les changements) - utilise le fuseau local
+  const [today, setToday] = useState(() => getLocalDateString());
+  const [autoClosureTriggered, setAutoClosureTriggered] = useState(false);
 
   // Vérifier l'état au chargement et charger les comparaisons
   useEffect(() => {
     checkClosureStatus();
     loadComparisonData();
-  }, []);
+  }, [today]); // Réexécuter quand la date change
+
+  // Détecter le changement de jour (vérifie toutes les minutes)
+  useEffect(() => {
+    const checkDateChange = () => {
+      const currentDate = getLocalDateString();
+      if (currentDate !== today) {
+        console.log(`📅 Changement de jour détecté: ${today} → ${currentDate}`);
+
+        // Déclencher la clôture automatique de la veille si pas déjà fait
+        if (!existingClosure && !autoClosureTriggered) {
+          triggerAutoClosure(today);
+        }
+
+        // Mettre à jour la date
+        setToday(currentDate);
+        setAutoClosureTriggered(false);
+        setExistingClosure(null);
+      }
+    };
+
+    // Vérifier immédiatement
+    checkDateChange();
+
+    // Vérifier toutes les minutes
+    const interval = setInterval(checkDateChange, 60 * 1000);
+
+    // Vérifier aussi quand l'onglet redevient visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkDateChange();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [today, existingClosure, autoClosureTriggered]);
 
   // Rafraîchir les comparaisons toutes les 5 minutes
   useEffect(() => {
@@ -88,6 +129,42 @@ const ClotureWidget = ({ isMobile = false }) => {
       console.error("Erreur loadComparisonData:", error);
     } finally {
       setLoadingComparison(false);
+    }
+  };
+
+  /**
+   * Déclenche la clôture automatique via Edge Function
+   * Appelée quand un changement de jour est détecté et la veille n'est pas clôturée
+   */
+  const triggerAutoClosure = async (dateToClose) => {
+    console.log(`🔄 Déclenchement clôture automatique pour ${dateToClose}`);
+    setAutoClosureTriggered(true);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auto-closure`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            date: dateToClose,
+            triggered_by: user?.id || "system",
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log(`✅ Clôture automatique réussie pour ${dateToClose}`);
+      } else {
+        console.warn(`⚠️ Clôture automatique échouée: ${result.error}`);
+      }
+    } catch (error) {
+      console.error("Erreur triggerAutoClosure:", error);
     }
   };
 

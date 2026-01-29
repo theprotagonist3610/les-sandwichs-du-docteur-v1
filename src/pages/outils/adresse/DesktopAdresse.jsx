@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import useBreakpoint from "@/hooks/useBreakpoint";
 import useAdressesLocal from "@/hooks/useAdressesLocal";
 import useAdressesSync from "@/hooks/useAdressesSync";
@@ -25,6 +26,8 @@ import { toast } from "sonner";
 const DesktopAdresse = () => {
   const { isDesktop } = useBreakpoint();
   const [visible, setVisible] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // Hooks de gestion locale et synchronisation
   const local = useAdressesLocal();
@@ -36,9 +39,21 @@ const DesktopAdresse = () => {
   const [filteredAdresses, setFilteredAdresses] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  // État pour le retour vers la commande
+  const returnStateRef = useRef(location.state);
+
   useEffect(() => {
     setVisible(isDesktop);
   }, [isDesktop]);
+
+  // Ouvrir automatiquement le dialog de création si demandé via navigation
+  useEffect(() => {
+    if (location.state?.openCreateDialog) {
+      setShowForm(true);
+      // Nettoyer le state pour éviter de rouvrir le dialog lors d'un refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state?.openCreateDialog]);
 
   // Initialiser les adresses filtrées
   useEffect(() => {
@@ -116,13 +131,18 @@ const DesktopAdresse = () => {
   // Soumettre le formulaire
   const handleSubmit = async (data) => {
     try {
+      let newAdresseId = null;
+
       if (editingAdresse) {
         await local.updateAdresse(editingAdresse.id, data);
         toast.success("Modifiée", {
           description: "L'adresse a été modifiée avec succès",
         });
       } else {
-        await local.createAdresse(data);
+        const result = await local.createAdresse(data);
+        if (result.success && result.id) {
+          newAdresseId = result.id;
+        }
         toast.success("Ajoutée", {
           description: "L'adresse a été ajoutée avec succès",
         });
@@ -131,6 +151,16 @@ const DesktopAdresse = () => {
       // Synchroniser si en ligne
       if (sync.online) {
         await sync.syncPush();
+      }
+
+      // Si on vient d'une commande, retourner avec l'ID de la nouvelle adresse
+      if (returnStateRef.current?.returnTo && newAdresseId) {
+        navigate(returnStateRef.current.returnTo, {
+          state: {
+            newAdresseId: newAdresseId,
+            commandeId: returnStateRef.current.commandeId,
+          },
+        });
       }
     } catch (error) {
       console.error("Erreur soumission:", error);

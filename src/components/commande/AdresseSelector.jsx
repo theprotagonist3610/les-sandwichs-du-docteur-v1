@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -21,8 +22,10 @@ const AdresseSelector = ({
   adresses = [],
   currentAdresseId,
   onSelect,
-  onCreateNew,
+  commandeId,
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedId, setSelectedId] = useState(currentAdresseId);
 
@@ -149,11 +152,15 @@ const AdresseSelector = ({
                                 {adresse.denomination}
                               </p>
                             )}
-                            <p className="text-sm truncate">
-                              {adresse.adresse}
-                            </p>
+                            {adresse.adresse && (
+                              <p className="text-sm truncate">
+                                {adresse.adresse}
+                              </p>
+                            )}
                             <p className="text-xs text-muted-foreground">
-                              {adresse.quartier}, {adresse.commune}
+                              {[adresse.commune, adresse.quartier]
+                                .filter(Boolean)
+                                .join(", ")}
                             </p>
                             {adresse.repere && (
                               <p className="text-xs text-muted-foreground mt-1">
@@ -178,7 +185,20 @@ const AdresseSelector = ({
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-4 border-t">
-          <Button variant="outline" onClick={onCreateNew}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              onClose();
+              // Naviguer vers la page adresses-livraison avec le paramètre pour ouvrir le dialog
+              // et stocker l'URL de retour avec l'ID de la commande
+              navigate("/adresses-livraison", {
+                state: {
+                  openCreateDialog: true,
+                  returnTo: location.pathname,
+                  commandeId: commandeId,
+                },
+              });
+            }}>
             <Plus className="h-4 w-4 mr-2" />
             Nouvelle adresse
           </Button>

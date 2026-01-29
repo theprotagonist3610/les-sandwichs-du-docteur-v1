@@ -32,6 +32,7 @@ const CommandeLivraisonSection = ({
   onAssignLivreur,
   onSelectAdresse,
   isFieldDirty,
+  selectedAdresse,
 }) => {
   if (!commande) return null;
 
@@ -49,6 +50,25 @@ const CommandeLivraisonSection = ({
   // Formater le prix
   const formatPrice = (price) => {
     return new Intl.NumberFormat("fr-FR").format(price || 0) + " FCFA";
+  };
+
+  // Formater l'affichage de l'adresse (commune, quartier - filtre les undefined)
+  const formatAdresseDisplay = () => {
+    if (!selectedAdresse && !commande.lieu_livraison) {
+      return "";
+    }
+
+    // Si on a une adresse sélectionnée avec détails
+    if (selectedAdresse) {
+      const parts = [
+        selectedAdresse.commune,
+        selectedAdresse.quartier,
+      ].filter(Boolean);
+      return parts.join(", ");
+    }
+
+    // Sinon utiliser lieu_livraison brut
+    return commande.lieu_livraison || "";
   };
 
   // Trouver le livreur assigné
@@ -86,11 +106,12 @@ const CommandeLivraisonSection = ({
           </Label>
           <div className="flex gap-2">
             <Input
-              value={commande.lieu_livraison || ""}
+              value={formatAdresseDisplay()}
               onChange={(e) => handleChange("lieu_livraison", e.target.value)}
               disabled={!canEdit}
               placeholder="Adresse de livraison"
               className="flex-1"
+              readOnly
             />
             {canEdit && (
               <Button variant="outline" size="icon" onClick={onSelectAdresse}>

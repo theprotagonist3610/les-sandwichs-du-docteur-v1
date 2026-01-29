@@ -17,6 +17,7 @@ import {
   TYPES_COMMANDE,
   STATUTS_LIVRAISON,
   saveToCache,
+  getLocalDateString,
 } from "@/utils/commandeToolkit";
 import { supabase } from "@/config/supabase";
 import { useConfetti } from "@/hooks/useConfetti";
@@ -29,6 +30,9 @@ const VentesWidget = ({ isMobile = false }) => {
   const [commandes, setCommandes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0); // 🔑 Clé pour forcer remontage des NumberTicker
+
+  // Date du jour (en state pour détecter les changements) - utilise le fuseau local
+  const [today, setToday] = useState(() => getLocalDateString());
 
   // Hooks pour confetti et son
   const { successConfetti } = useConfetti();
@@ -89,6 +93,44 @@ const VentesWidget = ({ isMobile = false }) => {
   useEffect(() => {
     loadDataRef.current = loadData;
   }, [loadData]);
+
+  // Détecter le changement de jour (vérifie toutes les minutes)
+  useEffect(() => {
+    const checkDateChange = () => {
+      const currentDate = getLocalDateString();
+      if (currentDate !== today) {
+        console.log(`📅 [VentesWidget] Changement de jour détecté: ${today} → ${currentDate}`);
+
+        // Réinitialiser les commandes et recharger
+        setCommandes([]);
+        setToday(currentDate);
+
+        // Recharger les données du nouveau jour
+        if (loadDataRef.current) {
+          loadDataRef.current();
+        }
+      }
+    };
+
+    // Vérifier immédiatement
+    checkDateChange();
+
+    // Vérifier toutes les minutes
+    const interval = setInterval(checkDateChange, 60 * 1000);
+
+    // Vérifier aussi quand l'onglet redevient visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkDateChange();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [today]);
 
   // Fonction pour célébrer une nouvelle vente - utilise les refs
   const celebrateNewSale = useCallback(() => {

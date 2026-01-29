@@ -18,7 +18,6 @@ const CommandeDetailsSection = ({
   if (!commande) return null;
 
   const details = commande.details_commandes || [];
-  const montantTotal = commande.montant_total || 0;
 
   // Formater le prix
   const formatPrice = (price) => {
@@ -60,21 +59,21 @@ const CommandeDetailsSection = ({
             {details.map((item, index) => (
               <div
                 key={index}
-                className={`flex items-center gap-3 p-3 rounded-lg border ${
+                className={`p-3 rounded-lg border space-y-2 ${
                   isFieldDirty?.("details_commandes")
                     ? "border-amber-300 bg-amber-50/50"
                     : "bg-muted/30"
                 }`}>
-                {/* Info article */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{item.item}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatPrice(item.prix_unitaire)} / unité
+                {/* Ligne 1: Info article [item | prix unitaire] */}
+                <div className="flex items-center justify-between">
+                  <p className="font-medium truncate flex-1">{item.item}</p>
+                  <p className="text-sm text-muted-foreground ml-2">
+                    {formatPrice(item.prix_unitaire)}
                   </p>
                 </div>
 
-                {/* Contrôle quantité */}
-                <div className="flex items-center gap-2">
+                {/* Ligne 2: Contrôle quantité [- input +] */}
+                <div className="flex items-center justify-center gap-2">
                   {canEdit ? (
                     <>
                       <Button
@@ -91,7 +90,7 @@ const CommandeDetailsSection = ({
                         onChange={(e) =>
                           onUpdateQuantity(index, parseInt(e.target.value) || 1)
                         }
-                        className="w-16 text-center h-8"
+                        className="w-20 text-center h-8"
                         min="1"
                       />
                       <Button
@@ -103,33 +102,30 @@ const CommandeDetailsSection = ({
                       </Button>
                     </>
                   ) : (
-                    <Badge variant="secondary">x{item.quantite}</Badge>
+                    <Badge variant="secondary" className="text-base px-4 py-1">
+                      x{item.quantite}
+                    </Badge>
                   )}
                 </div>
 
-                {/* Total ligne */}
-                <div className="text-right min-w-[100px]">
-                  <p className="font-semibold">{formatPrice(item.total)}</p>
+                {/* Ligne 3: Total [Total | icône supprimer] */}
+                <div className="flex items-center justify-between pt-1 border-t border-dashed">
+                  <span className="text-sm text-muted-foreground">Total</span>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{formatPrice(item.total)}</p>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => onRemoveItem(index)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-
-                {/* Supprimer */}
-                {canEdit && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => onRemoveItem(index)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
             ))}
-
-            {/* Total */}
-            <div className="flex items-center justify-between pt-3 border-t mt-4">
-              <span className="font-semibold">Total articles</span>
-              <span className="text-lg font-bold">{formatPrice(montantTotal)}</span>
-            </div>
           </div>
         )}
       </CardContent>
