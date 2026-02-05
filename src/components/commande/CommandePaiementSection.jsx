@@ -54,7 +54,7 @@ const CommandePaiementSection = ({
 
   // Mettre à jour un champ de paiement
   const handlePaiementChange = (field, value) => {
-    if (canEdit || field === "momo" || field === "cash" || field === "autre") {
+    if (canEdit) {
       onUpdatePaiement({ [field]: parseInt(value) || 0 });
     }
   };
@@ -62,13 +62,13 @@ const CommandePaiementSection = ({
   // Badge statut paiement
   const getStatutPaiementBadge = () => {
     const classes = {
-      "non-payee": "bg-red-500",
-      "partiellement-payee": "bg-amber-500",
+      non_payee: "bg-red-500",
+      partiellement_payee: "bg-amber-500",
       payee: "bg-emerald-500",
     };
     const labels = {
-      "non-payee": "Non payée",
-      "partiellement-payee": "Partielle",
+      non_payee: "Non payée",
+      partiellement_payee: "Partielle",
       payee: "Payée",
     };
 
@@ -146,6 +146,7 @@ const CommandePaiementSection = ({
               value={momo}
               onChange={(e) => handlePaiementChange("momo", e.target.value)}
               min="0"
+              disabled={!canEdit}
               className="flex-1"
             />
             <span className="text-xs text-muted-foreground w-12">FCFA</span>
@@ -162,6 +163,7 @@ const CommandePaiementSection = ({
               value={cash}
               onChange={(e) => handlePaiementChange("cash", e.target.value)}
               min="0"
+              disabled={!canEdit}
               className="flex-1"
             />
             <span className="text-xs text-muted-foreground w-12">FCFA</span>
@@ -178,6 +180,7 @@ const CommandePaiementSection = ({
               value={autre}
               onChange={(e) => handlePaiementChange("autre", e.target.value)}
               min="0"
+              disabled={!canEdit}
               className="flex-1"
             />
             <span className="text-xs text-muted-foreground w-12">FCFA</span>

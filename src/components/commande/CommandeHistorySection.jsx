@@ -43,12 +43,9 @@ const CommandeHistorySection = ({
   // Icône selon le type d'action
   const getActionIcon = (action) => {
     const icons = {
-      create: <Plus className="h-4 w-4" />,
-      update: <Edit className="h-4 w-4" />,
-      delete: <Trash2 className="h-4 w-4" />,
-      deliver: <Truck className="h-4 w-4" />,
-      close: <CheckCircle className="h-4 w-4" />,
-      rollback: <RotateCcw className="h-4 w-4" />,
+      INSERT: <Plus className="h-4 w-4" />,
+      UPDATE: <Edit className="h-4 w-4" />,
+      DELETE: <Trash2 className="h-4 w-4" />,
     };
     return icons[action] || <History className="h-4 w-4" />;
   };
@@ -56,12 +53,9 @@ const CommandeHistorySection = ({
   // Couleur selon le type d'action
   const getActionColor = (action) => {
     const colors = {
-      create: "bg-green-500",
-      update: "bg-blue-500",
-      delete: "bg-red-500",
-      deliver: "bg-purple-500",
-      close: "bg-orange-500",
-      rollback: "bg-yellow-500",
+      INSERT: "bg-green-500",
+      UPDATE: "bg-blue-500",
+      DELETE: "bg-red-500",
     };
     return colors[action] || "bg-gray-500";
   };
@@ -155,10 +149,10 @@ const CommandeHistorySection = ({
             </DialogDescription>
           </DialogHeader>
 
-          {selectedEntry?.changes && (
+          {selectedEntry?.metadata?.changes && (
             <div className="space-y-3 max-h-[300px] overflow-y-auto">
               <h4 className="font-medium text-sm">Modifications:</h4>
-              {Object.entries(selectedEntry.changes).map(([key, value]) => (
+              {Object.entries(selectedEntry.metadata.changes).map(([key, value]) => (
                 <div
                   key={key}
                   className="p-3 bg-muted rounded-lg text-sm space-y-1">
@@ -184,7 +178,7 @@ const CommandeHistorySection = ({
             <Button variant="outline" onClick={onClosePreview}>
               Fermer
             </Button>
-            {selectedEntry?.snapshot && (
+            {selectedEntry?.commande_data && (
               <Button
                 variant="default"
                 onClick={() => onRollback(selectedEntry)}>
@@ -236,7 +230,7 @@ const CommandeHistorySection = ({
                           onClick={() => onPreview(entry)}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        {entry.snapshot && (
+                        {entry.commande_data && (
                           <Button
                             variant="ghost"
                             size="sm"

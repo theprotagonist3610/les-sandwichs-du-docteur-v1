@@ -53,7 +53,7 @@ const CommandeHeader = ({
 
   const getStatutCommandeBadge = () => {
     const variants = {
-      "en-cours": { variant: "default", label: "En cours" },
+      en_cours: { variant: "default", label: "En cours" },
       terminee: { variant: "success", label: "Terminée" },
       annulee: { variant: "destructive", label: "Annulée" },
     };
@@ -68,12 +68,16 @@ const CommandeHeader = ({
     if (!commande.statut_livraison) return null;
 
     const classes = {
-      "en-attente": "bg-amber-500",
+      en_attente: "bg-amber-500",
+      en_cours: "bg-blue-500",
       livree: "bg-emerald-500",
+      annulee: "bg-red-500",
     };
     const labels = {
-      "en-attente": "En attente",
+      en_attente: "En attente",
+      en_cours: "En cours",
       livree: "Livrée",
+      annulee: "Annulée",
     };
 
     return (
@@ -85,13 +89,13 @@ const CommandeHeader = ({
 
   const getStatutPaiementBadge = () => {
     const classes = {
-      "non-payee": "bg-red-500",
-      "partiellement-payee": "bg-amber-500",
+      non_payee: "bg-red-500",
+      partiellement_payee: "bg-amber-500",
       payee: "bg-emerald-500",
     };
     const labels = {
-      "non-payee": "Non payée",
-      "partiellement-payee": "Partielle",
+      non_payee: "Non payée",
+      partiellement_payee: "Partielle",
       payee: "Payée",
     };
 
@@ -145,29 +149,11 @@ const CommandeHeader = ({
                   Rétablir
                 </DropdownMenuItem>
               )}
+              {(canUndo || canRedo) && <DropdownMenuSeparator />}
               <DropdownMenuItem onClick={onShowHistory}>
                 <History className="h-4 w-4 mr-2" />
                 Historique
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {canDeliver && (
-                <DropdownMenuItem onClick={onDeliver}>
-                  <Truck className="h-4 w-4 mr-2" />
-                  Marquer livrée
-                </DropdownMenuItem>
-              )}
-              {canClose && (
-                <DropdownMenuItem onClick={onClose}>
-                  <CheckCheck className="h-4 w-4 mr-2" />
-                  Clôturer
-                </DropdownMenuItem>
-              )}
-              {(canDeliver || canClose) && (
-                <DropdownMenuItem onClick={onDeliverAndClose}>
-                  <CheckCheck className="h-4 w-4 mr-2" />
-                  Livrer et clôturer
-                </DropdownMenuItem>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -184,7 +170,43 @@ const CommandeHeader = ({
           )}
         </div>
 
-        {/* Ligne 3: Actions principales */}
+        {/* Ligne 3: Boutons Livrer/Clôturer */}
+        {(canDeliver || canClose) && (
+          <div className="flex gap-2 mb-3">
+            {canDeliver && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDeliver}
+                className="flex-1">
+                <Truck className="h-4 w-4 mr-1" />
+                Livrer
+              </Button>
+            )}
+            {canClose && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onClose}
+                className="flex-1">
+                <CheckCheck className="h-4 w-4 mr-1" />
+                Clôturer
+              </Button>
+            )}
+            {canDeliver && canClose && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onDeliverAndClose}
+                className="flex-1">
+                <CheckCheck className="h-4 w-4 mr-1" />
+                Livrer & Clôturer
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Ligne 4: Actions Sauvegarder/Annuler */}
         {canEdit && isDirty && (
           <div className="flex gap-2">
             <Button

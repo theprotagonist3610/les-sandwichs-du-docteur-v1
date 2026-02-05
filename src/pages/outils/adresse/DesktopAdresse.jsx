@@ -148,9 +148,17 @@ const DesktopAdresse = () => {
         });
       }
 
-      // Synchroniser si en ligne
-      if (sync.online) {
+      // Synchroniser si en ligne et attendre la fin complète
+      if (sync.online && newAdresseId) {
+        toast.info("Synchronisation", {
+          description: "Synchronisation avec le serveur en cours...",
+        });
+
+        // Attendre la synchronisation complète
         await sync.syncPush();
+
+        // Attendre un peu pour que la sync soit complète côté serveur
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       // Si on vient d'une commande, retourner avec l'ID de la nouvelle adresse
@@ -164,6 +172,9 @@ const DesktopAdresse = () => {
       }
     } catch (error) {
       console.error("Erreur soumission:", error);
+      toast.error("Erreur", {
+        description: "Une erreur est survenue lors de l'enregistrement",
+      });
     }
   };
 

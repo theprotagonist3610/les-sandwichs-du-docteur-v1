@@ -25,6 +25,12 @@ import GestionDesCommandes from "@/pages/commandes/GestionDesCommandes";
 import CommandesEnAttente from "@/pages/commandes/CommandesEnAttente";
 import Commande from "@/pages/commandes/Commande";
 import PanneauDeVente from "@/pages/commandes/PanneauDeVente";
+import Depense from "../pages/comptabilite/Depense";
+import Encaissement from "../pages/comptabilite/Encaissement";
+import Budget from "../pages/comptabilite/Budget";
+import Prevision from "../pages/comptabilite/Prevision";
+import Caisse from "../pages/comptabilite/Caisse";
+import Revenu from "../pages/comptabilite/Revenu";
 /**
  * Routes accessibles par les superviseurs et admins
  * Accès: Toutes les sections (Dashboard, Commandes, Stock, Statistiques, Comptabilite, Parametres, Utilisateurs)
@@ -56,6 +62,30 @@ export const superviseurRoutes = {
     {
       path: "comptabilite",
       element: <Comptabilite />,
+    },
+    {
+      path: "caisse",
+      element: <Caisse />,
+    },
+    {
+      path: "revenu",
+      element: <Revenu />,
+    },
+    {
+      path: "depense",
+      element: <Depense />,
+    },
+    {
+      path: "budget",
+      element: <Budget />,
+    },
+    {
+      path: "prevision",
+      element: <Prevision />,
+    },
+    {
+      path: "encaissement",
+      element: <Encaissement />,
     },
     {
       path: "outils",

@@ -231,7 +231,7 @@ export const useCommandeEditor = () => {
 
     return (
       store.commande.type === "livraison" &&
-      store.commande.statut_livraison === "en-attente" &&
+      store.commande.statut_livraison === "en_attente" &&
       store.commande.statut_commande !== "annulee"
     );
   }, [store.commande]);
@@ -242,7 +242,7 @@ export const useCommandeEditor = () => {
   const canClose = useMemo(() => {
     if (!store.commande) return false;
 
-    return store.commande.statut_commande === "en-cours";
+    return store.commande.statut_commande === "en_cours";
   }, [store.commande]);
 
   // ============================================================================
@@ -396,20 +396,9 @@ export const useCommandeEditor = () => {
       return { success: true };
     }
 
-    const previousState = store.originalCommande;
     const result = await store.save();
 
     if (result.success) {
-      // Enregistrer dans l'historique
-      if (user?.id) {
-        await commandeHistoryToolkit.recordUpdate(
-          commandeId,
-          user.id,
-          previousState,
-          store.commande
-        );
-      }
-
       toast.success("Modifications sauvegardées");
       loadHistory(); // Rafraîchir l'historique
     } else {
@@ -482,14 +471,6 @@ export const useCommandeEditor = () => {
         const result = await store.deliver();
 
         if (result.success) {
-          if (user?.id) {
-            await commandeHistoryToolkit.recordDelivery(
-              commandeId,
-              user.id,
-              store.commande
-            );
-          }
-
           toast.success("Commande marquée comme livrée");
           loadHistory();
         } else {
@@ -518,14 +499,6 @@ export const useCommandeEditor = () => {
         const result = await store.close();
 
         if (result.success) {
-          if (user?.id) {
-            await commandeHistoryToolkit.recordClose(
-              commandeId,
-              user.id,
-              store.commande
-            );
-          }
-
           toast.success("Commande clôturée");
           loadHistory();
         } else {
@@ -555,14 +528,6 @@ export const useCommandeEditor = () => {
         const result = await store.deliverAndClose();
 
         if (result.success) {
-          if (user?.id) {
-            await commandeHistoryToolkit.recordDelivery(
-              commandeId,
-              user.id,
-              store.commande
-            );
-          }
-
           toast.success("Commande livrée et clôturée");
           loadHistory();
         } else {

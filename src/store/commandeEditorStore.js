@@ -206,17 +206,10 @@ const useCommandeEditorStore = create((set, get) => ({
 
     get().saveToHistory();
 
-    // Recalculer le total
-    const montant_total = details.reduce(
-      (sum, item) => sum + (item.total || item.quantite * item.prix_unitaire),
-      0
-    );
-
     set({
       commande: {
         ...state.commande,
         details_commandes: details,
-        montant_total,
       },
       isDirty: true,
     });
@@ -264,13 +257,10 @@ const useCommandeEditorStore = create((set, get) => ({
       ];
     }
 
-    const montant_total = newDetails.reduce((sum, item) => sum + item.total, 0);
-
     set({
       commande: {
         ...state.commande,
         details_commandes: newDetails,
-        montant_total,
       },
       isDirty: true,
     });
@@ -289,13 +279,11 @@ const useCommandeEditorStore = create((set, get) => ({
     const newDetails = state.commande.details_commandes.filter(
       (_, i) => i !== index
     );
-    const montant_total = newDetails.reduce((sum, item) => sum + item.total, 0);
 
     set({
       commande: {
         ...state.commande,
         details_commandes: newDetails,
-        montant_total,
       },
       isDirty: true,
     });
@@ -327,13 +315,10 @@ const useCommandeEditorStore = create((set, get) => ({
         : item
     );
 
-    const montant_total = newDetails.reduce((sum, item) => sum + item.total, 0);
-
     set({
       commande: {
         ...state.commande,
         details_commandes: newDetails,
-        montant_total,
       },
       isDirty: true,
     });
@@ -517,7 +502,7 @@ const useCommandeEditorStore = create((set, get) => ({
     set({ isSaving: true, globalError: null });
 
     try {
-      // Préparer les mises à jour (exclure id, vendeur, version, created_at et les infos de jointure)
+      // Préparer les mises à jour (exclure id, vendeur, version, created_at, montant_total et les infos de jointure)
       const {
         id,
         vendeur,
@@ -526,6 +511,7 @@ const useCommandeEditorStore = create((set, get) => ({
         point_de_vente_info,  // Données de jointure - ne pas envoyer
         version,
         created_at,
+        montant_total,  // Champ calculé - ne pas envoyer
         ...updates
       } = state.commande;
 
@@ -640,6 +626,7 @@ const useCommandeEditorStore = create((set, get) => ({
     try {
       const result = await commandeToolkit.closeCommande(
         state.commande.id,
+        "terminee",
         state.commande.version
       );
 

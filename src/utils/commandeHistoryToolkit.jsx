@@ -3,35 +3,43 @@ import { supabase } from "@/config/supabase";
 /**
  * Toolkit pour la gestion de l'historique des modifications de commandes
  *
- * Schema de la table commande_history (à créer dans Supabase):
+ * IMPORTANT: L'historique est géré automatiquement par un trigger PostgreSQL
+ * (voir sql/create_commandes_history_trigger.sql)
+ *
+ * Schema de la table commandes_history:
  * {
- *   id: UUID auto-généré,
+ *   history_id: UUID auto-généré (PK),
  *   commande_id: UUID (FK vers commandes),
- *   user_id: UUID (FK vers users),
- *   action: string ('create' | 'update' | 'delete' | 'deliver' | 'close'),
- *   changes: JSONB (détails des modifications),
- *   snapshot: JSONB (état complet de la commande au moment de la modification),
- *   created_at: timestamp,
+ *   modified_by: UUID (FK vers users),
+ *   action: ENUM ('INSERT', 'UPDATE', 'DELETE'),
+ *   commande_data: JSONB (état complet de la commande au moment de la modification),
+ *   metadata: JSONB (informations additionnelles),
+ *   modified_at: timestamptz,
+ *   version: integer,
  * }
  *
- * Fonctionnalités:
- * - Enregistrement automatique des modifications
- * - Consultation de l'historique d'une commande
- * - Rollback vers une version antérieure
+ * Le trigger enregistre automatiquement:
+ * - Toutes les créations de commandes (INSERT)
+ * - Toutes les modifications de commandes (UPDATE)
+ * - Toutes les suppressions de commandes (DELETE)
+ *
+ * Fonctionnalités de ce toolkit:
+ * - Consultation de l'historique d'une commande (READ-ONLY)
+ * - Rollback vers une version antérieure (via fonction PostgreSQL restore_commande_version)
  * - Comparaison entre versions
+ *
+ * Note: Les fonctions d'insertion manuelle sont désactivées car le trigger
+ * gère l'historique automatiquement et les RLS policies bloquent les inserts directs.
  */
 
 // ============================================================================
-// TYPES D'ACTIONS
+// TYPES D'ACTIONS (mappés aux valeurs ENUM du trigger)
 // ============================================================================
 
 export const HISTORY_ACTIONS = {
-  CREATE: "create",
-  UPDATE: "update",
-  DELETE: "delete",
-  DELIVER: "deliver",
-  CLOSE: "close",
-  ROLLBACK: "rollback",
+  INSERT: "INSERT",
+  UPDATE: "UPDATE",
+  DELETE: "DELETE",
 };
 
 // ============================================================================
@@ -39,167 +47,19 @@ export const HISTORY_ACTIONS = {
 // ============================================================================
 
 /**
- * Enregistrer une modification dans l'historique
- * @param {Object} params - Paramètres
- * @param {string} params.commandeId - ID de la commande
- * @param {string} params.userId - ID de l'utilisateur qui fait la modification
- * @param {string} params.action - Type d'action (create, update, delete, deliver, close)
- * @param {Object} params.changes - Détails des changements (ancien -> nouveau)
- * @param {Object} params.snapshot - État complet de la commande après modification
- * @returns {Promise<{success: boolean, history?: Object, error?: string}>}
+ * NOTE: L'enregistrement de l'historique est géré automatiquement par un trigger PostgreSQL.
+ * Les fonctions ci-dessous sont DÉSACTIVÉES car elles ne fonctionnent pas avec la configuration actuelle:
+ * - Le trigger enregistre automatiquement toutes les modifications sur la table 'commandes'
+ * - Les RLS policies bloquent les inserts directs dans 'commandes_history'
+ * - Seul le trigger peut insérer dans la table d'historique
+ *
+ * Pour enregistrer une modification dans l'historique:
+ * 1. Modifiez directement la table 'commandes' (INSERT/UPDATE/DELETE)
+ * 2. Le trigger 'log_commande_changes' enregistrera automatiquement la modification
+ * 3. L'utilisateur authentifié (auth.uid()) sera automatiquement enregistré comme 'modified_by'
+ *
+ * Voir: sql/create_commandes_history_trigger.sql pour la configuration du trigger
  */
-export const recordHistory = async ({
-  commandeId,
-  userId,
-  action,
-  changes = {},
-  snapshot = null,
-}) => {
-  try {
-    const { data, error } = await supabase
-      .from("commande_history")
-      .insert([
-        {
-          commande_id: commandeId,
-          user_id: userId,
-          action,
-          changes,
-          snapshot,
-        },
-      ])
-      .select(
-        `
-        *,
-        user:users!user_id(
-          id,
-          nom,
-          prenoms,
-          email
-        )
-      `
-      )
-      .single();
-
-    if (error) {
-      console.error("Erreur enregistrement historique:", error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true, history: data };
-  } catch (error) {
-    console.error("Erreur inattendue enregistrement historique:", error);
-    return { success: false, error: error.message };
-  }
-};
-
-/**
- * Enregistrer une création de commande
- * @param {string} commandeId - ID de la commande créée
- * @param {string} userId - ID de l'utilisateur
- * @param {Object} commandeData - Données de la commande créée
- */
-export const recordCreate = async (commandeId, userId, commandeData) => {
-  return recordHistory({
-    commandeId,
-    userId,
-    action: HISTORY_ACTIONS.CREATE,
-    changes: { created: commandeData },
-    snapshot: commandeData,
-  });
-};
-
-/**
- * Enregistrer une modification de commande
- * @param {string} commandeId - ID de la commande
- * @param {string} userId - ID de l'utilisateur
- * @param {Object} previousState - État avant modification
- * @param {Object} newState - État après modification
- */
-export const recordUpdate = async (
-  commandeId,
-  userId,
-  previousState,
-  newState
-) => {
-  // Calculer les changements
-  const changes = calculateChanges(previousState, newState);
-
-  return recordHistory({
-    commandeId,
-    userId,
-    action: HISTORY_ACTIONS.UPDATE,
-    changes,
-    snapshot: newState,
-  });
-};
-
-/**
- * Enregistrer une livraison
- * @param {string} commandeId - ID de la commande
- * @param {string} userId - ID de l'utilisateur
- * @param {Object} commandeState - État de la commande après livraison
- */
-export const recordDelivery = async (commandeId, userId, commandeState) => {
-  return recordHistory({
-    commandeId,
-    userId,
-    action: HISTORY_ACTIONS.DELIVER,
-    changes: {
-      statut_livraison: {
-        from: "en-attente",
-        to: commandeState.statut_livraison,
-      },
-      date_reelle_livraison: commandeState.date_reelle_livraison,
-      heure_reelle_livraison: commandeState.heure_reelle_livraison,
-    },
-    snapshot: commandeState,
-  });
-};
-
-/**
- * Enregistrer une clôture
- * @param {string} commandeId - ID de la commande
- * @param {string} userId - ID de l'utilisateur
- * @param {Object} commandeState - État de la commande après clôture
- */
-export const recordClose = async (commandeId, userId, commandeState) => {
-  return recordHistory({
-    commandeId,
-    userId,
-    action: HISTORY_ACTIONS.CLOSE,
-    changes: {
-      statut_commande: {
-        from: "en-cours",
-        to: commandeState.statut_commande,
-      },
-    },
-    snapshot: commandeState,
-  });
-};
-
-/**
- * Enregistrer un rollback
- * @param {string} commandeId - ID de la commande
- * @param {string} userId - ID de l'utilisateur
- * @param {string} targetHistoryId - ID de l'entrée historique vers laquelle on fait le rollback
- * @param {Object} restoredState - État restauré
- */
-export const recordRollback = async (
-  commandeId,
-  userId,
-  targetHistoryId,
-  restoredState
-) => {
-  return recordHistory({
-    commandeId,
-    userId,
-    action: HISTORY_ACTIONS.ROLLBACK,
-    changes: {
-      rollback_to: targetHistoryId,
-    },
-    snapshot: restoredState,
-  });
-};
 
 // ============================================================================
 // CONSULTATION DE L'HISTORIQUE
@@ -219,17 +79,17 @@ export const getCommandeHistory = async (commandeId, options = {}) => {
 
     // Compter le total
     const { count } = await supabase
-      .from("commande_history")
+      .from("commandes_history")
       .select("*", { count: "exact", head: true })
       .eq("commande_id", commandeId);
 
     // Récupérer les entrées
     const { data, error } = await supabase
-      .from("commande_history")
+      .from("commandes_history")
       .select(
         `
         *,
-        user:users!user_id(
+        user:users!modified_by(
           id,
           nom,
           prenoms,
@@ -238,7 +98,7 @@ export const getCommandeHistory = async (commandeId, options = {}) => {
       `
       )
       .eq("commande_id", commandeId)
-      .order("created_at", { ascending: false })
+      .order("modified_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) {
@@ -261,11 +121,11 @@ export const getCommandeHistory = async (commandeId, options = {}) => {
 export const getHistoryEntry = async (historyId) => {
   try {
     const { data, error } = await supabase
-      .from("commande_history")
+      .from("commandes_history")
       .select(
         `
         *,
-        user:users!user_id(
+        user:users!modified_by(
           id,
           nom,
           prenoms,
@@ -273,7 +133,7 @@ export const getHistoryEntry = async (historyId) => {
         )
       `
       )
-      .eq("id", historyId)
+      .eq("history_id", historyId)
       .single();
 
     if (error) {
@@ -301,11 +161,11 @@ export const getRecentHistory = async (options = {}) => {
     const { limit = 20, userId, action } = options;
 
     let query = supabase
-      .from("commande_history")
+      .from("commandes_history")
       .select(
         `
         *,
-        user:users!user_id(
+        user:users!modified_by(
           id,
           nom,
           prenoms,
@@ -314,16 +174,16 @@ export const getRecentHistory = async (options = {}) => {
         commande:commandes!commande_id(
           id,
           client,
-          montant_total,
-          statut_commande
+          statut_commande,
+          details_paiement
         )
       `
       )
-      .order("created_at", { ascending: false })
+      .order("modified_at", { ascending: false })
       .limit(limit);
 
     if (userId) {
-      query = query.eq("user_id", userId);
+      query = query.eq("modified_by", userId);
     }
 
     if (action) {
@@ -350,70 +210,50 @@ export const getRecentHistory = async (options = {}) => {
 
 /**
  * Restaurer une commande à un état antérieur
+ * Utilise la fonction PostgreSQL restore_commande_version()
  * @param {string} commandeId - ID de la commande
  * @param {string} historyId - ID de l'entrée historique à restaurer
- * @param {string} userId - ID de l'utilisateur effectuant le rollback
- * @param {number} currentVersion - Version actuelle de la commande (pour éviter les collisions)
  * @returns {Promise<{success: boolean, commande?: Object, error?: string}>}
  */
-export const rollbackToHistory = async (
-  commandeId,
-  historyId,
-  userId,
-  currentVersion
-) => {
+export const rollbackToHistory = async (commandeId, historyId) => {
   try {
-    // Récupérer l'entrée historique
+    // Vérifier que l'entrée historique existe
     const historyResult = await getHistoryEntry(historyId);
-    if (!historyResult.success || !historyResult.entry?.snapshot) {
+    if (!historyResult.success || !historyResult.entry?.commande_data) {
       return {
         success: false,
-        error: "Entrée historique non trouvée ou sans snapshot",
+        error: "Entrée historique non trouvée ou sans données",
       };
     }
 
-    const snapshot = historyResult.entry.snapshot;
-
-    // Préparer les données à restaurer (exclure certains champs)
-    const {
-      id,
-      vendeur,
-      vendeur_id,
-      vendeur_info,
-      version,
-      created_at,
-      updated_at,
-      ...restorableData
-    } = snapshot;
-
-    // Mettre à jour la commande
-    const { data, error } = await supabase
-      .from("commandes")
-      .update({
-        ...restorableData,
-        version: currentVersion + 1,
-      })
-      .eq("id", commandeId)
-      .eq("version", currentVersion)
-      .select()
-      .single();
+    // Utiliser la fonction PostgreSQL pour restaurer
+    // Note: Cette fonction gère automatiquement:
+    // - La restauration des données
+    // - L'enregistrement de l'action de rollback dans l'historique
+    // - L'incrémentation de la version
+    const { data, error } = await supabase.rpc("restore_commande_version", {
+      p_commande_id: commandeId,
+      p_history_id: historyId,
+    });
 
     if (error) {
-      if (error.code === "PGRST116") {
-        return {
-          success: false,
-          error:
-            "Collision de version détectée. La commande a été modifiée par un autre utilisateur.",
-        };
-      }
       console.error("Erreur rollback commande:", error);
       return { success: false, error: error.message };
     }
 
-    // Enregistrer le rollback dans l'historique
-    await recordRollback(commandeId, userId, historyId, data);
+    // Récupérer la commande restaurée
+    const { data: commande, error: fetchError } = await supabase
+      .from("commandes")
+      .select("*")
+      .eq("id", commandeId)
+      .single();
 
-    return { success: true, commande: data };
+    if (fetchError) {
+      console.error("Erreur récupération commande restaurée:", fetchError);
+      return { success: false, error: fetchError.message };
+    }
+
+    return { success: true, commande };
   } catch (error) {
     console.error("Erreur inattendue rollback:", error);
     return { success: false, error: error.message };
@@ -466,17 +306,17 @@ export const compareHistoryEntries = async (historyIdA, historyIdB) => {
       getHistoryEntry(historyIdB),
     ]);
 
-    if (!resultA.success || !resultA.entry?.snapshot) {
+    if (!resultA.success || !resultA.entry?.commande_data) {
       return { success: false, error: "Première entrée non trouvée" };
     }
 
-    if (!resultB.success || !resultB.entry?.snapshot) {
+    if (!resultB.success || !resultB.entry?.commande_data) {
       return { success: false, error: "Deuxième entrée non trouvée" };
     }
 
     const differences = compareStates(
-      resultA.entry.snapshot,
-      resultB.entry.snapshot
+      resultA.entry.commande_data,
+      resultB.entry.commande_data
     );
 
     return {
@@ -529,21 +369,15 @@ export const calculateChanges = (previousState, newState) => {
  */
 export const formatHistoryEntry = (entry) => {
   const actionLabels = {
-    [HISTORY_ACTIONS.CREATE]: "Création",
-    [HISTORY_ACTIONS.UPDATE]: "Modification",
-    [HISTORY_ACTIONS.DELETE]: "Suppression",
-    [HISTORY_ACTIONS.DELIVER]: "Livraison",
-    [HISTORY_ACTIONS.CLOSE]: "Clôture",
-    [HISTORY_ACTIONS.ROLLBACK]: "Restauration",
+    [HISTORY_ACTIONS.INSERT]: "Créée le",
+    [HISTORY_ACTIONS.UPDATE]: "Modifiée le",
+    [HISTORY_ACTIONS.DELETE]: "Supprimée le",
   };
 
   const actionColors = {
-    [HISTORY_ACTIONS.CREATE]: "green",
+    [HISTORY_ACTIONS.INSERT]: "green",
     [HISTORY_ACTIONS.UPDATE]: "blue",
     [HISTORY_ACTIONS.DELETE]: "red",
-    [HISTORY_ACTIONS.DELIVER]: "purple",
-    [HISTORY_ACTIONS.CLOSE]: "orange",
-    [HISTORY_ACTIONS.ROLLBACK]: "yellow",
   };
 
   return {
@@ -553,11 +387,14 @@ export const formatHistoryEntry = (entry) => {
     userName: entry.user
       ? `${entry.user.prenoms} ${entry.user.nom}`
       : "Utilisateur inconnu",
-    formattedDate: new Date(entry.created_at).toLocaleString("fr-FR", {
-      dateStyle: "short",
-      timeStyle: "short",
+    formattedDate: new Date(entry.modified_at).toLocaleString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }),
-    changeCount: entry.changes ? Object.keys(entry.changes).length : 0,
+    changeCount: entry.metadata?.changes ? Object.keys(entry.metadata.changes).length : 0,
   };
 };
 
