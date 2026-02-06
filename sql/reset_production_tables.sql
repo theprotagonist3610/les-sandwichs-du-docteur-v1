@@ -4,9 +4,8 @@
 -- ATTENTION: Ce script supprime TOUTES les données des tables spécifiées
 -- Utiliser uniquement pour préparer le passage en production
 -- ============================================================================
-
--- Activer l'affichage des messages
-\set ON_ERROR_STOP on
+-- Note: Exécuter ce script dans le SQL Editor de Supabase
+-- ============================================================================
 
 DO $$
 DECLARE
@@ -82,19 +81,19 @@ BEGIN
   RAISE NOTICE '============================================================================';
   RAISE NOTICE '';
 
-  -- Désactiver temporairement les triggers pour améliorer les performances
-  -- et éviter les problèmes de contraintes
-  RAISE NOTICE 'Désactivation des triggers...';
-  ALTER TABLE commandes DISABLE TRIGGER ALL;
-  ALTER TABLE tasks DISABLE TRIGGER ALL;
-  ALTER TABLE promotions DISABLE TRIGGER ALL;
-  ALTER TABLE promotions_archive DISABLE TRIGGER ALL;
-  ALTER TABLE operations_comptables DISABLE TRIGGER ALL;
-  ALTER TABLE menus DISABLE TRIGGER ALL;
-  ALTER TABLE livreurs DISABLE TRIGGER ALL;
-  ALTER TABLE commandes_history DISABLE TRIGGER ALL;
-  ALTER TABLE budget_comptable DISABLE TRIGGER ALL;
-  ALTER TABLE days DISABLE TRIGGER ALL;
+  -- Désactiver temporairement les triggers utilisateur pour améliorer les performances
+  -- Note: On utilise USER au lieu de ALL car Supabase ne permet pas de désactiver les triggers système
+  RAISE NOTICE 'Désactivation des triggers utilisateur...';
+  ALTER TABLE commandes DISABLE TRIGGER USER;
+  ALTER TABLE tasks DISABLE TRIGGER USER;
+  ALTER TABLE promotions DISABLE TRIGGER USER;
+  ALTER TABLE promotions_archive DISABLE TRIGGER USER;
+  ALTER TABLE operations_comptables DISABLE TRIGGER USER;
+  ALTER TABLE menus DISABLE TRIGGER USER;
+  ALTER TABLE livreurs DISABLE TRIGGER USER;
+  ALTER TABLE commandes_history DISABLE TRIGGER USER;
+  ALTER TABLE budget_comptable DISABLE TRIGGER USER;
+  ALTER TABLE days DISABLE TRIGGER USER;
 
   -- Suppression des données dans l'ordre pour respecter les contraintes
   -- 1. Tables qui référencent d'autres tables en premier
@@ -129,19 +128,19 @@ BEGIN
   RAISE NOTICE 'Suppression de days...';
   TRUNCATE TABLE days RESTART IDENTITY CASCADE;
 
-  -- Réactiver les triggers
+  -- Réactiver les triggers utilisateur
   RAISE NOTICE '';
-  RAISE NOTICE 'Réactivation des triggers...';
-  ALTER TABLE commandes ENABLE TRIGGER ALL;
-  ALTER TABLE tasks ENABLE TRIGGER ALL;
-  ALTER TABLE promotions ENABLE TRIGGER ALL;
-  ALTER TABLE promotions_archive ENABLE TRIGGER ALL;
-  ALTER TABLE operations_comptables ENABLE TRIGGER ALL;
-  ALTER TABLE menus ENABLE TRIGGER ALL;
-  ALTER TABLE livreurs ENABLE TRIGGER ALL;
-  ALTER TABLE commandes_history ENABLE TRIGGER ALL;
-  ALTER TABLE budget_comptable ENABLE TRIGGER ALL;
-  ALTER TABLE days ENABLE TRIGGER ALL;
+  RAISE NOTICE 'Réactivation des triggers utilisateur...';
+  ALTER TABLE commandes ENABLE TRIGGER USER;
+  ALTER TABLE tasks ENABLE TRIGGER USER;
+  ALTER TABLE promotions ENABLE TRIGGER USER;
+  ALTER TABLE promotions_archive ENABLE TRIGGER USER;
+  ALTER TABLE operations_comptables ENABLE TRIGGER USER;
+  ALTER TABLE menus ENABLE TRIGGER USER;
+  ALTER TABLE livreurs ENABLE TRIGGER USER;
+  ALTER TABLE commandes_history ENABLE TRIGGER USER;
+  ALTER TABLE budget_comptable ENABLE TRIGGER USER;
+  ALTER TABLE days ENABLE TRIGGER USER;
 
   RAISE NOTICE '';
   RAISE NOTICE '============================================================================';

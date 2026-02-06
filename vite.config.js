@@ -38,15 +38,38 @@ export default defineConfig({
         ],
       },
       manifest: {
+        id: "/",
         name: "Les Sandwichs du Docteur",
         short_name: "Sandwichs Doc",
-        description: "PWA de gestion pour sandwicherie healthy",
+        description: "PWA de gestion pour sandwicherie healthy - Suivi des commandes, stock, comptabilité et statistiques",
         theme_color: "#a41624",
         background_color: "#ffe8c9",
         display: "standalone",
         orientation: "portrait",
         scope: "/",
         start_url: "/",
+        lang: "fr-FR",
+        dir: "ltr",
+        categories: ["business", "food", "productivity"],
+        // PWABuilder Android (TWA) requirements
+        prefer_related_applications: false,
+        // Screenshots pour les stores
+        screenshots: [
+          {
+            src: "screenshots/desktop-dashboard.png",
+            sizes: "1920x1080",
+            type: "image/png",
+            form_factor: "wide",
+            label: "Tableau de bord desktop"
+          },
+          {
+            src: "screenshots/mobile-dashboard.png",
+            sizes: "390x844",
+            type: "image/png",
+            form_factor: "narrow",
+            label: "Tableau de bord mobile"
+          }
+        ],
         icons: [
           {
             src: "pwa-64x64.png",
@@ -70,6 +93,29 @@ export default defineConfig({
             type: "image/png",
             purpose: "maskable",
           },
+          {
+            src: "apple-touch-icon-180x180.png",
+            sizes: "180x180",
+            type: "image/png",
+            purpose: "any",
+          },
+        ],
+        // Raccourcis pour accès rapide
+        shortcuts: [
+          {
+            name: "Nouvelle commande",
+            short_name: "Commande",
+            description: "Créer une nouvelle commande",
+            url: "/commandes?action=new",
+            icons: [{ src: "pwa-192x192.png", sizes: "192x192" }]
+          },
+          {
+            name: "Tableau de bord",
+            short_name: "Dashboard",
+            description: "Voir le tableau de bord",
+            url: "/",
+            icons: [{ src: "pwa-192x192.png", sizes: "192x192" }]
+          }
         ],
       },
     }),
