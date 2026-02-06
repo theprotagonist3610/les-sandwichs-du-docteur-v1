@@ -79,4 +79,21 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: ["react-is", "recharts"],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/react-is/, /node_modules/],
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          recharts: ["recharts"],
+          vendor: ["react", "react-dom", "react-router-dom"],
+          supabase: ["@supabase/supabase-js"],
+        },
+      },
+    },
+  },
 });

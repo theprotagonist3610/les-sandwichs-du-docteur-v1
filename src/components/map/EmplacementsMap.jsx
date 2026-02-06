@@ -17,6 +17,7 @@ import {
 import emplacementToolkit from "@/utils/emplacementToolkit";
 import { toast } from "sonner";
 import useEmplacementMetrics from "@/hooks/useEmplacementMetrics";
+import NumberTicker from "@/components/ui/number-ticker";
 
 const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = false }) => {
   const canvasRef = useRef(null);
@@ -743,7 +744,11 @@ const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = 
                                 />
                               </div>
                               <span className={`font-bold text-foreground ${isMobile ? "text-[7px]" : "text-[8px]"}`}>
-                                {progression.toFixed(0)}%
+                                <NumberTicker
+                                  value={progression}
+                                  decimalPlaces={0}
+                                  className="inline"
+                                />%
                               </span>
                             </div>
 
@@ -757,27 +762,32 @@ const EmplacementsMap = ({ viewBox = "0 0 1200 600", height = "600", isMobile = 
                               )}
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Ventes</span>
-                                <span className="font-semibold text-foreground">
-                                  {empMetrics.ventes}
-                                </span>
+                                <NumberTicker
+                                  value={empMetrics.ventes}
+                                  className="font-semibold text-foreground"
+                                />
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Livraisons</span>
-                                <span className="font-semibold text-foreground">
-                                  {empMetrics.livraisons}
-                                </span>
+                                <NumberTicker
+                                  value={empMetrics.livraisons}
+                                  className="font-semibold text-foreground"
+                                />
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">CA</span>
                                 <span className="font-semibold" style={{ color: 'hsl(var(--chart-2))' }}>
-                                  {empMetrics.ca.toLocaleString('fr-FR')} F
+                                  <NumberTicker
+                                    value={empMetrics.ca}
+                                    className="inline"
+                                  /> F
                                 </span>
                               </div>
 
                               {/* Footer avec nom de l'emplacement */}
                               <div className="mt-1 pt-1 border-t border-border">
-                                <span className="font-semibold text-foreground text-center block truncate">
-                                  {emp.nom}
+                                <span className="font-semibold text-foreground text-center block truncate" title={emp.nom}>
+                                  {emp.nom.length > 15 ? emp.nom.substring(0, 15) + '...' : emp.nom}
                                 </span>
                               </div>
                             </div>

@@ -9,10 +9,16 @@ import {
   Tag,
   Store,
   Percent,
+  TrendingUp,
+  TrendingDown,
+  Loader2,
 } from "lucide-react";
 import { getAllEmplacements } from "@/utils/emplacementToolkit";
 import { getAllPromotionInstances } from "@/utils/promotionToolkit";
 import useActiveUserStore from "@/store/activeUserStore";
+import dayClosureService from "@/services/DayClosureService";
+import { getLocalDateString } from "@/utils/commandeToolkit";
+import NumberTicker from "@/components/ui/number-ticker";
 
 const TodayWidget = ({ isMobile = false }) => {
   const { user } = useActiveUserStore();
@@ -20,12 +26,17 @@ const TodayWidget = ({ isMobile = false }) => {
   const [promotions, setPromotions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // États pour les objectifs de vente
+  const [forecastData, setForecastData] = useState(null);
+  const [loadingForecast, setLoadingForecast] = useState(false);
+
   // Vérifier si l'utilisateur est superviseur ou admin
   const isSupervisorOrAdmin =
     user?.role === "superviseur" || user?.role === "admin";
 
   // Date du jour
   const today = new Date();
+  const todayStr = getLocalDateString();
   const options = {
     weekday: "long",
     day: "numeric",
@@ -41,7 +52,13 @@ const TodayWidget = ({ isMobile = false }) => {
 
   useEffect(() => {
     loadData();
-  }, []);
+    if (isSupervisorOrAdmin) {
+      loadForecast();
+      // Rafraîchir les prévisions toutes les 5 minutes
+      const interval = setInterval(loadForecast, 5 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isSupervisorOrAdmin]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -59,6 +76,20 @@ const TodayWidget = ({ isMobile = false }) => {
     setPromotions(promotionsData || []);
 
     setIsLoading(false);
+  };
+
+  const loadForecast = async () => {
+    setLoadingForecast(true);
+    try {
+      const { success, comparison } = await dayClosureService.getRealtimeVsForecast(todayStr);
+      if (success && comparison) {
+        setForecastData(comparison);
+      }
+    } catch (error) {
+      console.error("Erreur loadForecast:", error);
+    } finally {
+      setLoadingForecast(false);
+    }
   };
 
   // Obtenir les horaires du jour pour un emplacement
@@ -83,11 +114,36 @@ const TodayWidget = ({ isMobile = false }) => {
     return now >= openMinutes && now <= closeMinutes;
   };
 
-  // Objectifs de vente (placeholder - à implémenter avec une vraie source de données)
-  const objectifsVente = [
-    { label: "Objectif journalier", valeur: "150 000 FCFA", progression: 65 },
-    { label: "Objectif hebdomadaire", valeur: "900 000 FCFA", progression: 45 },
-  ];
+  // Formater un nombre
+  const formatNumber = (num) => {
+    return Math.round(num).toLocaleString("fr-FR");
+  };
+
+  // Calculer le pourcentage de progression
+  const getProgressPercentage = (realtime, forecast) => {
+    if (!forecast || forecast === 0) return 0;
+    return Math.min(Math.round((realtime / forecast) * 100), 100);
+  };
+
+  // Obtenir la couleur selon la progression
+  const getProgressColor = (progress) => {
+    if (progress >= 90) return "bg-green-600";
+    if (progress >= 70) return "bg-blue-600";
+    if (progress >= 50) return "bg-orange-600";
+    return "bg-red-600";
+  };
+
+  // Déterminer l'icône de tendance
+  const getTrendIcon = (realtime, forecast) => {
+    if (!forecast || forecast === 0) return null;
+    const diff = realtime - forecast;
+    if (Math.abs(diff) < forecast * 0.05) return null; // Écart < 5%
+    return diff > 0 ? (
+      <TrendingUp className="w-3 h-3 text-green-600" />
+    ) : (
+      <TrendingDown className="w-3 h-3 text-red-600" />
+    );
+  };
 
   if (isLoading) {
     return (
@@ -262,40 +318,193 @@ const TodayWidget = ({ isMobile = false }) => {
                 className={`${
                   isMobile ? "text-xs" : "text-sm"
                 } font-medium text-foreground`}>
-                Objectifs de vente
+                Objectifs du jour
               </span>
+              {loadingForecast && (
+                <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+              )}
             </div>
-            <div className="bg-background/60 rounded-lg border border-border p-2 space-y-2">
-              {objectifsVente.map((obj, index) => (
-                <div key={index} className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`${
-                        isMobile ? "text-[10px]" : "text-xs"
-                      } text-muted-foreground`}>
-                      {obj.label}
-                    </span>
-                    <span
-                      className={`${
-                        isMobile ? "text-[10px]" : "text-xs"
-                      } font-medium text-foreground`}>
-                      {obj.valeur}
-                    </span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-1.5">
-                    <div
-                      className="h-1.5 rounded-full bg-blue-500 transition-all duration-300"
-                      style={{ width: `${obj.progression}%` }}
-                    />
-                  </div>
-                  <p
-                    className={`${
-                      isMobile ? "text-[10px]" : "text-xs"
-                    } text-right text-muted-foreground`}>
-                    {obj.progression}% atteint
-                  </p>
-                </div>
-              ))}
+            <div className="bg-background/60 rounded-lg border border-border p-2 space-y-2.5">
+              {!forecastData ? (
+                <p
+                  className={`${
+                    isMobile ? "text-[10px]" : "text-xs"
+                  } text-muted-foreground text-center py-2`}>
+                  Chargement des objectifs...
+                </p>
+              ) : (
+                <>
+                  {/* Ventes */}
+                  {forecastData.nombre_ventes_total && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } text-muted-foreground`}>
+                            Ventes
+                          </span>
+                          {getTrendIcon(
+                            forecastData.nombre_ventes_total.realtime,
+                            forecastData.nombre_ventes_total.forecast
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } font-semibold text-foreground`}>
+                            <NumberTicker
+                              value={forecastData.nombre_ventes_total.realtime}
+                              className="inline"
+                            />
+                          </span>
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } text-muted-foreground`}>
+                            / {formatNumber(forecastData.nombre_ventes_total.forecast)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-300 ${getProgressColor(
+                            getProgressPercentage(
+                              forecastData.nombre_ventes_total.realtime,
+                              forecastData.nombre_ventes_total.forecast
+                            )
+                          )}`}
+                          style={{
+                            width: `${getProgressPercentage(
+                              forecastData.nombre_ventes_total.realtime,
+                              forecastData.nombre_ventes_total.forecast
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                      <p
+                        className={`${
+                          isMobile ? "text-[10px]" : "text-xs"
+                        } text-right text-muted-foreground`}>
+                        <NumberTicker
+                          value={getProgressPercentage(
+                            forecastData.nombre_ventes_total.realtime,
+                            forecastData.nombre_ventes_total.forecast
+                          )}
+                          className="inline"
+                        />
+                        % atteint
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Chiffre d'affaires */}
+                  {forecastData.chiffre_affaires && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } text-muted-foreground`}>
+                            CA
+                          </span>
+                          {getTrendIcon(
+                            forecastData.chiffre_affaires.realtime,
+                            forecastData.chiffre_affaires.forecast
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } font-semibold text-foreground`}>
+                            <NumberTicker
+                              value={forecastData.chiffre_affaires.realtime}
+                              className="inline"
+                            />{" "}
+                            F
+                          </span>
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } text-muted-foreground`}>
+                            / {formatNumber(forecastData.chiffre_affaires.forecast)} F
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-300 ${getProgressColor(
+                            getProgressPercentage(
+                              forecastData.chiffre_affaires.realtime,
+                              forecastData.chiffre_affaires.forecast
+                            )
+                          )}`}
+                          style={{
+                            width: `${getProgressPercentage(
+                              forecastData.chiffre_affaires.realtime,
+                              forecastData.chiffre_affaires.forecast
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                      <p
+                        className={`${
+                          isMobile ? "text-[10px]" : "text-xs"
+                        } text-right text-muted-foreground`}>
+                        <NumberTicker
+                          value={getProgressPercentage(
+                            forecastData.chiffre_affaires.realtime,
+                            forecastData.chiffre_affaires.forecast
+                          )}
+                          className="inline"
+                        />
+                        % atteint
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Panier moyen */}
+                  {forecastData.panier_moyen && (
+                    <div className="space-y-1 pt-1.5 border-t">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`${
+                            isMobile ? "text-[10px]" : "text-xs"
+                          } text-muted-foreground`}>
+                          Panier moyen
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } font-semibold ${
+                              forecastData.panier_moyen.realtime >=
+                              forecastData.panier_moyen.forecast
+                                ? "text-green-600"
+                                : "text-orange-600"
+                            }`}>
+                            <NumberTicker
+                              value={forecastData.panier_moyen.realtime}
+                              className="inline"
+                            />{" "}
+                            F
+                          </span>
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } text-muted-foreground`}>
+                            (obj: {formatNumber(forecastData.panier_moyen.forecast)} F)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}
