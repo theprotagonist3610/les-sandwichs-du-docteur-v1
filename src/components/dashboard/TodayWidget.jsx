@@ -12,6 +12,8 @@ import {
   TrendingUp,
   TrendingDown,
   Loader2,
+  Wallet,
+  AlertTriangle,
 } from "lucide-react";
 import { getAllEmplacements } from "@/utils/emplacementToolkit";
 import { getAllPromotionInstances } from "@/utils/promotionToolkit";
@@ -19,6 +21,10 @@ import useActiveUserStore from "@/store/activeUserStore";
 import dayClosureService from "@/services/DayClosureService";
 import { getLocalDateString } from "@/utils/commandeToolkit";
 import NumberTicker from "@/components/ui/number-ticker";
+import {
+  getDashboardPrevisions,
+  REGLES_PREVISIONS,
+} from "@/utils/comptabiliteToolkit";
 
 const TodayWidget = ({ isMobile = false }) => {
   const { user } = useActiveUserStore();
@@ -29,6 +35,9 @@ const TodayWidget = ({ isMobile = false }) => {
   // États pour les objectifs de vente
   const [forecastData, setForecastData] = useState(null);
   const [loadingForecast, setLoadingForecast] = useState(false);
+
+  // États pour les prévisions comptables
+  const [comptaPrevisions, setComptaPrevisions] = useState(null);
 
   // Vérifier si l'utilisateur est superviseur ou admin
   const isSupervisorOrAdmin =
@@ -81,9 +90,16 @@ const TodayWidget = ({ isMobile = false }) => {
   const loadForecast = async () => {
     setLoadingForecast(true);
     try {
+      // Charger les prévisions de vente (depuis dayClosureService)
       const { success, comparison } = await dayClosureService.getRealtimeVsForecast(todayStr);
       if (success && comparison) {
         setForecastData(comparison);
+      }
+
+      // Charger les prévisions comptables (CA minimum, plafond dépenses)
+      const comptaResult = await getDashboardPrevisions();
+      if (comptaResult.success) {
+        setComptaPrevisions(comptaResult.dashboard);
       }
     } catch (error) {
       console.error("Erreur loadForecast:", error);
@@ -501,6 +517,89 @@ const TodayWidget = ({ isMobile = false }) => {
                           </span>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Règles comptables et alertes */}
+                  {comptaPrevisions && (
+                    <div className="space-y-1.5 pt-1.5 border-t">
+                      {/* Plafond dépenses du mois */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Wallet
+                            className={`${
+                              isMobile ? "w-3 h-3" : "w-3.5 h-3.5"
+                            } text-purple-600`}
+                          />
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } text-muted-foreground`}>
+                            Dépenses mois
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } font-semibold ${
+                              comptaPrevisions.progression.depenses > 90
+                                ? "text-red-600"
+                                : comptaPrevisions.progression.depenses > 75
+                                ? "text-orange-600"
+                                : "text-green-600"
+                            }`}>
+                            {comptaPrevisions.progression.depenses}%
+                          </span>
+                          <span
+                            className={`${
+                              isMobile ? "text-[10px]" : "text-xs"
+                            } text-muted-foreground`}>
+                            ({formatNumber(comptaPrevisions.marges.depenses_restantes)} F restant)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Alertes comptables */}
+                      {comptaPrevisions.alertes && comptaPrevisions.alertes.length > 0 && (
+                        <div className="space-y-1">
+                          {comptaPrevisions.alertes.slice(0, 2).map((alerte, idx) => (
+                            <div
+                              key={idx}
+                              className={`flex items-start gap-1.5 p-1.5 rounded ${
+                                alerte.type === "danger"
+                                  ? "bg-red-50 dark:bg-red-950/30"
+                                  : "bg-orange-50 dark:bg-orange-950/30"
+                              }`}>
+                              <AlertTriangle
+                                className={`w-3 h-3 shrink-0 mt-0.5 ${
+                                  alerte.type === "danger"
+                                    ? "text-red-600"
+                                    : "text-orange-600"
+                                }`}
+                              />
+                              <span
+                                className={`${
+                                  isMobile ? "text-[9px]" : "text-[10px]"
+                                } ${
+                                  alerte.type === "danger"
+                                    ? "text-red-700 dark:text-red-400"
+                                    : "text-orange-700 dark:text-orange-400"
+                                }`}>
+                                {alerte.message}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Info CA minimum */}
+                      <p
+                        className={`${
+                          isMobile ? "text-[9px]" : "text-[10px]"
+                        } text-muted-foreground text-center pt-1`}>
+                        Objectif min: {formatNumber(REGLES_PREVISIONS.CA_MINIMUM_JOUR)} F/jour • Max dépenses: {REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100}% CA
+                      </p>
                     </div>
                   )}
                 </>

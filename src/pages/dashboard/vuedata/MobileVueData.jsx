@@ -38,10 +38,10 @@ const MobileVueData = () => {
     // Ajouter les widgets réservés aux superviseurs et admins
     if (isSupervisorOrAdmin) {
       baseWidgets.push(
-        <StatsWidget key="stats" isMobile={true} />,
-        <ComptaWidget key="compta" isMobile={true} />,
-        <StockWidget key="stock" isMobile={true} />,
-        <UsersWidget key="users" isMobile={true} />
+        // <StatsWidget key="stats" isMobile={true} />,
+        // <ComptaWidget key="compta" isMobile={true} />,
+        // <StockWidget key="stock" isMobile={true} />,
+        <UsersWidget key="users" isMobile={true} />,
       );
     }
 

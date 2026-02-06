@@ -5,6 +5,19 @@
  */
 
 import { supabase } from "@/config/supabase";
+import {
+  calculerCAPrevuJournalier,
+  calculerPlafondDepensesMensuel,
+  REGLES_PREVISIONS,
+  getOperations,
+  TYPES_OPERATION,
+} from "@/utils/comptabiliteToolkit";
+import {
+  createRapport,
+  getRapportByDate,
+  updateRapport,
+  calculerEcartPourcentage,
+} from "@/utils/rapportToolkit";
 
 // =====================================================
 // RÉCUPÉRATION DES DONNÉES
@@ -847,31 +860,84 @@ export const generateDayForecast = async () => {
     // 1. Récupérer les données historiques (30 derniers jours)
     const historicalData = await getHistoricalClosures(30);
 
-    // 2. Si pas de données, retourner des prévisions vides
+    // 2. Récupérer le CA prévu journalier depuis comptabiliteToolkit
+    // (basé sur l'historique des encaissements avec minimum 15 000 XOF)
+    const caResult = await calculerCAPrevuJournalier();
+    const caMinimumJournalier = caResult.success
+      ? caResult.ca_prevu
+      : REGLES_PREVISIONS.CA_MINIMUM_JOUR;
+
+    // 3. Récupérer le plafond de dépenses mensuel (40% du CA)
+    const now = new Date();
+    const plafondResult = await calculerPlafondDepensesMensuel(
+      now.getMonth() + 1,
+      now.getFullYear()
+    );
+
+    // 4. Si pas de données historiques de clôtures, utiliser les prévisions comptables
     if (historicalData.length === 0) {
+      const emptyMetrics = getEmptyMetrics();
+
+      // Appliquer le CA minimum comme objectif
+      emptyMetrics.chiffre_affaires = caMinimumJournalier;
+
+      // Estimer le nombre de ventes (panier moyen estimé à 2000 XOF)
+      const panierMoyenEstime = 2000;
+      emptyMetrics.nombre_ventes_total = Math.ceil(caMinimumJournalier / panierMoyenEstime);
+      emptyMetrics.panier_moyen = panierMoyenEstime;
+      emptyMetrics.ticket_moyen = panierMoyenEstime;
+
       return {
-        previsions: getEmptyMetrics(),
+        previsions: {
+          ...emptyMetrics,
+          _metadata: {
+            algorithme: "comptabilite_minimum",
+            ca_minimum_jour: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+            ratio_depenses_max: REGLES_PREVISIONS.RATIO_DEPENSES_MAX,
+            base: "minimum_comptable",
+            generee_le: new Date().toISOString(),
+          },
+        },
         previsions_generees_le: new Date().toISOString(),
         previsions_base_sur_jours: 0,
-        previsions_confiance: 0,
+        previsions_confiance: 30, // Confiance faible car basé sur minimum
+        regles_comptables: {
+          ca_minimum_jour: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+          ca_prevu_jour: caMinimumJournalier,
+          plafond_depenses_mensuel: plafondResult.success ? plafondResult.plafond_depenses : null,
+          ratio_depenses_max: REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100 + "%",
+        },
       };
     }
 
-    // 3. Calculer les moyennes pondérées
+    // 5. Calculer les moyennes pondérées basées sur l'historique des clôtures
     const weightedAverages = calculateWeightedAverages(historicalData);
 
-    // 4. Calculer le score de confiance
+    // 6. Appliquer le CA minimum si le CA calculé est inférieur
+    if (weightedAverages.chiffre_affaires < caMinimumJournalier) {
+      // Ajuster le CA au minimum
+      weightedAverages.chiffre_affaires = caMinimumJournalier;
+
+      // Ajuster proportionnellement le nombre de ventes si le panier moyen reste constant
+      if (weightedAverages.panier_moyen > 0) {
+        weightedAverages.nombre_ventes_total = Math.ceil(
+          caMinimumJournalier / weightedAverages.panier_moyen
+        );
+      }
+    }
+
+    // 7. Calculer le score de confiance
     const confidenceScore = calculateConfidenceScore(historicalData);
 
-    // 5. Construire l'objet de prévisions avec métadonnées
+    // 8. Construire l'objet de prévisions avec métadonnées enrichies
     const previsions = {
       ...weightedAverages,
       _metadata: {
-        algorithme: "weighted_average",
+        algorithme: "weighted_average_with_comptabilite_rules",
         ponderation: {
-          last_7_days: 0.5,
-          last_15_days: 0.3,
-          last_30_days: 0.2,
+          last_7_days: REGLES_PREVISIONS.POIDS_RECENT,
+          last_15_days: REGLES_PREVISIONS.POIDS_MOYEN,
+          last_30_days: REGLES_PREVISIONS.POIDS_ANCIEN,
         },
         jours_utilises: historicalData.map((d) => d.jour),
         nombre_jours: historicalData.length,
@@ -879,6 +945,9 @@ export const generateDayForecast = async () => {
           chiffre_affaires: calculateVariance(historicalData, "chiffre_affaires"),
           nombre_ventes_total: calculateVariance(historicalData, "nombre_ventes_total"),
         },
+        ca_minimum_jour: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+        ca_prevu_comptable: caMinimumJournalier,
+        ratio_depenses_max: REGLES_PREVISIONS.RATIO_DEPENSES_MAX,
         generee_le: new Date().toISOString(),
       },
     };
@@ -888,6 +957,14 @@ export const generateDayForecast = async () => {
       previsions_generees_le: new Date().toISOString(),
       previsions_base_sur_jours: historicalData.length,
       previsions_confiance: confidenceScore,
+      regles_comptables: {
+        ca_minimum_jour: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+        ca_prevu_jour: caMinimumJournalier,
+        ca_details: caResult.success ? caResult.details : null,
+        plafond_depenses_mensuel: plafondResult.success ? plafondResult.plafond_depenses : null,
+        plafond_depenses_details: plafondResult.success ? plafondResult.details : null,
+        ratio_depenses_max: REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100 + "%",
+      },
     };
   } catch (error) {
     console.error("Erreur generateDayForecast:", error);
@@ -992,11 +1069,112 @@ export const compareMetrics = (realtime, forecast) => {
 // =====================================================
 
 /**
+ * Récupère les dépenses d'une journée donnée
+ * @param {string} date - Date au format YYYY-MM-DD
+ * @returns {Promise<number>} Total des dépenses du jour
+ */
+const getDepensesJour = async (date) => {
+  try {
+    const result = await getOperations({
+      operation: TYPES_OPERATION.DEPENSE,
+      startDate: date,
+      endDate: date,
+      limit: 10000,
+      offset: 0,
+    });
+
+    if (!result.success) return 0;
+
+    return result.operations.reduce((sum, op) => sum + parseFloat(op.montant), 0);
+  } catch (error) {
+    console.error("Erreur getDepensesJour:", error);
+    return 0;
+  }
+};
+
+/**
+ * Génère automatiquement le rapport journalier lors de la clôture
+ * @param {Object} metrics - Métriques de la journée
+ * @param {string} userId - ID de l'utilisateur qui clôture
+ * @returns {Promise<{success: boolean, rapport?: Object, error?: string}>}
+ */
+const genererRapportJournalier = async (metrics, userId) => {
+  try {
+    const date = metrics.jour;
+
+    // 1. Récupérer les prévisions (objectifs) pour calculer les écarts
+    const forecastResult = await generateDayForecast();
+    const previsions = forecastResult.previsions || {};
+
+    // 2. Récupérer les dépenses du jour depuis les opérations comptables
+    const depensesJour = await getDepensesJour(date);
+
+    // 3. Calculer les objectifs prévus
+    const objectifVentes = previsions.nombre_ventes_total || 0;
+    const objectifEncaissement = previsions.chiffre_affaires || REGLES_PREVISIONS.CA_MINIMUM_JOUR;
+
+    // Objectif dépenses = plafond journalier (40% du CA prévu / nb jours du mois)
+    const now = new Date(date);
+    const nbJoursMois = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const objectifDepense = Math.round((objectifEncaissement * REGLES_PREVISIONS.RATIO_DEPENSES_MAX * nbJoursMois) / nbJoursMois);
+
+    // 4. Calculer les écarts en pourcentage
+    const ecartVentes = calculerEcartPourcentage(metrics.nombre_ventes_total, objectifVentes);
+    const ecartEncaissement = calculerEcartPourcentage(metrics.chiffre_affaires, objectifEncaissement);
+    const ecartDepense = calculerEcartPourcentage(depensesJour, objectifDepense);
+
+    // 5. Préparer les données du rapport
+    const rapportData = {
+      date,
+      total_ventes: metrics.nombre_ventes_total,
+      total_encaissement: metrics.chiffre_affaires,
+      total_depense: depensesJour,
+      objectifs: {
+        ventes: objectifVentes,
+        encaissement: objectifEncaissement,
+        depense: objectifDepense,
+      },
+    };
+
+    // 6. Vérifier si un rapport existe déjà pour cette date
+    const existingResult = await getRapportByDate(date);
+
+    if (existingResult.rapport) {
+      // Mettre à jour le rapport existant
+      const updateResult = await updateRapport(existingResult.rapport.id, {
+        total_ventes: metrics.nombre_ventes_total,
+        total_encaissement: metrics.chiffre_affaires,
+        total_depense: depensesJour,
+        objectifs: {
+          ventes: ecartVentes,
+          encaissement: ecartEncaissement,
+          depense: ecartDepense,
+        },
+      });
+
+      return updateResult;
+    }
+
+    // 7. Créer un nouveau rapport
+    const createResult = await createRapport(rapportData, userId);
+
+    return createResult;
+  } catch (error) {
+    console.error("Erreur genererRapportJournalier:", error);
+    return {
+      success: false,
+      error: error.message || "Erreur lors de la génération du rapport",
+    };
+  }
+};
+
+/**
  * Crée ou met à jour une clôture journalière
+ * Génère automatiquement le rapport journalier correspondant
  * @param {Object} metrics - Métriques calculées
  * @param {string} userId - ID de l'utilisateur qui clôture
  * @param {string} notes - Notes optionnelles
- * @returns {Promise<Object>} Clôture enregistrée
+ * @returns {Promise<Object>} Clôture enregistrée avec le rapport
  */
 export const saveDayClosure = async (metrics, userId, notes = "") => {
   try {
@@ -1010,6 +1188,8 @@ export const saveDayClosure = async (metrics, userId, notes = "") => {
       notes,
     };
 
+    let closureResult;
+
     if (existing) {
       // Mise à jour
       const { data, error } = await supabase
@@ -1020,14 +1200,30 @@ export const saveDayClosure = async (metrics, userId, notes = "") => {
         .single();
 
       if (error) throw error;
-      return data;
+      closureResult = data;
     } else {
       // Insertion
       const { data, error } = await supabase.from("days").insert(closureData).select().single();
 
       if (error) throw error;
-      return data;
+      closureResult = data;
     }
+
+    // Générer automatiquement le rapport journalier
+    const rapportResult = await genererRapportJournalier(metrics, userId);
+
+    if (rapportResult.success) {
+      console.log("Rapport journalier généré:", rapportResult.rapport?.denomination);
+    } else {
+      console.warn("Erreur génération rapport:", rapportResult.error);
+    }
+
+    // Retourner la clôture avec info sur le rapport
+    return {
+      ...closureResult,
+      rapport: rapportResult.success ? rapportResult.rapport : null,
+      rapport_error: rapportResult.success ? null : rapportResult.error,
+    };
   } catch (error) {
     console.error("Erreur saveDayClosure:", error);
     throw error;

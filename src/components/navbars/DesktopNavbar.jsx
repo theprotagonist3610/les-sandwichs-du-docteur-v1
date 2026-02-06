@@ -1,13 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
-import {
-  ChevronDown,
-  Sun,
-  Moon,
-  Wifi,
-  WifiOff,
-  LogOut,
-} from "lucide-react";
+import { ChevronDown, Sun, Moon, Wifi, WifiOff, LogOut } from "lucide-react";
 import logo from "@/assets/logo-min.png";
 import { useBorderBeam } from "@/hooks/useBorderBeam";
 import { useConnectivity } from "@/store/connectivityStore";
@@ -54,16 +47,16 @@ const DesktopNavbar = () => {
       label: "Commandes",
       options: [], // Options a ajouter plus tard
     },
-    {
-      path: "/stock",
-      label: "Stock",
-      options: [], // Options a ajouter plus tard
-    },
-    {
-      path: "/statistiques",
-      label: "Statistiques",
-      options: [], // Options a ajouter plus tard
-    },
+    // {
+    //   path: "/stock",
+    //   label: "Stock",
+    //   options: [], // Options a ajouter plus tard
+    // },
+    // {
+    //   path: "/statistiques",
+    //   label: "Statistiques",
+    //   options: [], // Options a ajouter plus tard
+    // },
     {
       path: "/comptabilite",
       label: "Comptabilite",
@@ -200,8 +193,8 @@ const DesktopNavbar = () => {
                 settings.theme === "auto"
                   ? "Auto"
                   : settings.theme === "dark"
-                  ? "Sombre"
-                  : "Clair"
+                    ? "Sombre"
+                    : "Clair"
               }`}>
               {isDark ? (
                 <Sun className="w-5 h-5" />

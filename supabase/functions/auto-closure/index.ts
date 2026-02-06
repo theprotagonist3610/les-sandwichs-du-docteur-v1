@@ -1,6 +1,7 @@
 // Edge Function: auto-closure
-// Effectue la clôture automatique d'une journée
+// Effectue la clôture automatique d'une journée et génère le rapport
 // Appelée quand un changement de jour est détecté et la veille n'est pas clôturée
+// Peut aussi être déclenchée par un cron job Supabase à minuit
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -8,6 +9,15 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+};
+
+// Constantes de prévisions (identiques à comptabiliteToolkit)
+const REGLES_PREVISIONS = {
+  CA_MINIMUM_JOUR: 15000,
+  RATIO_DEPENSES_MAX: 0.40,
+  POIDS_RECENT: 0.5,
+  POIDS_MOYEN: 0.3,
+  POIDS_ANCIEN: 0.2,
 };
 
 interface CommandeDetail {
@@ -180,10 +190,26 @@ Deno.serve(async (req) => {
 
     console.log(`✅ Clôture automatique réussie pour ${date}`);
 
+    // 7. Générer automatiquement le rapport journalier
+    const rapportResult = await genererRapportJournalier(
+      supabase,
+      date,
+      closureData,
+      triggered_by
+    );
+
+    if (rapportResult.success) {
+      console.log(`📊 Rapport généré: ${rapportResult.rapport?.denomination}`);
+    } else {
+      console.warn(`⚠️ Erreur génération rapport: ${rapportResult.error}`);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         closure,
+        rapport: rapportResult.success ? rapportResult.rapport : null,
+        rapport_error: rapportResult.success ? null : rapportResult.error,
         message: `Clôture automatique effectuée pour ${date}`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -539,4 +565,301 @@ function calculateStatutsMetrics(commandes: Commande[]) {
 
 function formatTime(date: Date): string {
   return date.toTimeString().split(" ")[0];
+}
+
+// =====================================================
+// GÉNÉRATION DU RAPPORT JOURNALIER
+// =====================================================
+
+/**
+ * Génère la dénomination du rapport au format rapport_DDMMYYYY
+ */
+function genererDenomination(date: string): string {
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `rapport_${day}${month}${year}`;
+}
+
+/**
+ * Calcule l'écart en pourcentage entre réalisé et objectif
+ */
+function calculerEcartPourcentage(realise: number, objectif: number): number {
+  if (!objectif || objectif === 0) return 0;
+  return Math.round(((realise - objectif) / objectif) * 100);
+}
+
+/**
+ * Récupère les dépenses d'une journée
+ */
+async function getDepensesJour(
+  supabase: ReturnType<typeof createClient>,
+  date: string
+): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from("operations_comptables")
+      .select("montant")
+      .eq("operation", "depense")
+      .eq("date_operation", date);
+
+    if (error) {
+      console.error("Erreur récupération dépenses:", error);
+      return 0;
+    }
+
+    return (data || []).reduce(
+      (sum: number, op: { montant: number }) => sum + parseFloat(String(op.montant)),
+      0
+    );
+  } catch (error) {
+    console.error("Erreur getDepensesJour:", error);
+    return 0;
+  }
+}
+
+/**
+ * Calcule le CA prévu journalier basé sur l'historique des encaissements
+ */
+async function calculerCAPrevuJournalier(
+  supabase: ReturnType<typeof createClient>,
+  date: string
+): Promise<number> {
+  try {
+    const dateRef = new Date(date);
+
+    // Dates pour les différentes périodes
+    const date30j = new Date(dateRef);
+    date30j.setDate(date30j.getDate() - 30);
+
+    // Récupérer les encaissements des 30 derniers jours
+    const { data, error } = await supabase
+      .from("operations_comptables")
+      .select("montant, date_operation")
+      .eq("operation", "encaissement")
+      .gte("date_operation", date30j.toISOString().split("T")[0])
+      .lte("date_operation", date);
+
+    if (error || !data || data.length === 0) {
+      return REGLES_PREVISIONS.CA_MINIMUM_JOUR;
+    }
+
+    // Organiser les encaissements par jour
+    const encaissementsParJour: Record<string, number> = {};
+    data.forEach((op: { montant: number; date_operation: string }) => {
+      const dateOp = op.date_operation.split("T")[0];
+      if (!encaissementsParJour[dateOp]) {
+        encaissementsParJour[dateOp] = 0;
+      }
+      encaissementsParJour[dateOp] += parseFloat(String(op.montant));
+    });
+
+    // Calculer les moyennes par période
+    const calculerMoyenne = (dateDebut: Date, dateFin: Date): number => {
+      let total = 0;
+      let jours = 0;
+
+      const current = new Date(dateDebut);
+      while (current <= dateFin) {
+        const dateStr = current.toISOString().split("T")[0];
+        if (encaissementsParJour[dateStr] !== undefined) {
+          total += encaissementsParJour[dateStr];
+          jours++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+
+      return jours > 0 ? total / jours : 0;
+    };
+
+    const date7j = new Date(dateRef);
+    date7j.setDate(date7j.getDate() - 7);
+    const date15j = new Date(dateRef);
+    date15j.setDate(date15j.getDate() - 15);
+
+    const moyenne7j = calculerMoyenne(date7j, dateRef);
+    const moyenne15j = calculerMoyenne(date15j, dateRef);
+    const moyenne30j = calculerMoyenne(date30j, dateRef);
+
+    // Calcul pondéré
+    let caPondere = 0;
+    let poidsTotal = 0;
+
+    if (moyenne7j > 0) {
+      caPondere += moyenne7j * REGLES_PREVISIONS.POIDS_RECENT;
+      poidsTotal += REGLES_PREVISIONS.POIDS_RECENT;
+    }
+    if (moyenne15j > 0) {
+      caPondere += moyenne15j * REGLES_PREVISIONS.POIDS_MOYEN;
+      poidsTotal += REGLES_PREVISIONS.POIDS_MOYEN;
+    }
+    if (moyenne30j > 0) {
+      caPondere += moyenne30j * REGLES_PREVISIONS.POIDS_ANCIEN;
+      poidsTotal += REGLES_PREVISIONS.POIDS_ANCIEN;
+    }
+
+    const caCalcule = poidsTotal > 0 ? caPondere / poidsTotal : 0;
+
+    // Appliquer le minimum
+    return Math.max(Math.round(caCalcule), REGLES_PREVISIONS.CA_MINIMUM_JOUR);
+  } catch (error) {
+    console.error("Erreur calculerCAPrevuJournalier:", error);
+    return REGLES_PREVISIONS.CA_MINIMUM_JOUR;
+  }
+}
+
+/**
+ * Récupère les prévisions de ventes depuis l'historique des clôtures
+ */
+async function getPrevisionsVentes(
+  supabase: ReturnType<typeof createClient>
+): Promise<number> {
+  try {
+    // Récupérer les 30 dernières clôtures
+    const { data, error } = await supabase
+      .from("days")
+      .select("nombre_ventes_total")
+      .order("jour", { ascending: false })
+      .limit(30);
+
+    if (error || !data || data.length === 0) {
+      return 0;
+    }
+
+    // Calculer la moyenne pondérée
+    const last7 = data.slice(0, 7);
+    const last15 = data.slice(0, 15);
+    const last30 = data;
+
+    const avg = (arr: { nombre_ventes_total: number }[]) =>
+      arr.length > 0
+        ? arr.reduce((sum, d) => sum + (d.nombre_ventes_total || 0), 0) / arr.length
+        : 0;
+
+    const avg7 = avg(last7);
+    const avg15 = avg(last15);
+    const avg30 = avg(last30);
+
+    let weighted = 0;
+    let totalWeight = 0;
+
+    if (avg7 > 0) {
+      weighted += avg7 * REGLES_PREVISIONS.POIDS_RECENT;
+      totalWeight += REGLES_PREVISIONS.POIDS_RECENT;
+    }
+    if (avg15 > 0) {
+      weighted += avg15 * REGLES_PREVISIONS.POIDS_MOYEN;
+      totalWeight += REGLES_PREVISIONS.POIDS_MOYEN;
+    }
+    if (avg30 > 0) {
+      weighted += avg30 * REGLES_PREVISIONS.POIDS_ANCIEN;
+      totalWeight += REGLES_PREVISIONS.POIDS_ANCIEN;
+    }
+
+    return totalWeight > 0 ? Math.round(weighted / totalWeight) : 0;
+  } catch (error) {
+    console.error("Erreur getPrevisionsVentes:", error);
+    return 0;
+  }
+}
+
+/**
+ * Génère automatiquement le rapport journalier
+ */
+async function genererRapportJournalier(
+  supabase: ReturnType<typeof createClient>,
+  date: string,
+  metrics: Record<string, unknown>,
+  userId: string | null
+): Promise<{ success: boolean; rapport?: Record<string, unknown>; error?: string }> {
+  try {
+    const denomination = genererDenomination(date);
+
+    // 1. Vérifier si un rapport existe déjà
+    const { data: existingRapport } = await supabase
+      .from("rapports")
+      .select("id")
+      .eq("denomination", denomination)
+      .maybeSingle();
+
+    // 2. Récupérer les dépenses du jour
+    const depensesJour = await getDepensesJour(supabase, date);
+
+    // 3. Calculer les objectifs
+    const objectifVentes = await getPrevisionsVentes(supabase);
+    const objectifEncaissement = await calculerCAPrevuJournalier(supabase, date);
+
+    // Objectif dépenses = 40% du CA prévu
+    const objectifDepense = Math.round(
+      objectifEncaissement * REGLES_PREVISIONS.RATIO_DEPENSES_MAX
+    );
+
+    // 4. Calculer les écarts
+    const totalVentes = (metrics.nombre_ventes_total as number) || 0;
+    const totalEncaissement = (metrics.chiffre_affaires as number) || 0;
+
+    const ecartVentes = calculerEcartPourcentage(totalVentes, objectifVentes);
+    const ecartEncaissement = calculerEcartPourcentage(totalEncaissement, objectifEncaissement);
+    const ecartDepense = calculerEcartPourcentage(depensesJour, objectifDepense);
+
+    // 5. Créer ou mettre à jour le rapport
+    const rapportData = {
+      denomination,
+      total_ventes: totalVentes,
+      total_encaissement: totalEncaissement,
+      total_depense: depensesJour,
+      objectifs: {
+        ventes: ecartVentes,
+        encaissement: ecartEncaissement,
+        depense: ecartDepense,
+      },
+      created_by: userId,
+    };
+
+    if (existingRapport) {
+      // Mise à jour
+      const { data, error } = await supabase
+        .from("rapports")
+        .update({
+          total_ventes: totalVentes,
+          total_encaissement: totalEncaissement,
+          total_depense: depensesJour,
+          objectifs: {
+            ventes: ecartVentes,
+            encaissement: ecartEncaissement,
+            depense: ecartDepense,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingRapport.id)
+        .select()
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, rapport: data };
+    } else {
+      // Création
+      const { data, error } = await supabase
+        .from("rapports")
+        .insert(rapportData)
+        .select()
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, rapport: data };
+    }
+  } catch (error) {
+    console.error("Erreur genererRapportJournalier:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Erreur inconnue",
+    };
+  }
 }

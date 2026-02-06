@@ -43,9 +43,9 @@ const DesktopVueData = () => {
       {isSupervisorOrAdmin && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            <StatsWidget isMobile={false} />
+            {/* <StatsWidget isMobile={false} />
             <ComptaWidget isMobile={false} />
-            <StockWidget isMobile={false} />
+            <StockWidget isMobile={false} /> */}
           </div>
 
           {/* UsersWidget - superviseur/admin uniquement */}

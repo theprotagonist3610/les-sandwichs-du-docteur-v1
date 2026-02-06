@@ -50,8 +50,8 @@ const MobileNavbar = () => {
   const allNavLinks = [
     { path: "/", label: "Dashboard", icon: Home },
     { path: "/commandes", label: "Commandes", icon: ShoppingCart },
-    { path: "/stock", label: "Stock", icon: Package },
-    { path: "/statistiques", label: "Statistiques", icon: BarChart3 },
+    // { path: "/stock", label: "Stock", icon: Package },
+    // { path: "/statistiques", label: "Statistiques", icon: BarChart3 },
     { path: "/comptabilite", label: "Comptabilite", icon: Calculator },
     { path: "/outils", label: "Outils", icon: ToolCase },
     { path: "/parametres", label: "Parametres", icon: Settings },
@@ -215,8 +215,8 @@ const MobileNavbar = () => {
                     {user.role === "admin"
                       ? "Administrateur"
                       : user.role === "superviseur"
-                      ? "Superviseur"
-                      : "Vendeur"}
+                        ? "Superviseur"
+                        : "Vendeur"}
                   </p>
                 </div>
               </button>
@@ -235,8 +235,8 @@ const MobileNavbar = () => {
                 {settings.theme === "auto"
                   ? "Thème Auto"
                   : isDark
-                  ? "Mode Clair"
-                  : "Mode Sombre"}
+                    ? "Mode Clair"
+                    : "Mode Sombre"}
               </span>
             </button>
 

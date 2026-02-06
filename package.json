@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:init": "bubblewrap init --manifest https://votre-domaine.com/manifest.webmanifest",
+    "android:update": "bubblewrap update --skipPwaValidation",
+    "android:build": "npm run build && bubblewrap build --skipPwaValidation",
+    "android:install": "adb install app-release-signed.apk"
   },
   "dependencies": {
     "@hiseb/confetti": "^2.0.9",

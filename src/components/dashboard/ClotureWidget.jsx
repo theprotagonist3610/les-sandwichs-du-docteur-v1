@@ -22,11 +22,18 @@ import {
   TrendingUp,
   ShoppingCart,
   DollarSign,
+  Target,
+  Wallet,
+  AlertTriangle,
 } from "lucide-react";
 import dayClosureService from "@/services/DayClosureService";
 import useActiveUserStore from "@/store/activeUserStore";
 import MetricsComparison from "./MetricsComparison";
 import { getLocalDateString } from "@/utils/commandeToolkit";
+import {
+  getDashboardPrevisions,
+  REGLES_PREVISIONS,
+} from "@/utils/comptabiliteToolkit";
 
 /**
  * Widget de clôture journalière
@@ -53,6 +60,9 @@ const ClotureWidget = ({ isMobile = false }) => {
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonData, setComparisonData] = useState(null);
   const [loadingComparison, setLoadingComparison] = useState(false);
+
+  // États pour les prévisions comptables
+  const [comptaPrevisions, setComptaPrevisions] = useState(null);
 
   // Date du jour (en state pour détecter les changements) - utilise le fuseau local
   const [today, setToday] = useState(() => getLocalDateString());
@@ -120,10 +130,17 @@ const ClotureWidget = ({ isMobile = false }) => {
   const loadComparisonData = async () => {
     setLoadingComparison(true);
     try {
+      // Charger les prévisions de vente
       const { success, comparison } = await dayClosureService.getRealtimeVsForecast(today);
       if (success && comparison) {
         setComparisonData(comparison);
         setShowComparison(true);
+      }
+
+      // Charger les prévisions comptables (CA minimum, plafond dépenses)
+      const comptaResult = await getDashboardPrevisions();
+      if (comptaResult.success) {
+        setComptaPrevisions(comptaResult.dashboard);
       }
     } catch (error) {
       console.error("Erreur loadComparisonData:", error);
@@ -349,6 +366,75 @@ const ClotureWidget = ({ isMobile = false }) => {
                 )}
               </div>
               <MetricsComparison comparison={comparisonData} />
+
+              {/* Règles comptables et alertes */}
+              {comptaPrevisions && (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  {/* Objectif CA et dépenses */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2 bg-background/50 rounded border border-border">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Target className="w-3 h-3 text-blue-600" />
+                        <span className="text-[10px] text-muted-foreground">Obj. CA jour</span>
+                      </div>
+                      <p className="text-xs font-semibold">
+                        {comptaPrevisions.previsions.ca_journalier.toLocaleString("fr-FR")} F
+                      </p>
+                    </div>
+                    <div className="p-2 bg-background/50 rounded border border-border">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Wallet className="w-3 h-3 text-purple-600" />
+                        <span className="text-[10px] text-muted-foreground">Dépenses mois</span>
+                      </div>
+                      <p
+                        className={`text-xs font-semibold ${
+                          comptaPrevisions.progression.depenses > 90
+                            ? "text-red-600"
+                            : comptaPrevisions.progression.depenses > 75
+                            ? "text-orange-600"
+                            : "text-green-600"
+                        }`}>
+                        {comptaPrevisions.progression.depenses}% utilisé
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Alertes comptables */}
+                  {comptaPrevisions.alertes && comptaPrevisions.alertes.length > 0 && (
+                    <div className="space-y-1">
+                      {comptaPrevisions.alertes.map((alerte, idx) => (
+                        <div
+                          key={idx}
+                          className={`flex items-start gap-1.5 p-2 rounded ${
+                            alerte.type === "danger"
+                              ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900"
+                              : "bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900"
+                          }`}>
+                          <AlertTriangle
+                            className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                              alerte.type === "danger" ? "text-red-600" : "text-orange-600"
+                            }`}
+                          />
+                          <span
+                            className={`text-[10px] ${
+                              alerte.type === "danger"
+                                ? "text-red-700 dark:text-red-400"
+                                : "text-orange-700 dark:text-orange-400"
+                            }`}>
+                            {alerte.message}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Info sur les règles */}
+                  <p className="text-[9px] text-muted-foreground text-center">
+                    Min: {REGLES_PREVISIONS.CA_MINIMUM_JOUR.toLocaleString("fr-FR")} F/jour • Max
+                    dépenses: {REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100}% CA
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="p-3 bg-background/50 rounded-lg border border-border">
@@ -526,6 +612,88 @@ const ClotureWidget = ({ isMobile = false }) => {
                     )}
                   </div>
                 </div>
+
+                {/* Analyse par rapport aux objectifs comptables */}
+                {comptaPrevisions && (
+                  <div
+                    className={`p-4 rounded-lg border ${
+                      metrics.chiffre_affaires >= comptaPrevisions.previsions.ca_journalier
+                        ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900"
+                        : "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900"
+                    }`}>
+                    <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <Target className="w-4 h-4" />
+                      Performance vs Objectifs
+                    </p>
+                    <div className="space-y-2">
+                      {/* CA vs Objectif */}
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">CA du jour</span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`font-semibold ${
+                              metrics.chiffre_affaires >= comptaPrevisions.previsions.ca_journalier
+                                ? "text-green-600"
+                                : "text-orange-600"
+                            }`}>
+                            {metrics.chiffre_affaires.toLocaleString("fr-FR")} F
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            / {comptaPrevisions.previsions.ca_journalier.toLocaleString("fr-FR")} F
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Progression */}
+                      <div className="w-full bg-muted rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${
+                            metrics.chiffre_affaires >= comptaPrevisions.previsions.ca_journalier
+                              ? "bg-green-600"
+                              : metrics.chiffre_affaires >=
+                                comptaPrevisions.previsions.ca_journalier * 0.7
+                              ? "bg-orange-500"
+                              : "bg-red-500"
+                          }`}
+                          style={{
+                            width: `${Math.min(
+                              (metrics.chiffre_affaires /
+                                comptaPrevisions.previsions.ca_journalier) *
+                                100,
+                              100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        {metrics.chiffre_affaires >= comptaPrevisions.previsions.ca_journalier ? (
+                          <span className="text-green-600">
+                            Objectif atteint (+
+                            {(
+                              metrics.chiffre_affaires - comptaPrevisions.previsions.ca_journalier
+                            ).toLocaleString("fr-FR")}{" "}
+                            F)
+                          </span>
+                        ) : (
+                          <span className="text-orange-600">
+                            Il manque{" "}
+                            {(
+                              comptaPrevisions.previsions.ca_journalier - metrics.chiffre_affaires
+                            ).toLocaleString("fr-FR")}{" "}
+                            F pour atteindre l'objectif
+                          </span>
+                        )}
+                      </p>
+
+                      {/* Info minimum */}
+                      <p className="text-[10px] text-muted-foreground pt-1 border-t">
+                        Objectif basé sur l'historique des encaissements (min:{" "}
+                        {REGLES_PREVISIONS.CA_MINIMUM_JOUR.toLocaleString("fr-FR")} F/jour)
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-8 text-center text-muted-foreground">

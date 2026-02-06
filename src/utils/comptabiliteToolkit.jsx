@@ -1536,6 +1536,458 @@ export const creerPrevisionDepuisScenario = async (mois, annee, scenario) => {
 
 
 // ============================================================================
+// CONSTANTES DE PRÉVISIONS
+// ============================================================================
+
+/**
+ * Règles de prévisions budgétaires
+ */
+export const REGLES_PREVISIONS = {
+  // Chiffre d'affaires minimum par jour en XOF
+  CA_MINIMUM_JOUR: 15000,
+
+  // Ratio maximum de dépenses par rapport au CA mensuel (40%)
+  RATIO_DEPENSES_MAX: 0.40,
+
+  // Nombre de jours d'historique pour le calcul
+  JOURS_HISTORIQUE_DEFAUT: 30,
+
+  // Pondérations pour le calcul du CA dynamique
+  POIDS_RECENT: 0.5,    // 50% sur les 7 derniers jours
+  POIDS_MOYEN: 0.3,     // 30% sur les 15 derniers jours
+  POIDS_ANCIEN: 0.2,    // 20% sur les 30 derniers jours
+};
+
+// ============================================================================
+// CALCUL DES PRÉVISIONS INTELLIGENTES
+// ============================================================================
+
+/**
+ * Calculer le chiffre d'affaires journalier prévu basé sur l'historique
+ * Retourne au minimum 15 000 XOF
+ * @param {string} date - Date pour laquelle calculer (optionnel, défaut: aujourd'hui)
+ * @returns {Promise<{success: boolean, ca_prevu?: number, details?: Object, error?: string}>}
+ */
+export const calculerCAPrevuJournalier = async (date = null) => {
+  try {
+    const dateRef = date ? new Date(date) : new Date();
+    const dateRefStr = dateRef.toISOString().split("T")[0];
+
+    // Calculer les dates pour les différentes périodes
+    const date7j = new Date(dateRef);
+    date7j.setDate(date7j.getDate() - 7);
+
+    const date15j = new Date(dateRef);
+    date15j.setDate(date15j.getDate() - 15);
+
+    const date30j = new Date(dateRef);
+    date30j.setDate(date30j.getDate() - 30);
+
+    // Récupérer les encaissements des 30 derniers jours
+    const result = await getOperations({
+      operation: TYPES_OPERATION.ENCAISSEMENT,
+      startDate: date30j.toISOString().split("T")[0],
+      endDate: dateRefStr,
+      limit: 10000,
+      offset: 0,
+    });
+
+    if (!result.success) {
+      // Si pas de données, retourner le minimum
+      return {
+        success: true,
+        ca_prevu: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+        details: {
+          base: "minimum",
+          historique_disponible: false,
+        },
+      };
+    }
+
+    const operations = result.operations;
+
+    // Si pas assez de données historiques
+    if (operations.length === 0) {
+      return {
+        success: true,
+        ca_prevu: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+        details: {
+          base: "minimum",
+          historique_disponible: false,
+          message: "Aucun historique disponible, CA minimum appliqué",
+        },
+      };
+    }
+
+    // Organiser les encaissements par jour
+    const encaissementsParJour = {};
+
+    operations.forEach((op) => {
+      const dateOp = op.date_operation.split("T")[0];
+      if (!encaissementsParJour[dateOp]) {
+        encaissementsParJour[dateOp] = 0;
+      }
+      encaissementsParJour[dateOp] += parseFloat(op.montant);
+    });
+
+    // Calculer les moyennes par période
+    const calculerMoyenne = (dateDebut, dateFin) => {
+      let total = 0;
+      let jours = 0;
+
+      const current = new Date(dateDebut);
+      while (current <= dateFin) {
+        const dateStr = current.toISOString().split("T")[0];
+        if (encaissementsParJour[dateStr] !== undefined) {
+          total += encaissementsParJour[dateStr];
+          jours++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+
+      return jours > 0 ? total / jours : 0;
+    };
+
+    // Moyennes par période
+    const moyenne7j = calculerMoyenne(date7j, dateRef);
+    const moyenne15j = calculerMoyenne(date15j, dateRef);
+    const moyenne30j = calculerMoyenne(date30j, dateRef);
+
+    // Calculer le CA pondéré
+    let caPondere = 0;
+    let poidsTotal = 0;
+
+    if (moyenne7j > 0) {
+      caPondere += moyenne7j * REGLES_PREVISIONS.POIDS_RECENT;
+      poidsTotal += REGLES_PREVISIONS.POIDS_RECENT;
+    }
+
+    if (moyenne15j > 0) {
+      caPondere += moyenne15j * REGLES_PREVISIONS.POIDS_MOYEN;
+      poidsTotal += REGLES_PREVISIONS.POIDS_MOYEN;
+    }
+
+    if (moyenne30j > 0) {
+      caPondere += moyenne30j * REGLES_PREVISIONS.POIDS_ANCIEN;
+      poidsTotal += REGLES_PREVISIONS.POIDS_ANCIEN;
+    }
+
+    // Normaliser si tous les poids ne sont pas utilisés
+    const caCalcule = poidsTotal > 0 ? caPondere / poidsTotal : 0;
+
+    // Appliquer le minimum de 15 000 XOF
+    const caPrevu = Math.max(caCalcule, REGLES_PREVISIONS.CA_MINIMUM_JOUR);
+
+    return {
+      success: true,
+      ca_prevu: Math.round(caPrevu),
+      details: {
+        base: caCalcule >= REGLES_PREVISIONS.CA_MINIMUM_JOUR ? "historique" : "minimum",
+        ca_calcule: Math.round(caCalcule),
+        ca_minimum: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+        moyenne_7j: Math.round(moyenne7j),
+        moyenne_15j: Math.round(moyenne15j),
+        moyenne_30j: Math.round(moyenne30j),
+        jours_avec_donnees: Object.keys(encaissementsParJour).length,
+        historique_disponible: true,
+      },
+    };
+  } catch (error) {
+    console.error("Erreur calcul CA prévu journalier:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Calculer le plafond de dépenses autorisé pour un mois
+ * Maximum 40% du CA mensuel prévu
+ * @param {number} mois - Mois (1-12)
+ * @param {number} annee - Année
+ * @returns {Promise<{success: boolean, plafond_depenses?: number, details?: Object, error?: string}>}
+ */
+export const calculerPlafondDepensesMensuel = async (mois, annee) => {
+  try {
+    // Nombre de jours dans le mois
+    const nbJours = new Date(annee, mois, 0).getDate();
+
+    // Calculer le CA prévu journalier
+    const caJournalierResult = await calculerCAPrevuJournalier();
+
+    if (!caJournalierResult.success) {
+      return { success: false, error: caJournalierResult.error };
+    }
+
+    const caJournalier = caJournalierResult.ca_prevu;
+
+    // CA mensuel prévu = CA journalier × nombre de jours
+    const caMensuelPrevu = caJournalier * nbJours;
+
+    // Plafond de dépenses = 40% du CA mensuel
+    const plafondDepenses = Math.round(caMensuelPrevu * REGLES_PREVISIONS.RATIO_DEPENSES_MAX);
+
+    // Plafond journalier recommandé
+    const plafondJournalier = Math.round(plafondDepenses / nbJours);
+
+    return {
+      success: true,
+      plafond_depenses: plafondDepenses,
+      details: {
+        ca_journalier_prevu: caJournalier,
+        ca_mensuel_prevu: caMensuelPrevu,
+        ratio_depenses: REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100 + "%",
+        plafond_journalier: plafondJournalier,
+        nb_jours: nbJours,
+        mois,
+        annee,
+      },
+    };
+  } catch (error) {
+    console.error("Erreur calcul plafond dépenses mensuel:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Vérifier si une dépense respecte les règles budgétaires
+ * @param {number} montant - Montant de la dépense
+ * @param {string} date - Date de la dépense (optionnel, défaut: aujourd'hui)
+ * @returns {Promise<{success: boolean, autorise?: boolean, details?: Object, error?: string}>}
+ */
+export const verifierDepenseAutorisee = async (montant, date = null) => {
+  try {
+    const dateRef = date ? new Date(date) : new Date();
+    const mois = dateRef.getMonth() + 1;
+    const annee = dateRef.getFullYear();
+
+    // Calculer le plafond mensuel
+    const plafondResult = await calculerPlafondDepensesMensuel(mois, annee);
+
+    if (!plafondResult.success) {
+      return { success: false, error: plafondResult.error };
+    }
+
+    // Récupérer les dépenses déjà effectuées ce mois
+    const premierJour = new Date(annee, mois - 1, 1).toISOString().split("T")[0];
+    const dernierJour = new Date(annee, mois, 0).toISOString().split("T")[0];
+
+    const depensesResult = await getOperations({
+      operation: TYPES_OPERATION.DEPENSE,
+      startDate: premierJour,
+      endDate: dernierJour,
+      limit: 10000,
+      offset: 0,
+    });
+
+    const depensesActuelles = depensesResult.success
+      ? depensesResult.operations.reduce((sum, op) => sum + parseFloat(op.montant), 0)
+      : 0;
+
+    // Vérifier si la nouvelle dépense est autorisée
+    const totalApresDepense = depensesActuelles + montant;
+    const plafond = plafondResult.plafond_depenses;
+    const autorise = totalApresDepense <= plafond;
+
+    // Calculer la marge restante
+    const margeRestante = plafond - depensesActuelles;
+    const margeApresDepense = plafond - totalApresDepense;
+
+    // Niveau d'alerte
+    let niveauAlerte = "ok";
+    const tauxUtilisation = (totalApresDepense / plafond) * 100;
+
+    if (tauxUtilisation > 100) {
+      niveauAlerte = "depassement";
+    } else if (tauxUtilisation > 90) {
+      niveauAlerte = "critique";
+    } else if (tauxUtilisation > 75) {
+      niveauAlerte = "attention";
+    }
+
+    return {
+      success: true,
+      autorise,
+      details: {
+        montant_demande: montant,
+        plafond_mensuel: plafond,
+        depenses_actuelles: Math.round(depensesActuelles),
+        total_apres_depense: Math.round(totalApresDepense),
+        marge_restante: Math.round(margeRestante),
+        marge_apres_depense: Math.round(margeApresDepense),
+        taux_utilisation: Math.round(tauxUtilisation) + "%",
+        niveau_alerte: niveauAlerte,
+        message: autorise
+          ? `Dépense autorisée. Marge restante: ${formatMontant(margeApresDepense)}`
+          : `Dépense non autorisée. Dépassement de ${formatMontant(Math.abs(margeApresDepense))}`,
+      },
+    };
+  } catch (error) {
+    console.error("Erreur vérification dépense autorisée:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Obtenir le tableau de bord des prévisions pour le mois courant
+ * @param {number} mois - Mois (1-12, optionnel, défaut: mois courant)
+ * @param {number} annee - Année (optionnel, défaut: année courante)
+ * @returns {Promise<{success: boolean, dashboard?: Object, error?: string}>}
+ */
+export const getDashboardPrevisions = async (mois = null, annee = null) => {
+  try {
+    const now = new Date();
+    const moisCible = mois || now.getMonth() + 1;
+    const anneeCible = annee || now.getFullYear();
+
+    // Calculer le CA prévu journalier
+    const caJournalierResult = await calculerCAPrevuJournalier();
+
+    // Calculer le plafond de dépenses
+    const plafondResult = await calculerPlafondDepensesMensuel(moisCible, anneeCible);
+
+    // Dates du mois
+    const premierJour = new Date(anneeCible, moisCible - 1, 1).toISOString().split("T")[0];
+    const dernierJour = new Date(anneeCible, moisCible, 0).toISOString().split("T")[0];
+    const nbJours = new Date(anneeCible, moisCible, 0).getDate();
+    const joursEcoules = now.getMonth() + 1 === moisCible && now.getFullYear() === anneeCible
+      ? now.getDate()
+      : nbJours;
+
+    // Récupérer le réalisé actuel
+    const encaissementsResult = await getOperations({
+      operation: TYPES_OPERATION.ENCAISSEMENT,
+      startDate: premierJour,
+      endDate: dernierJour,
+      limit: 10000,
+      offset: 0,
+    });
+
+    const depensesResult = await getOperations({
+      operation: TYPES_OPERATION.DEPENSE,
+      startDate: premierJour,
+      endDate: dernierJour,
+      limit: 10000,
+      offset: 0,
+    });
+
+    const encaissementsRealises = encaissementsResult.success
+      ? encaissementsResult.operations.reduce((sum, op) => sum + parseFloat(op.montant), 0)
+      : 0;
+
+    const depensesRealisees = depensesResult.success
+      ? depensesResult.operations.reduce((sum, op) => sum + parseFloat(op.montant), 0)
+      : 0;
+
+    // Calculs des prévisions
+    const caJournalier = caJournalierResult.success ? caJournalierResult.ca_prevu : REGLES_PREVISIONS.CA_MINIMUM_JOUR;
+    const caMensuelPrevu = caJournalier * nbJours;
+    const plafondDepenses = plafondResult.success ? plafondResult.plafond_depenses : caMensuelPrevu * REGLES_PREVISIONS.RATIO_DEPENSES_MAX;
+
+    // Progression
+    const progressionCA = caMensuelPrevu > 0 ? (encaissementsRealises / caMensuelPrevu) * 100 : 0;
+    const progressionDepenses = plafondDepenses > 0 ? (depensesRealisees / plafondDepenses) * 100 : 0;
+
+    // Prévisions fin de mois (extrapolation linéaire)
+    const caProjeteFin = joursEcoules > 0 ? (encaissementsRealises / joursEcoules) * nbJours : 0;
+    const depensesProjeteesFin = joursEcoules > 0 ? (depensesRealisees / joursEcoules) * nbJours : 0;
+
+    // Alertes
+    const alertes = [];
+
+    // Alerte si dépenses > 40% du CA réalisé
+    const ratioDepensesActuel = encaissementsRealises > 0 ? depensesRealisees / encaissementsRealises : 0;
+    if (ratioDepensesActuel > REGLES_PREVISIONS.RATIO_DEPENSES_MAX) {
+      alertes.push({
+        type: "danger",
+        message: `Les dépenses représentent ${Math.round(ratioDepensesActuel * 100)}% du CA (max: ${REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100}%)`,
+      });
+    } else if (ratioDepensesActuel > REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 0.9) {
+      alertes.push({
+        type: "warning",
+        message: `Les dépenses approchent du seuil de ${REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100}%`,
+      });
+    }
+
+    // Alerte si CA journalier moyen < minimum
+    const caMoyenJour = joursEcoules > 0 ? encaissementsRealises / joursEcoules : 0;
+    if (caMoyenJour < REGLES_PREVISIONS.CA_MINIMUM_JOUR) {
+      alertes.push({
+        type: "warning",
+        message: `CA moyen (${formatMontant(Math.round(caMoyenJour))}/jour) inférieur au minimum de ${formatMontant(REGLES_PREVISIONS.CA_MINIMUM_JOUR)}`,
+      });
+    }
+
+    // Alerte si projection de dépassement du plafond de dépenses
+    if (depensesProjeteesFin > plafondDepenses) {
+      alertes.push({
+        type: "danger",
+        message: `Projection de dépassement du plafond de dépenses de ${formatMontant(Math.round(depensesProjeteesFin - plafondDepenses))}`,
+      });
+    }
+
+    return {
+      success: true,
+      dashboard: {
+        mois: moisCible,
+        annee: anneeCible,
+        jours_ecoules: joursEcoules,
+        jours_total: nbJours,
+
+        // Prévisions
+        previsions: {
+          ca_journalier: caJournalier,
+          ca_mensuel: caMensuelPrevu,
+          plafond_depenses: plafondDepenses,
+          plafond_depenses_journalier: Math.round(plafondDepenses / nbJours),
+          revenu_net_prevu: caMensuelPrevu - plafondDepenses,
+        },
+
+        // Réalisé
+        realise: {
+          encaissements: Math.round(encaissementsRealises),
+          depenses: Math.round(depensesRealisees),
+          revenu_net: Math.round(encaissementsRealises - depensesRealisees),
+          ca_moyen_jour: Math.round(caMoyenJour),
+          ratio_depenses: Math.round(ratioDepensesActuel * 100),
+        },
+
+        // Progression
+        progression: {
+          ca: Math.round(progressionCA),
+          depenses: Math.round(progressionDepenses),
+        },
+
+        // Projections fin de mois
+        projections: {
+          ca_fin_mois: Math.round(caProjeteFin),
+          depenses_fin_mois: Math.round(depensesProjeteesFin),
+          revenu_net_fin_mois: Math.round(caProjeteFin - depensesProjeteesFin),
+          ecart_ca: Math.round(caProjeteFin - caMensuelPrevu),
+          ecart_depenses: Math.round(depensesProjeteesFin - plafondDepenses),
+        },
+
+        // Marge restante
+        marges: {
+          depenses_restantes: Math.round(plafondDepenses - depensesRealisees),
+          ca_restant_objectif: Math.round(caMensuelPrevu - encaissementsRealises),
+        },
+
+        // Alertes
+        alertes,
+
+        // Règles appliquées
+        regles: {
+          ca_minimum_jour: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+          ratio_depenses_max: REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100 + "%",
+        },
+      },
+    };
+  } catch (error) {
+    console.error("Erreur dashboard prévisions:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ============================================================================
 // SUIVI DES REVENUS (Encaissements - Dépenses)
 // ============================================================================
 

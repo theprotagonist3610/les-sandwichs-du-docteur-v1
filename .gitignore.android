@@ -1,0 +1,29 @@
+# ============================================================================
+# .gitignore pour le Packaging Android
+# ============================================================================
+# Ajoutez ces lignes à votre .gitignore principal
+# ============================================================================
+
+# Android Keystore - NE JAMAIS COMMIT
+*.keystore
+*.jks
+keystore.properties
+
+# TWA Build
+twa-manifest.json
+.bubblewrap/
+android/
+
+# APK générés
+*.apk
+*.aab
+
+# Fichiers temporaires Android
+local.properties
+*.iml
+.gradle/
+.idea/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
