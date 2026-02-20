@@ -43,7 +43,7 @@
     "framer-motion": "^12.23.25",
     "idb": "^8.0.3",
     "js-cookie": "^3.0.5",
-    "jspdf": "^4.0.0",
+    "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "kkiapay-react": "^0.0.7",
     "leaflet": "^1.9.4",
