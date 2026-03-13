@@ -20,8 +20,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Upload, Plus, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { X, Upload, Plus, Loader2, Zap } from "lucide-react";
 import * as menuToolkit from "@/utils/menuToolkit";
+import {
+  PROMOTION_TYPES,
+  DUREE_UNITES,
+} from "@/utils/promotionToolkit";
 
 const MenuDialog = ({ open, onOpenChange, menu, onSave, mode = "create" }) => {
   const [formData, setFormData] = useState({
@@ -39,6 +44,17 @@ const MenuDialog = ({ open, onOpenChange, menu, onSave, mode = "create" }) => {
   const [ingredientInput, setIngredientInput] = useState("");
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+
+  // État promo
+  const [isPromo, setIsPromo] = useState(false);
+  const [promoData, setPromoData] = useState({
+    type_promotion: PROMOTION_TYPES.STANDARD,
+    reduction_absolue: 0,
+    reduction_relative: 0,
+    duree_valeur: 1,
+    duree_unite: DUREE_UNITES.DAYS,
+    code_promo: "",
+  });
 
   // Charger les données du menu si mode édition
   useEffect(() => {
@@ -68,6 +84,15 @@ const MenuDialog = ({ open, onOpenChange, menu, onSave, mode = "create" }) => {
     }
     setImageFile(null);
     setErrors({});
+    setIsPromo(false);
+    setPromoData({
+      type_promotion: PROMOTION_TYPES.STANDARD,
+      reduction_absolue: 0,
+      reduction_relative: 0,
+      duree_valeur: 1,
+      duree_unite: DUREE_UNITES.DAYS,
+      code_promo: "",
+    });
   }, [menu, mode, open]);
 
   // Gérer le changement des champs
@@ -89,6 +114,11 @@ const MenuDialog = ({ open, onOpenChange, menu, onSave, mode = "create" }) => {
         [type]: numValue,
       },
     }));
+  };
+
+  // Gérer le changement des champs promo
+  const handlePromoChange = (field, value) => {
+    setPromoData((prev) => ({ ...prev, [field]: value }));
   };
 
   // Gérer l'upload d'image
@@ -157,7 +187,16 @@ const MenuDialog = ({ open, onOpenChange, menu, onSave, mode = "create" }) => {
     setSaving(true);
 
     try {
-      await onSave(formData, imageFile, mode === "edit" ? menu.id : null);
+      // Préparer les données promo si activé
+      const promoPayload = isPromo
+        ? {
+            ...promoData,
+            denomination: `Promo - ${formData.nom}`,
+            description: formData.description,
+          }
+        : null;
+
+      await onSave(formData, imageFile, mode === "edit" ? menu.id : null, promoPayload);
       onOpenChange(false);
     } catch (error) {
       setErrors({ general: error.message });
@@ -271,6 +310,138 @@ const MenuDialog = ({ open, onOpenChange, menu, onSave, mode = "create" }) => {
               </Select>
             </div>
           </div>
+
+          {/* Toggle Menu Promo (création uniquement) */}
+          {mode === "create" && (
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                <div>
+                  <Label htmlFor="is-promo" className="text-sm font-medium cursor-pointer">
+                    Menu Promo
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Crée automatiquement une promotion associée
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="is-promo"
+                checked={isPromo}
+                onCheckedChange={setIsPromo}
+              />
+            </div>
+          )}
+
+          {/* Champs Promotion (conditionnels) */}
+          {isPromo && mode === "create" && (
+            <div className="space-y-4 p-4 rounded-lg border-2 border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                Configuration de la promotion
+              </h3>
+
+              {/* Type de promotion */}
+              <div className="space-y-2">
+                <Label htmlFor="type_promotion">Type de promotion</Label>
+                <Select
+                  value={promoData.type_promotion}
+                  onValueChange={(value) => handlePromoChange("type_promotion", value)}>
+                  <SelectTrigger id="type_promotion">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={PROMOTION_TYPES.STANDARD}>Standard</SelectItem>
+                    <SelectItem value={PROMOTION_TYPES.FLASH}>Flash</SelectItem>
+                    <SelectItem value={PROMOTION_TYPES.HAPPY_HOUR}>Happy Hour</SelectItem>
+                    <SelectItem value={PROMOTION_TYPES.RECURRENTE}>Récurrente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Réductions */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reduction_absolue">Réduction (FCFA)</Label>
+                  <Input
+                    id="reduction_absolue"
+                    type="number"
+                    min="0"
+                    value={promoData.reduction_absolue}
+                    onChange={(e) =>
+                      handlePromoChange("reduction_absolue", parseFloat(e.target.value) || 0)
+                    }
+                    placeholder="Ex: 500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reduction_relative">Réduction (%)</Label>
+                  <Input
+                    id="reduction_relative"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={promoData.reduction_relative}
+                    onChange={(e) =>
+                      handlePromoChange("reduction_relative", parseFloat(e.target.value) || 0)
+                    }
+                    placeholder="Ex: 20"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Renseignez au moins une réduction (absolue ou relative)
+              </p>
+
+              {/* Durée */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="duree_valeur">Durée</Label>
+                  <Input
+                    id="duree_valeur"
+                    type="number"
+                    min="1"
+                    value={promoData.duree_valeur}
+                    onChange={(e) =>
+                      handlePromoChange("duree_valeur", parseInt(e.target.value) || 1)
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="duree_unite">Unité</Label>
+                  <Select
+                    value={promoData.duree_unite}
+                    onValueChange={(value) => handlePromoChange("duree_unite", value)}>
+                    <SelectTrigger id="duree_unite">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={DUREE_UNITES.MINUTES}>Minutes</SelectItem>
+                      <SelectItem value={DUREE_UNITES.HOURS}>Heures</SelectItem>
+                      <SelectItem value={DUREE_UNITES.DAYS}>Jours</SelectItem>
+                      <SelectItem value={DUREE_UNITES.WEEKS}>Semaines</SelectItem>
+                      <SelectItem value={DUREE_UNITES.MONTHS}>Mois</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Code promo */}
+              <div className="space-y-2">
+                <Label htmlFor="code_promo">Code promo (optionnel)</Label>
+                <Input
+                  id="code_promo"
+                  value={promoData.code_promo}
+                  onChange={(e) => handlePromoChange("code_promo", e.target.value)}
+                  placeholder="Auto-généré si vide"
+                  className="uppercase"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Laissez vide pour générer automatiquement
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Description */}
           <div className="space-y-2">

@@ -17,8 +17,28 @@ import {
   Flame,
   DollarSign,
   Package,
+  Zap,
+  Timer,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import {
+  getPromotionInstanceById,
+  getTempsRestant,
+} from "@/utils/promotionToolkit";
+
+/**
+ * Formater le temps restant en DD:HH:MM:SS
+ */
+const formatCountdown = (secondes) => {
+  if (secondes <= 0) return "00:00:00:00";
+  const jours = Math.floor(secondes / 86400);
+  const heures = Math.floor((secondes % 86400) / 3600);
+  const minutes = Math.floor((secondes % 3600) / 60);
+  const secs = secondes % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(jours)}:${pad(heures)}:${pad(minutes)}:${pad(secs)}`;
+};
 
 const MenuCard = ({
   menu,
@@ -34,8 +54,40 @@ const MenuCard = ({
   isMobile = false,
 }) => {
   const [imageError, setImageError] = useState(false);
+  const [promoInstance, setPromoInstance] = useState(null);
+  const [tempsRestant, setTempsRestant] = useState(0);
 
   const isDisponible = menu.statut === MENU_STATUTS.DISPONIBLE;
+  const isPersonnalise = menu.nom?.toLowerCase().includes("personnalisé");
+
+  // Charger les données de la promotion si menu promo
+  useEffect(() => {
+    if (menu.is_promo && menu.promotion_id) {
+      getPromotionInstanceById(menu.promotion_id).then(({ instance }) => {
+        if (instance) setPromoInstance(instance);
+      });
+    }
+  }, [menu.is_promo, menu.promotion_id]);
+
+  // Compte à rebours pour les menus promo
+  useEffect(() => {
+    if (!promoInstance?.date_fin) return;
+
+    const update = () => setTempsRestant(getTempsRestant(promoInstance));
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [promoInstance]);
+
+  const handleToggle = (menuId, statut) => {
+    if (menu.prix === 0 && !isDisponible && !isPersonnalise) {
+      toast.warning("Activation impossible", {
+        description: `Le menu "${menu.nom}" a un prix de 0 FCFA. Un menu gratuit ne peut pas être rendu disponible.`,
+      });
+      return;
+    }
+    onToggleStatut(menuId, statut);
+  };
 
   return (
     <motion.div
@@ -52,7 +104,7 @@ const MenuCard = ({
             !isDisponible ? "opacity-70" : ""
           }`}>
           {/* Image à gauche */}
-          <div className="relative w-[30%] min-w-[30%] flex-shrink-0 bg-gradient-to-br from-primary/10 to-primary/5 overflow-hidden p-2">
+          <div className="relative w-[20%] min-w-[20%] flex-shrink-0 bg-gradient-to-br from-primary/10 to-primary/5 overflow-hidden p-2">
             {menu.image_url && !imageError ? (
               <img
                 src={menu.image_url}
@@ -80,6 +132,12 @@ const MenuCard = ({
                   </CardDescription>
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
+                  {menu.is_promo && (
+                    <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs">
+                      <Zap className="w-3 h-3 mr-0.5" />
+                      Promo
+                    </Badge>
+                  )}
                   <Badge
                     variant="secondary"
                     className="backdrop-blur-sm bg-background/80 text-xs">
@@ -114,6 +172,18 @@ const MenuCard = ({
                 </div>
               )}
 
+              {/* Compte à rebours promo (vue liste) */}
+              {menu.is_promo && promoInstance && (
+                <div className={`flex items-center gap-1.5 text-xs font-medium ${
+                  tempsRestant <= 0 ? "text-destructive" : "text-amber-600 dark:text-amber-400"
+                }`}>
+                  <Timer className="w-3 h-3 flex-shrink-0" />
+                  <span className="font-mono">
+                    {tempsRestant <= 0 ? "Expirée" : formatCountdown(tempsRestant)}
+                  </span>
+                </div>
+              )}
+
               {/* Ingrédients */}
               {menu.ingredients && menu.ingredients.length > 0 && (
                 <div className="text-xs">
@@ -142,7 +212,7 @@ const MenuCard = ({
                     size="sm"
                     variant={isDisponible ? "outline" : "default"}
                     className="flex-1 text-xs"
-                    onClick={() => onToggleStatut(menu.id, menu.statut)}>
+                    onClick={() => handleToggle(menu.id, menu.statut)}>
                     {isDisponible ? (
                       <>
                         <EyeOff className="w-3 h-3 mr-1" />
@@ -180,8 +250,8 @@ const MenuCard = ({
           className={`${isMobile ? "h-[360px]" : "h-[420px]"} flex flex-col overflow-hidden transition-all hover:shadow-lg ${
             !isDisponible ? "opacity-70" : ""
           }`}>
-          {/* Image - 50% de la hauteur de la card */}
-          <div className={`relative h-[50%] bg-gradient-to-br from-primary/10 to-primary/5 overflow-hidden ${isMobile ? "m-2 mb-0" : "m-3 mb-0"} rounded-xl`}>
+          {/* Image - 35% de la hauteur de la card */}
+          <div className={`relative h-[35%] bg-gradient-to-br from-primary/10 to-primary/5 overflow-hidden ${isMobile ? "m-2 mb-0" : "m-3 mb-0"} rounded-xl`}>
             {menu.image_url && !imageError ? (
               <img
                 src={menu.image_url}
@@ -196,7 +266,13 @@ const MenuCard = ({
             )}
 
             {/* Badge type */}
-            <div className="absolute top-3 left-3">
+            <div className="absolute top-3 left-3 flex gap-1">
+              {menu.is_promo && (
+                <Badge className="bg-amber-500 hover:bg-amber-600 text-white">
+                  <Zap className="w-3 h-3 mr-0.5" />
+                  Promo
+                </Badge>
+              )}
               <Badge
                 variant="secondary"
                 className="backdrop-blur-sm bg-background/80">
@@ -238,6 +314,18 @@ const MenuCard = ({
                 )}
               </div>
 
+              {/* Compte à rebours promo (vue grille) */}
+              {menu.is_promo && promoInstance && (
+                <div className={`flex items-center gap-1.5 mt-2 text-xs font-medium ${
+                  tempsRestant <= 0 ? "text-destructive" : "text-amber-600 dark:text-amber-400"
+                }`}>
+                  <Timer className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="font-mono">
+                    {tempsRestant <= 0 ? "Expirée" : formatCountdown(tempsRestant)}
+                  </span>
+                </div>
+              )}
+
               {/* Ingrédients */}
               {menu.ingredients && menu.ingredients.length > 0 && (
                 <div className="mt-2">
@@ -265,7 +353,7 @@ const MenuCard = ({
                     size="sm"
                     variant={isDisponible ? "outline" : "default"}
                     className="flex-1"
-                    onClick={() => onToggleStatut(menu.id, menu.statut)}>
+                    onClick={() => handleToggle(menu.id, menu.statut)}>
                     {isDisponible ? (
                       <>
                         <EyeOff className="w-4 h-4 mr-1" />

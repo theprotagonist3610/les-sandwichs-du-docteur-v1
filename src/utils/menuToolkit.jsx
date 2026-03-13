@@ -5,6 +5,14 @@
 // ============================================================================
 
 import { supabase } from "@/config/supabase";
+import {
+  createPromotionTemplate,
+  activatePromotionTemplate,
+  generateCodePromo,
+  validatePromotionTemplateData,
+  deletePromotionTemplate,
+  cancelPromotionInstance,
+} from "@/utils/promotionToolkit";
 
 // ============================================================================
 // CONSTANTES
@@ -816,6 +824,196 @@ export const getMenusStats = (menus) => {
 };
 
 // ============================================================================
+// MENU PROMO - CRÉATION COMBINÉE MENU + PROMOTION
+// ============================================================================
+
+/**
+ * Valider les données d'un menu promo (menu + promotion)
+ * @param {Object} menuData - Données du menu
+ * @param {Object} promoData - Données de la promotion
+ * @returns {{isValid: boolean, menuErrors: string[], promoErrors: Object}}
+ */
+export const validateMenuPromo = (menuData, promoData) => {
+  const { isValid: menuValid, errors: menuErrors } = validateMenu(menuData);
+  const { valid: promoValid, errors: promoErrors } =
+    validatePromotionTemplateData(promoData);
+
+  return {
+    isValid: menuValid && promoValid,
+    menuErrors,
+    promoErrors,
+  };
+};
+
+/**
+ * Créer un menu promo avec sa promotion associée (template + instance)
+ * Flux transactionnel: valide tout AVANT de créer quoi que ce soit
+ * Rollback automatique en cas d'erreur à chaque étape
+ *
+ * @param {Object} menuData - Données du menu
+ * @param {Object} promoData - Données de la promotion (template)
+ * @param {File} imageFile - Fichier image (optionnel)
+ * @returns {Promise<{menu, template, instance, error}>}
+ */
+export const createMenuPromo = async (
+  menuData,
+  promoData,
+  imageFile = null
+) => {
+  try {
+    console.group("🎯 createMenuPromo");
+
+    // ── 1. Validation complète AVANT toute écriture ──
+    const { isValid, menuErrors, promoErrors } = validateMenuPromo(
+      menuData,
+      promoData
+    );
+
+    if (!isValid) {
+      const allErrors = [
+        ...menuErrors,
+        ...Object.values(promoErrors),
+      ].filter(Boolean);
+      console.error("Validation échouée:", { menuErrors, promoErrors });
+      console.groupEnd();
+      return {
+        menu: null,
+        template: null,
+        instance: null,
+        error: new Error(allErrors.join(", ")),
+      };
+    }
+
+    // ── 2. Upload image si fournie ──
+    let image_url = null;
+    if (imageFile) {
+      const { url, error: uploadError } = await uploadMenuImage(imageFile);
+      if (uploadError) {
+        console.error("Erreur upload image:", uploadError);
+        console.groupEnd();
+        return { menu: null, template: null, instance: null, error: uploadError };
+      }
+      image_url = url;
+    }
+
+    // ── 3. Créer le template de promotion ──
+    const templateData = {
+      denomination: promoData.denomination || `Promo - ${menuData.nom}`,
+      description: promoData.description || menuData.description,
+      type_promotion: promoData.type_promotion,
+      reduction_absolue: promoData.reduction_absolue || 0,
+      reduction_relative: promoData.reduction_relative || 0,
+      duree_valeur: promoData.duree_valeur,
+      duree_unite: promoData.duree_unite,
+      eligibilite: promoData.eligibilite || { type: "tous" },
+      utilisation_max: promoData.utilisation_max || null,
+      utilisation_max_par_client: promoData.utilisation_max_par_client || 1,
+      is_recurrente: false,
+    };
+
+    const { success: templateSuccess, template, error: templateError } =
+      await createPromotionTemplate(templateData);
+
+    if (!templateSuccess || !template) {
+      // Rollback: supprimer l'image
+      if (image_url) await deleteMenuImage(image_url);
+      console.error("Erreur création template:", templateError);
+      console.groupEnd();
+      return {
+        menu: null,
+        template: null,
+        instance: null,
+        error: new Error(templateError || "Erreur création template promotion"),
+      };
+    }
+
+    // ── 4. Activer le template (créer l'instance) ──
+    const codePromo =
+      promoData.code_promo && promoData.code_promo.trim()
+        ? promoData.code_promo.trim().toUpperCase()
+        : generateCodePromo("MENU");
+
+    const { success: instanceSuccess, instance, error: instanceError } =
+      await activatePromotionTemplate(template.id, {
+        date_debut: new Date().toISOString(),
+        code_promo: codePromo,
+      });
+
+    if (!instanceSuccess || !instance) {
+      // Rollback: supprimer template + image
+      await deletePromotionTemplate(template.id);
+      if (image_url) await deleteMenuImage(image_url);
+      console.error("Erreur activation template:", instanceError);
+      console.groupEnd();
+      return {
+        menu: null,
+        template: null,
+        instance: null,
+        error: new Error(
+          instanceError || "Erreur activation promotion"
+        ),
+      };
+    }
+
+    // ── 5. Créer le menu avec le lien vers la promotion ──
+    const menuToInsert = {
+      nom: menuData.nom,
+      type: menuData.type,
+      description: menuData.description,
+      ingredients: menuData.ingredients || [],
+      indice_calorique: menuData.indice_calorique || {
+        joule: 0.0,
+        calorie: 0.0,
+      },
+      prix: menuData.prix || 0.0,
+      statut: menuData.statut || MENU_STATUTS.DISPONIBLE,
+      image_url,
+      is_promo: true,
+      promotion_id: instance.id,
+    };
+
+    const { data: menuResult, error: menuError } = await supabase
+      .from("menus")
+      .insert([menuToInsert])
+      .select()
+      .single();
+
+    if (menuError) {
+      // Rollback: annuler instance + supprimer template + image
+      await cancelPromotionInstance(instance.id, "Rollback: erreur création menu");
+      await deletePromotionTemplate(template.id);
+      if (image_url) await deleteMenuImage(image_url);
+      console.error("Erreur création menu:", menuError);
+      console.groupEnd();
+      return {
+        menu: null,
+        template: null,
+        instance: null,
+        error: menuError,
+      };
+    }
+
+    console.log("Menu promo créé avec succès:", {
+      menu: menuResult.id,
+      template: template.id,
+      instance: instance.id,
+    });
+    console.groupEnd();
+
+    return {
+      menu: menuResult,
+      template,
+      instance,
+      error: null,
+    };
+  } catch (error) {
+    console.error("Exception createMenuPromo:", error);
+    console.groupEnd();
+    return { menu: null, template: null, instance: null, error };
+  }
+};
+
+// ============================================================================
 // EXPORT PAR DÉFAUT
 // ============================================================================
 
@@ -854,4 +1052,8 @@ export default {
 
   // Statistiques
   getMenusStats,
+
+  // Menu Promo
+  validateMenuPromo,
+  createMenuPromo,
 };

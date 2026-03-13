@@ -256,6 +256,9 @@ export const useMenus = () => {
     canUpdate: menuToolkit.canManageMenus(user?.role, "update"),
     canDelete: menuToolkit.canManageMenus(user?.role, "delete"),
 
+    // Menu Promo
+    createMenuPromo: menuToolkit.createMenuPromo,
+
     // Constantes
     MENU_TYPES: menuToolkit.MENU_TYPES,
     MENU_STATUTS: menuToolkit.MENU_STATUTS,

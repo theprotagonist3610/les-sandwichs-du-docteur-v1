@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Package } from "lucide-react";
+import { createMenuPromo } from "@/utils/menuToolkit";
 import MenuCard from "@/components/menus/MenuCard";
 import MenuDialog from "@/components/menus/MenuDialog";
 import MenuStats from "@/components/menus/MenuStats";
@@ -144,9 +145,13 @@ const DesktopMenu = () => {
   };
 
   // Sauvegarder le menu (création ou édition)
-  const handleSave = async (menuData, imageFile, menuId) => {
+  const handleSave = async (menuData, imageFile, menuId, promoData = null) => {
     if (dialogMode === "create") {
-      await createMenu(menuData, imageFile);
+      if (promoData) {
+        await createMenuPromo(menuData, promoData, imageFile);
+      } else {
+        await createMenu(menuData, imageFile);
+      }
     } else {
       await updateMenu(menuId, menuData, imageFile);
     }

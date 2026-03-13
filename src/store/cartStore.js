@@ -256,6 +256,7 @@ const useCartStore = create(
 
       /**
        * Calculer les totaux
+       * La réduction promo est pondérée par la quantité des menus promo concernés
        */
       calculateTotals: () => {
         const state = get();
@@ -266,13 +267,43 @@ const useCartStore = create(
         // Total avec frais de livraison
         let total = subtotal + state.frais_livraison;
 
-        // Appliquer la promotion
+        // Appliquer la promotion pondérée par les items promo
         let reduction = 0;
         if (state.promotion) {
-          if (state.promotion.type === "pourcentage") {
-            reduction = (total * state.promotion.valeur) / 100;
-          } else if (state.promotion.type === "montant") {
-            reduction = state.promotion.valeur;
+          // Identifier les items promo liés à cette promotion
+          const promoItems = state.items.filter(
+            (item) =>
+              item.menu.is_promo &&
+              item.menu.promotion_id === state.promotion.id
+          );
+
+          if (promoItems.length > 0) {
+            // Réduction pondérée par quantité des menus promo
+            const promoSubtotal = promoItems.reduce(
+              (sum, item) => sum + item.total,
+              0
+            );
+            const promoQuantite = promoItems.reduce(
+              (sum, item) => sum + item.quantite,
+              0
+            );
+
+            if (state.promotion.type === "pourcentage") {
+              reduction = (promoSubtotal * state.promotion.valeur) / 100;
+            } else if (state.promotion.type === "montant") {
+              reduction = state.promotion.valeur * promoQuantite;
+            }
+
+            // Ne pas dépasser le montant des items promo
+            reduction = Math.min(reduction, promoSubtotal);
+          } else {
+            // Promo manuelle (code promo sans menu promo lié) → appliquer sur le total
+            if (state.promotion.type === "pourcentage") {
+              reduction = (subtotal * state.promotion.valeur) / 100;
+            } else if (state.promotion.type === "montant") {
+              reduction = state.promotion.valeur;
+            }
+            reduction = Math.min(reduction, subtotal);
           }
         }
 
@@ -307,18 +338,51 @@ const useCartStore = create(
 
       /**
        * Obtenir le montant de la réduction
+       * Pondérée par la quantité des menus promo si applicable
        */
       getDiscount: () => {
         const state = get();
-        const subtotal = state.items.reduce((sum, item) => sum + item.total, 0);
-        const total = subtotal + state.frais_livraison;
-
         if (!state.promotion) return 0;
 
-        if (state.promotion.type === "pourcentage") {
-          return (total * state.promotion.valeur) / 100;
+        const subtotal = state.items.reduce((sum, item) => sum + item.total, 0);
+
+        // Identifier les items promo liés à cette promotion
+        const promoItems = state.items.filter(
+          (item) =>
+            item.menu.is_promo &&
+            item.menu.promotion_id === state.promotion.id
+        );
+
+        let reduction = 0;
+
+        if (promoItems.length > 0) {
+          const promoSubtotal = promoItems.reduce(
+            (sum, item) => sum + item.total,
+            0
+          );
+          const promoQuantite = promoItems.reduce(
+            (sum, item) => sum + item.quantite,
+            0
+          );
+
+          if (state.promotion.type === "pourcentage") {
+            reduction = (promoSubtotal * state.promotion.valeur) / 100;
+          } else if (state.promotion.type === "montant") {
+            reduction = state.promotion.valeur * promoQuantite;
+          }
+
+          reduction = Math.min(reduction, promoSubtotal);
+        } else {
+          // Promo manuelle sans menu promo lié
+          if (state.promotion.type === "pourcentage") {
+            reduction = (subtotal * state.promotion.valeur) / 100;
+          } else if (state.promotion.type === "montant") {
+            reduction = state.promotion.valeur;
+          }
+          reduction = Math.min(reduction, subtotal);
         }
-        return state.promotion.valeur;
+
+        return reduction;
       },
 
       /**

@@ -1,12 +1,8 @@
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.lessandwichsdudocteur.app",
-      "sha256_cert_fingerprints": [
-        "REMPLACER_PAR_VOTRE_SHA256_FINGERPRINT_APRES_GENERATION_PWABUILDER"
-      ]
-    }
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.dudocteur.office.twa",
+    "sha256_cert_fingerprints": ["E0:88:F8:25:86:03:8C:A7:1B:45:B9:93:F0:65:64:32:A0:23:2A:ED:62:DA:27:4C:66:16:16:86:61:B2:81:1C"]
   }
-]
+}]

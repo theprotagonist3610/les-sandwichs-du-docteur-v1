@@ -8,6 +8,7 @@ import {
   validateCodePromo,
   calculateReduction,
   incrementInstanceUsage,
+  getPromotionInstanceById,
 } from "@/utils/promotionToolkit";
 import { toast } from "sonner";
 
@@ -96,11 +97,45 @@ export const usePanneauDeVente = () => {
 
   /**
    * Ajouter un article au panier avec feedback
+   * Si c'est un menu promo, applique automatiquement le code promo associé
    */
   const addToCart = useCallback(
-    (menu) => {
+    async (menu) => {
       cart.addItem(menu);
       toast.success(`${menu.nom} ajouté au panier`);
+
+      // Auto-appliquer le code promo si menu promo
+      if (menu.is_promo && menu.promotion_id && !cart.promotion) {
+        try {
+          const { success, instance } = await getPromotionInstanceById(
+            menu.promotion_id
+          );
+          if (success && instance?.code_promo && instance.is_active) {
+            const panierMontant = cart.getSubtotal();
+            const reductionAmount = calculateReduction(instance, panierMontant);
+
+            const promo = {
+              id: instance.id,
+              code: instance.code_promo,
+              denomination: instance.denomination,
+              type: instance.reduction_relative > 0 ? "pourcentage" : "montant",
+              valeur:
+                instance.reduction_relative > 0
+                  ? instance.reduction_relative
+                  : instance.reduction_absolue,
+              reduction_absolue: instance.reduction_absolue,
+              reduction_relative: instance.reduction_relative,
+              reductionAmount,
+              instance,
+            };
+
+            cart.applyPromotion(promo);
+            toast.success(`Promo "${instance.code_promo}" appliquée automatiquement`);
+          }
+        } catch (err) {
+          console.warn("Erreur auto-application promo:", err);
+        }
+      }
     },
     [cart]
   );

@@ -17,6 +17,7 @@ import {
   Percent,
   CheckCircle,
   CheckCheck,
+  Zap,
 } from "lucide-react";
 import * as commandeToolkit from "@/utils/commandeToolkit";
 
@@ -72,6 +73,15 @@ const CommandeCard = ({
     (commande.details_paiement?.autre || 0);
   const resteAPayer = Math.max(0, totalApresReduction - totalPaye);
   const hasPromotion = commande.promotion && commande.promotion.valeur > 0;
+  const reductionAmount = hasPromotion ? total - totalApresReduction : 0;
+
+  // Vérifier si un article est celui affecté par la promotion (via denomination)
+  const isItemPromo = (itemName) => {
+    if (!hasPromotion || !commande.promotion.denomination) return false;
+    const denom = commande.promotion.denomination.toLowerCase();
+    const name = itemName.toLowerCase();
+    return denom.includes(name);
+  };
 
   // ============================================================================
   // COULEURS DES BADGES
@@ -187,6 +197,11 @@ const CommandeCard = ({
               <span>{commande.details_commandes?.length || 0} art.</span>
             </div>
             <div className="flex items-center gap-1">
+              {hasPromotion && reductionAmount > 0 && (
+                <span className="text-[9px] text-muted-foreground line-through">
+                  {total.toLocaleString()} F
+                </span>
+              )}
               <span className="text-xs font-semibold text-primary">
                 {totalApresReduction.toLocaleString()} F
               </span>
@@ -197,6 +212,11 @@ const CommandeCard = ({
                 {commande.statut_paiement === commandeToolkit.STATUTS_PAIEMENT.PAYEE ? "Payée" : "Non payée"}
               </Badge>
             </div>
+            {hasPromotion && reductionAmount > 0 && (
+              <span className="text-[9px] text-emerald-600 font-medium">
+                -{reductionAmount.toLocaleString()} F
+              </span>
+            )}
           </div>
 
           {/* Actions */}
@@ -315,12 +335,12 @@ const CommandeCard = ({
                 {commande.promotion.type === "pourcentage" ? (
                   <>
                     <Percent className="w-3 h-3" />
-                    <span>{commande.promotion.valeur}</span>
+                    <span>{commande.promotion.valeur}%</span>
                   </>
                 ) : (
                   <>
-                    <span>-</span>
-                    <span>{commande.promotion.valeur.toLocaleString()} F</span>
+                    <Tag className="w-3 h-3" />
+                    <span>-{commande.promotion.valeur.toLocaleString()} F/u</span>
                   </>
                 )}
               </Badge>
@@ -328,10 +348,20 @@ const CommandeCard = ({
           </div>
 
           {/* Total */}
-          <div className="text-right min-w-[100px]">
+          <div className="text-right min-w-[120px]">
+            {hasPromotion && reductionAmount > 0 && (
+              <div className="text-xs text-muted-foreground line-through">
+                {total.toLocaleString()} F
+              </div>
+            )}
             <div className="font-semibold text-primary">
               {totalApresReduction.toLocaleString()} F
             </div>
+            {hasPromotion && reductionAmount > 0 && (
+              <div className="text-xs text-emerald-600 font-medium">
+                -{reductionAmount.toLocaleString()} F
+              </div>
+            )}
             {resteAPayer > 0 && (
               <div className="text-xs text-red-500">
                 Reste: {resteAPayer.toLocaleString()} F
@@ -467,12 +497,12 @@ const CommandeCard = ({
                 {commande.promotion.type === "pourcentage" ? (
                   <>
                     <Percent className="w-2.5 h-2.5" />
-                    <span>{commande.promotion.valeur}</span>
+                    <span>{commande.promotion.valeur}%</span>
                   </>
                 ) : (
                   <>
-                    <span>-</span>
-                    <span>{commande.promotion.valeur.toLocaleString()} F</span>
+                    <Tag className="w-2.5 h-2.5" />
+                    <span>-{commande.promotion.valeur.toLocaleString()} F/u</span>
                   </>
                 )}
               </Badge>
@@ -503,26 +533,38 @@ const CommandeCard = ({
             {commande.details_commandes &&
             commande.details_commandes.length > 0 ? (
               <div className="space-y-1">
-                {commande.details_commandes.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between text-xs py-1 px-1.5 rounded hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                      <span className="w-5 h-5 rounded bg-primary/10 text-primary text-[10px] flex items-center justify-center font-bold flex-shrink-0">
-                        {item.quantite}x
-                      </span>
-                      <span className="truncate font-medium">
-                        {item.item || item.nom}
+                {commande.details_commandes.map((item, index) => {
+                  const itemName = item.item || item.nom;
+                  const promo = isItemPromo(itemName);
+                  return (
+                    <div
+                      key={index}
+                      className={`flex items-center justify-between text-xs py-1 px-1.5 rounded hover:bg-muted/50 transition-colors ${
+                        promo ? "bg-amber-50/50 dark:bg-amber-950/10" : ""
+                      }`}>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="w-5 h-5 rounded bg-primary/10 text-primary text-[10px] flex items-center justify-center font-bold flex-shrink-0">
+                          {item.quantite}x
+                        </span>
+                        <span className="truncate font-medium">
+                          {itemName}
+                        </span>
+                        {promo && (
+                          <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[8px] px-1 py-0 h-3.5 flex-shrink-0">
+                            <Zap className="w-2 h-2 mr-0.5" />
+                            Promo
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-muted-foreground text-[10px] ml-2 flex-shrink-0 font-medium">
+                        {(
+                          item.total || item.quantite * item.prix_unitaire
+                        ).toLocaleString()}{" "}
+                        F
                       </span>
                     </div>
-                    <span className="text-muted-foreground text-[10px] ml-2 flex-shrink-0 font-medium">
-                      {(
-                        item.total || item.quantite * item.prix_unitaire
-                      ).toLocaleString()}{" "}
-                      F
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs">
@@ -540,18 +582,17 @@ const CommandeCard = ({
           {/* Total + Promo + Reste */}
           <div className="flex items-center gap-1.5">
             <CircleDollarSign className="w-4 h-4 text-primary" />
+            {hasPromotion && reductionAmount > 0 && (
+              <span className="text-[10px] text-muted-foreground line-through">
+                {total.toLocaleString()} F
+              </span>
+            )}
             <span className="font-bold text-sm text-primary">
               {totalApresReduction.toLocaleString()} F
             </span>
-            {hasPromotion && (
-              <span className="text-[9px] text-emerald-600 flex items-center">
-                {commande.promotion.type === "pourcentage" ? (
-                  <Percent className="w-2 h-2" />
-                ) : (
-                  <Tag className="w-2 h-2" />
-                )}
-                -{commande.promotion.valeur}
-                {commande.promotion.type === "pourcentage" ? "%" : "F"}
+            {hasPromotion && reductionAmount > 0 && (
+              <span className="text-[9px] text-emerald-600 font-medium bg-emerald-50 dark:bg-emerald-950/30 px-1 rounded">
+                -{reductionAmount.toLocaleString()} F
               </span>
             )}
             {commande.statut_paiement ===

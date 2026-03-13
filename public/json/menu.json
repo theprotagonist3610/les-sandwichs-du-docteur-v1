@@ -1,0 +1,146 @@
+[
+  {
+    "nom": "Sandwich viande simple",
+    "type": "sandwich",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 500,
+    "statut": "indisponible"
+  },
+  {
+    "nom": "Sandwich poisson simple",
+    "type": "sandwich",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 500,
+    "statut": "indisponible"
+  },
+  {
+    "nom": "Sandwich viande viennois",
+    "type": "sandwich",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 700,
+    "statut": "disponible"
+  },
+  {
+    "nom": "Sandwich poisson viennois",
+    "type": "sandwich",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 700,
+    "statut": "disponible"
+  },
+  {
+    "nom": "Box poisson",
+    "type": "sandwich",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 2000,
+    "statut": "disponible"
+  },
+  {
+    "nom": "Box viande",
+    "type": "sandwich",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 2000,
+    "statut": "disponible"
+  },
+  {
+    "nom": "Box mixte",
+    "type": "sandwich",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 2000,
+    "statut": "disponible"
+  },
+  {
+    "nom": "Yaourt 350ml",
+    "type": "boisson",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 800,
+    "statut": "disponible"
+  },
+  {
+    "nom": "Yaourt 500ml",
+    "type": "boisson",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 1000,
+    "statut": "indisponible"
+  },
+  {
+    "nom": "Yaourt 1L",
+    "type": "boisson",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 1500,
+    "statut": "indisponible"
+  },
+  {
+    "nom": "Dègue 350ml",
+    "type": "boisson",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 850,
+    "statut": "indisponible"
+  },
+  {
+    "nom": "Dègue 500ml",
+    "type": "boisson",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 1200,
+    "statut": "disponible"
+  },
+  {
+    "nom": "Dègue 1L",
+    "type": "boisson",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 1600,
+    "statut": "indisponible"
+  },
+  {
+    "nom": "Menu etudiant",
+    "type": "menu complet",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 1000,
+    "statut": "indisponible"
+  },
+  {
+    "nom": "Menu simple",
+    "type": "menu complet",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 1500,
+    "statut": "disponible"
+  },
+  {
+    "nom": "Menu Mixte",
+    "type": "menu complet",
+    "description": "",
+    "ingredients": [],
+    "indice_calorique": "{joule:0.0, calorie:0.0}",
+    "prix": 1700,
+    "statut": "disponible"
+  }
+]

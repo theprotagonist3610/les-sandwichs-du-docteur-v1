@@ -4,7 +4,7 @@ import usePanneauDeVente from "@/hooks/usePanneauDeVente";
 import useCartStore from "@/store/cartStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ShoppingCart, Trash2, MapPin, Store } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
@@ -203,8 +203,9 @@ const DesktopPanneauDeVente = () => {
               </div>
             ) : (
               <>
-                {/* Liste des articles */}
-                <ScrollArea className="flex-1 p-4">
+                {/* Contenu scrollable unique */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {/* Liste des articles */}
                   <div className="space-y-2">
                     <AnimatePresence>
                       {cartItems.map((item) => (
@@ -218,34 +219,31 @@ const DesktopPanneauDeVente = () => {
                       ))}
                     </AnimatePresence>
                   </div>
-                </ScrollArea>
 
-                {/* Section infos client et promo */}
-                <div className="border-t">
-                  <ScrollArea className="max-h-[250px]">
-                    <div className="p-4 space-y-4">
-                      {/* Code promo */}
-                      <PromoInput
-                        promotion={promotion}
-                        onApply={applyPromoCode}
-                        onRemove={removePromoCode}
-                      />
+                  {/* Code promo */}
+                  <div className="border-t pt-4">
+                    <PromoInput
+                      promotion={promotion}
+                      onApply={applyPromoCode}
+                      onRemove={removePromoCode}
+                    />
+                  </div>
 
-                      {/* Infos client */}
-                      <ClientInfo
-                        client={client}
-                        contactClient={contactClient}
-                        orderType={orderType}
-                        deliveryInfo={deliveryInfo}
-                        onClientChange={setClientInfo}
-                        onOrderTypeChange={setOrderType}
-                        onDeliveryChange={setDeliveryInfo}
-                      />
-                    </div>
-                  </ScrollArea>
+                  {/* Infos client */}
+                  <div className="border-t pt-4">
+                    <ClientInfo
+                      client={client}
+                      contactClient={contactClient}
+                      orderType={orderType}
+                      deliveryInfo={deliveryInfo}
+                      onClientChange={setClientInfo}
+                      onOrderTypeChange={setOrderType}
+                      onDeliveryChange={setDeliveryInfo}
+                    />
+                  </div>
                 </div>
 
-                {/* Footer: Totaux et validation */}
+                {/* Footer: Totaux et validation - toujours visible */}
                 <div className="border-t p-4 bg-muted/30">
                   <CartTotals
                     subtotal={subtotal}
