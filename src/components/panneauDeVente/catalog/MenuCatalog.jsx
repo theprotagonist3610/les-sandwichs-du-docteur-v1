@@ -25,6 +25,7 @@ const MenuCatalog = ({
   cartItems,
   categories,
   compact = false,
+  inline = false,   // compact sans fixed : pour back-day mobile
   className,
 }) => {
   const [sandwichDialogOpen, setSandwichDialogOpen] = useState(false);
@@ -49,7 +50,66 @@ const MenuCatalog = ({
     onAddToCart(fakeMenu, quantite);
   };
 
-  // Mode compact (mobile) - Layout fixed indépendant
+  // Mode compact inline (back-day mobile) - pas de fixed
+  if (compact && inline) {
+    return (
+      <>
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Rechercher un article..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="pl-9 h-10"
+            />
+          </div>
+          <CategoryTabs
+            activeCategory={activeCategory}
+            onCategoryChange={onCategoryChange}
+            categories={categories}
+          />
+          {loading && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          )}
+          {!loading && !error && menus.length === 0 && (
+            <p className="text-center py-6 text-sm text-muted-foreground">
+              {searchTerm ? "Aucun résultat" : "Aucun article disponible"}
+            </p>
+          )}
+          {!loading && !error && menus.length > 0 && (
+            <motion.div layout className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <AnimatePresence mode="popLayout">
+                {menus.map((menu) => (
+                  <MenuCard
+                    key={menu.id}
+                    menu={menu}
+                    onAdd={handleMenuClick}
+                    isInCart={getCartQuantity(menu.id) > 0}
+                    quantityInCart={getCartQuantity(menu.id)}
+                    compact={true}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </div>
+        {sandwichMenuSelectionne && (
+          <SandwichPersonnaliseDialog
+            open={sandwichDialogOpen}
+            onOpenChange={setSandwichDialogOpen}
+            menu={sandwichMenuSelectionne}
+            onConfirm={handleSandwichConfirm}
+          />
+        )}
+      </>
+    );
+  }
+
+  // Mode compact (mobile POS) - Layout fixed indépendant
   if (compact) {
     return (
       <>

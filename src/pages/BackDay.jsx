@@ -8,8 +8,12 @@ import { useState, useEffect } from "react";
 import useBreakpoint from "@/hooks/useBreakpoint";
 import useBackDay, { ONGLETS } from "@/hooks/useBackDay";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ClipboardList, LayoutList, Lock, Ban } from "lucide-react";
-import BackDayBandeau from "@/components/backDay/BackDayBandeau";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ClipboardList, LayoutList, Lock, Ban, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { cn } from "@/lib/utils";
+import BackDayBandeau, { StatutBadge, CONFIG_STATUT } from "@/components/backDay/BackDayBandeau";
+import { STATUTS_JOURNEE } from "@/utils/backDaysToolkit";
 import { MobileOngletCommandes, DesktopOngletCommandes } from "@/components/backDay/OngletCommandes";
 import OngletSynthese from "@/components/backDay/OngletSynthese";
 import OngletCloture from "@/components/backDay/OngletCloture";
@@ -42,6 +46,8 @@ const MobileBackDay = () => {
     setVisible(isMobile);
   }, [isMobile]);
 
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
   const hook = useBackDay();
   const {
     selectedDate, changerDate,
@@ -49,68 +55,100 @@ const MobileBackDay = () => {
     formatDateFr, statutJournee, loadingStatut,
     ongletActif, setOngletActif,
     hasSynthese, hasCommandes,
+    joursCalendrier,
   } = hook;
+
+  const etat = statutJournee?.etat || STATUTS_JOURNEE.VIDE;
+
+  const handleSelectDate = (date) => {
+    changerDate(date);
+    setCalendarOpen(false);
+  };
 
   return (
     <div
-      className="min-h-screen flex flex-col bg-background"
-      style={{ display: visible ? "flex" : "none" }}>
+      className="flex flex-col bg-background"
+      style={{ display: visible ? "flex" : "none", minHeight: "100dvh" }}>
 
-      {/* Bandeau date */}
-      <BackDayBandeau
-        selectedDate={selectedDate}
-        dateLabel={formatDateFr(selectedDate)}
-        onPrev={allerJourPrecedent}
-        onNext={allerJourSuivant}
-        canGoNext={peutAllerSuivant}
-        statutJournee={statutJournee}
-        loading={loadingStatut}
-      />
+      {/* ── Header fusionné : date + chips ── */}
+      <div className="sticky top-0 z-20 bg-background border-b shrink-0">
 
-      {/* Onglets + Contenu */}
-      <Tabs
-        value={ongletActif}
-        onValueChange={setOngletActif}
-        className="flex flex-col flex-1 min-h-0">
+        {/* Ligne date */}
+        <div className="flex items-center gap-2 px-4 py-2.5">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={allerJourPrecedent}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <button
+            className="flex-1 flex items-center justify-center gap-2 min-w-0 py-1 rounded-lg hover:bg-accent transition-colors"
+            onClick={() => setCalendarOpen(true)}>
+            <CalendarDays className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-semibold truncate capitalize">
+              {loadingStatut ? "Chargement…" : formatDateFr(selectedDate)}
+            </span>
+            <StatutBadge etat={etat} />
+          </button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={allerJourSuivant} disabled={!peutAllerSuivant}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
 
-        {/* Tabs fixes en haut (sous le bandeau) */}
-        <TabsList className="grid grid-cols-3 rounded-none border-b h-11 shrink-0 bg-background">
+        {/* Chips onglets */}
+        <div className="flex gap-2 px-4 pb-3">
           {ONGLETS_CONFIG.map(({ value, label, icon: Icon }) => {
             const disabled =
               (value === ONGLETS.COMMANDES && hasSynthese) ||
               (value === ONGLETS.SYNTHESE && hasCommandes);
+            const isActive = ongletActif === value;
             return (
-              <TabsTrigger
+              <button
                 key={value}
-                value={value}
                 disabled={disabled}
-                className="flex items-center gap-1.5 text-xs font-medium data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none disabled:opacity-40 disabled:cursor-not-allowed">
-                <Icon className="w-3.5 h-3.5" />
+                onClick={() => !disabled && setOngletActif(value)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-full text-xs font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted text-muted-foreground",
+                  disabled && "opacity-40 cursor-not-allowed"
+                )}>
+                <Icon className="w-3 h-3" />
                 {label}
-              </TabsTrigger>
+              </button>
             );
           })}
-        </TabsList>
-
-        {/* Contenu scrollable */}
-        <div className="flex-1 overflow-y-auto">
-          <TabsContent value={ONGLETS.COMMANDES} className="mt-0 h-full">
-            {hasSynthese
-              ? <OngletBloque message="Une synthèse de journée a déjà été enregistrée. L'ajout de commandes individuelles n'est pas possible pour cette journée." />
-              : <MobileOngletCommandes hook={hook} />}
-          </TabsContent>
-
-          <TabsContent value={ONGLETS.SYNTHESE} className="mt-0">
-            {hasCommandes
-              ? <OngletBloque message="Des commandes individuelles ont déjà été enregistrées pour cette journée. La synthèse globale n'est pas disponible." />
-              : <OngletSynthese hook={hook} />}
-          </TabsContent>
-
-          <TabsContent value={ONGLETS.CLOTURE} className="mt-0">
-            <OngletCloture hook={hook} />
-          </TabsContent>
         </div>
-      </Tabs>
+      </div>
+
+      {/* ── Sheet calendrier ── */}
+      <Sheet open={calendarOpen} onOpenChange={setCalendarOpen}>
+        <SheetContent side="bottom" className="h-[82vh] flex flex-col px-0 pb-0 rounded-t-2xl">
+          <SheetHeader className="px-5 pt-5 pb-4 border-b shrink-0">
+            <SheetTitle className="text-base font-semibold">Sélectionner un jour</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-hidden px-2">
+            <CalendrierBackDay
+              jours={joursCalendrier}
+              selectedDate={selectedDate}
+              onSelectDate={handleSelectDate}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ── Contenu scrollable ── */}
+      <div className="flex-1 overflow-y-auto">
+        {ongletActif === ONGLETS.COMMANDES && (
+          hasSynthese
+            ? <OngletBloque message="Une synthèse de journée a déjà été enregistrée. L'ajout de commandes individuelles n'est pas possible pour cette journée." />
+            : <MobileOngletCommandes hook={hook} />
+        )}
+        {ongletActif === ONGLETS.SYNTHESE && (
+          hasCommandes
+            ? <OngletBloque message="Des commandes individuelles ont déjà été enregistrées pour cette journée. La synthèse globale n'est pas disponible." />
+            : <OngletSynthese hook={hook} />
+        )}
+        {ongletActif === ONGLETS.CLOTURE && <OngletCloture hook={hook} />}
+      </div>
     </div>
   );
 };

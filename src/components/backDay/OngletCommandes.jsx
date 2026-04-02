@@ -4,8 +4,8 @@
  * Réutilise les composants POS existants, date verrouillée sur le jour sélectionné
  */
 
-import { useState, useCallback } from "react";
-import { ShoppingCart, Trash2, ClipboardList, CreditCard } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { ShoppingCart, Trash2, ClipboardList, CreditCard, ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sheet";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import useCartStore from "@/store/cartStore";
 import {
   MenuCatalog,
@@ -99,7 +100,215 @@ export const MobileOngletCommandes = ({ hook }) => {
   const updateItemQuantity = useCartStore((state) => state.updateItemQuantity);
   const addItem = useCartStore((state) => state.addItem);
 
-  const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const [quantityDialogOpen, setQuantityDialogOpen] = useState(false);
+  const [selectedMenu, setSelectedMenu] = useState(null);
+  const [panierExpanded, setPanierExpanded] = useState(false);
+
+  const {
+    menus, menusLoading, menusError, categories, activeCategory,
+    setActiveCategory, searchTerm, setSearchTerm,
+    cartItems, cartIsEmpty, totalItems, total, canSubmitCommande,
+    removeFromCart, incrementQuantity, decrementQuantity, clearCart,
+    subtotal, discount, deliveryFee, totalPaid, remainingAmount,
+    client, contactClient, orderType, deliveryInfo,
+    setClientInfo, setOrderType, setDeliveryInfo,
+    promotion, applyPromoCode, removePromoCode,
+    recordPayment, resetPayments, payRemainingInCash,
+    submitCommandeRetroactive, startNewOrder, isSubmittingCommande,
+    showPaymentPanel, openPaymentPanel, closePaymentPanel,
+    showConfirmation, closeConfirmation, lastOrder,
+    commandesDuJour, loadingCommandes,
+    depenses, ajouterDepense, loadingOperations,
+    statutJournee,
+  } = hook;
+
+  // Auto-expand panier quand des articles sont ajoutés
+  useEffect(() => {
+    if (!cartIsEmpty) setPanierExpanded(true);
+  }, [cartIsEmpty]);
+
+  const getCartQuantity = useCallback(
+    (menuId) => {
+      const item = cartItems.find((i) => i.menu.id === menuId);
+      return item ? item.quantite : 0;
+    },
+    [cartItems]
+  );
+
+  const handleMenuClick = (menu) => {
+    setSelectedMenu(menu);
+    setQuantityDialogOpen(true);
+  };
+
+  const handleQuantityConfirm = (menu, quantity) => {
+    const current = getCartQuantity(menu.id);
+    if (quantity === 0) {
+      if (current > 0) removeFromCart(menu.id);
+    } else if (current > 0) {
+      updateItemQuantity(menu.id, quantity);
+    } else {
+      addItem(menu, quantity);
+    }
+  };
+
+  const readOnly = statutJournee?.has_closure;
+
+  return (
+    <div className="px-3 pt-3 pb-8 space-y-3">
+
+      {/* ── Catalogue inline ── */}
+      <MenuCatalog
+        menus={menus}
+        loading={menusLoading}
+        error={menusError}
+        activeCategory={activeCategory}
+        onCategoryChange={setActiveCategory}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onAddToCart={readOnly ? undefined : handleMenuClick}
+        cartItems={cartItems}
+        categories={categories}
+        compact={true}
+        inline={true}
+      />
+
+      <Separator />
+
+      {/* ── Panier collapsible ── */}
+      <Card className="overflow-hidden">
+        <button
+          className="w-full flex items-center gap-3 px-4 py-3 text-left"
+          onClick={() => setPanierExpanded((v) => !v)}>
+          <ShoppingCart className={cn("w-4 h-4 shrink-0", cartIsEmpty ? "text-muted-foreground" : "text-primary")} />
+          <span className="text-sm font-semibold flex-1">Panier</span>
+          {!cartIsEmpty && (
+            <>
+              <Badge variant="secondary" className="text-xs">{totalItems}</Badge>
+              <span className="text-sm font-bold text-primary">{total.toLocaleString("fr-FR")} F</span>
+            </>
+          )}
+          {cartIsEmpty && <span className="text-xs text-muted-foreground">Vide</span>}
+          <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", panierExpanded && "rotate-180")} />
+        </button>
+
+        {panierExpanded && (
+          <div className="border-t">
+            {cartIsEmpty ? (
+              <p className="text-xs text-muted-foreground text-center py-6">
+                Sélectionnez des articles dans le catalogue
+              </p>
+            ) : (
+              <div className="px-4 py-3 space-y-4">
+                {/* Articles */}
+                <div className="space-y-1">
+                  <AnimatePresence>
+                    {cartItems.map((item) => (
+                      <CartItem
+                        key={item.menu.id}
+                        item={item}
+                        onIncrement={incrementQuantity}
+                        onDecrement={decrementQuantity}
+                        onRemove={removeFromCart}
+                        compact
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+                {/* Promo */}
+                <div className="border-t pt-3">
+                  <PromoInput promotion={promotion} onApply={applyPromoCode} onRemove={removePromoCode} />
+                </div>
+                {/* Client */}
+                <div className="border-t pt-3">
+                  <ClientInfo
+                    client={client} contactClient={contactClient}
+                    orderType={orderType} deliveryInfo={deliveryInfo}
+                    onClientChange={setClientInfo} onOrderTypeChange={setOrderType}
+                    onDeliveryChange={setDeliveryInfo} compact
+                  />
+                </div>
+                {/* Totaux */}
+                <CartTotals
+                  subtotal={subtotal} discount={discount}
+                  deliveryFee={deliveryFee} total={total}
+                  promotion={promotion}
+                />
+                {/* Actions */}
+                <div className="flex gap-2 border-t pt-3">
+                  <Button variant="outline" size="sm" className="text-destructive shrink-0" onClick={clearCart}>
+                    <Trash2 className="w-4 h-4 mr-1" /> Vider
+                  </Button>
+                  <Button className="flex-1" onClick={openPaymentPanel} disabled={!canSubmitCommande}>
+                    <CreditCard className="w-4 h-4 mr-2" /> Passer au paiement
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      <Separator />
+
+      {/* ── Commandes saisies ── */}
+      <Card className="p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <ClipboardList className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold">Commandes saisies</span>
+        </div>
+        <CommandesDuJour commandes={commandesDuJour} loading={loadingCommandes} />
+      </Card>
+
+      {/* ── Dépenses ── */}
+      <Card className="p-3">
+        <DepensesJour
+          depenses={depenses}
+          onAjouter={ajouterDepense}
+          loading={loadingOperations}
+          readOnly={readOnly}
+        />
+      </Card>
+
+      {/* ── Dialogs / Sheets ── */}
+      <QuantityDialog
+        open={quantityDialogOpen}
+        onOpenChange={setQuantityDialogOpen}
+        menu={selectedMenu}
+        currentQuantity={selectedMenu ? getCartQuantity(selectedMenu.id) : 0}
+        onConfirm={handleQuantityConfirm}
+      />
+
+      <Sheet open={showPaymentPanel} onOpenChange={closePaymentPanel}>
+        <SheetContent side="bottom" className="h-[90vh] px-0">
+          <div className="h-full overflow-y-auto px-4 pb-6">
+            <PaymentPanel
+              total={total} totalPaid={totalPaid} remainingAmount={remainingAmount}
+              payments={{ momo: cartPayments.momo || 0, cash: cartPayments.cash || 0, autre: cartPayments.autre || 0 }}
+              onRecordPayment={recordPayment} onResetPayments={resetPayments}
+              onPayRemainingInCash={payRemainingInCash}
+              onSubmit={submitCommandeRetroactive} onClose={closePaymentPanel}
+              isSubmitting={isSubmittingCommande} canSubmit={canSubmitCommande}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showConfirmation} onOpenChange={closeConfirmation}>
+        <SheetContent side="bottom" className="h-[80vh]">
+          <PaymentConfirmation order={lastOrder} onNewOrder={startNewOrder} onClose={closeConfirmation} />
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+};
+
+// ─── Version Desktop ─────────────────────────────────────────────────────────
+
+export const DesktopOngletCommandes = ({ hook }) => {
+  const cartPayments = useCartStore((state) => state.details_paiement);
+  const updateItemQuantity = useCartStore((state) => state.updateItemQuantity);
+  const addItem = useCartStore((state) => state.addItem);
+
   const [quantityDialogOpen, setQuantityDialogOpen] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState(null);
 
@@ -148,174 +357,6 @@ export const MobileOngletCommandes = ({ hook }) => {
   const readOnly = statutJournee?.has_closure;
 
   return (
-    <div className="flex flex-col pb-24">
-      {/* Catalogue */}
-      <MenuCatalog
-        menus={menus}
-        loading={menusLoading}
-        error={menusError}
-        activeCategory={activeCategory}
-        onCategoryChange={setActiveCategory}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        onAddToCart={readOnly ? undefined : handleMenuClick}
-        cartItems={cartItems}
-        categories={categories}
-        compact={true}
-      />
-
-      {/* Dépenses + Commandes dans un bloc scrollable sous le catalogue */}
-      <div className="px-4 pt-4 space-y-4">
-        {/* Commandes du jour */}
-        <div className="rounded-lg border border-border bg-card p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <ClipboardList className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold">Commandes saisies</span>
-          </div>
-          <CommandesDuJour commandes={commandesDuJour} loading={loadingCommandes} />
-        </div>
-
-        {/* Dépenses */}
-        <div className="rounded-lg border border-border bg-card p-3">
-          <DepensesJour
-            depenses={depenses}
-            onAjouter={ajouterDepense}
-            loading={loadingOperations}
-            readOnly={readOnly}
-          />
-        </div>
-      </div>
-
-      {/* Bouton sticky panier */}
-      {!cartIsEmpty && !readOnly && (
-        <motion.div
-          initial={{ y: 100 }}
-          animate={{ y: 0 }}
-          className="fixed bottom-14 left-0 right-0 p-4 bg-background border-t shadow-lg z-10">
-          <Button size="lg" className="w-full" onClick={() => setCartSheetOpen(true)}>
-            <ShoppingCart className="w-5 h-5 mr-2" />
-            Voir panier ({totalItems} article{totalItems > 1 ? "s" : ""})
-            <span className="ml-auto font-bold">{total.toLocaleString("fr-FR")} F</span>
-          </Button>
-        </motion.div>
-      )}
-
-      {/* Dialog quantité */}
-      <QuantityDialog
-        open={quantityDialogOpen}
-        onOpenChange={setQuantityDialogOpen}
-        menu={selectedMenu}
-        currentQuantity={selectedMenu ? getCartQuantity(selectedMenu.id) : 0}
-        onConfirm={handleQuantityConfirm}
-      />
-
-      {/* Sheet panier */}
-      <Sheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
-        <SheetContent side="bottom" className="h-[85vh] px-0">
-          <div className="flex flex-col h-full">
-            <div className="px-4 pb-3 border-b">
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-2 pr-8">
-                  <ShoppingCart className="w-5 h-5" />
-                  Panier rétroactif
-                  {!cartIsEmpty && <Badge variant="secondary">{totalItems}</Badge>}
-                </SheetTitle>
-              </SheetHeader>
-              {!cartIsEmpty && (
-                <Button variant="ghost" size="sm" className="text-destructive mt-2" onClick={clearCart}>
-                  Vider le panier
-                </Button>
-              )}
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-4">
-              <div className="py-3 space-y-1">
-                <AnimatePresence>
-                  {cartItems.map((item) => (
-                    <CartItem
-                      key={item.menu.id}
-                      item={item}
-                      onIncrement={incrementQuantity}
-                      onDecrement={decrementQuantity}
-                      onRemove={removeFromCart}
-                      compact
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-              <div className="py-3 border-t">
-                <PromoInput promotion={promotion} onApply={applyPromoCode} onRemove={removePromoCode} />
-              </div>
-              <div className="py-3 border-t">
-                <ClientInfo
-                  client={client} contactClient={contactClient}
-                  orderType={orderType} deliveryInfo={deliveryInfo}
-                  onClientChange={setClientInfo} onOrderTypeChange={setOrderType}
-                  onDeliveryChange={setDeliveryInfo} compact
-                />
-              </div>
-            </div>
-            <div className="flex-shrink-0 px-4 py-3 border-t bg-background">
-              <CartTotals subtotal={subtotal} discount={discount} deliveryFee={deliveryFee} total={total} promotion={promotion} className="mb-3" />
-              <Button size="lg" className="w-full" onClick={() => { setCartSheetOpen(false); openPaymentPanel(); }} disabled={!canSubmitCommande}>
-                Passer au paiement
-              </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Sheet paiement */}
-      <Sheet open={showPaymentPanel} onOpenChange={closePaymentPanel}>
-        <SheetContent side="bottom" className="h-[90vh] px-0">
-          <div className="h-full overflow-y-auto px-4 pb-6">
-            <PaymentPanel
-              total={total} totalPaid={totalPaid} remainingAmount={remainingAmount}
-              payments={{ momo: cartPayments.momo || 0, cash: cartPayments.cash || 0, autre: cartPayments.autre || 0 }}
-              onRecordPayment={recordPayment} onResetPayments={resetPayments}
-              onPayRemainingInCash={payRemainingInCash}
-              onSubmit={submitCommandeRetroactive} onClose={closePaymentPanel}
-              isSubmitting={isSubmittingCommande} canSubmit={canSubmitCommande}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Sheet confirmation */}
-      <Sheet open={showConfirmation} onOpenChange={closeConfirmation}>
-        <SheetContent side="bottom" className="h-[80vh]">
-          <PaymentConfirmation order={lastOrder} onNewOrder={startNewOrder} onClose={closeConfirmation} />
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
-};
-
-// ─── Version Desktop ─────────────────────────────────────────────────────────
-
-export const DesktopOngletCommandes = ({ hook }) => {
-  const cartPayments = useCartStore((state) => state.details_paiement);
-
-  const {
-    menus, menusLoading, menusError, categories, activeCategory,
-    setActiveCategory, searchTerm, setSearchTerm,
-    cartItems, cartIsEmpty, totalItems, total, canSubmitCommande,
-    addToCart, removeFromCart, incrementQuantity, decrementQuantity, clearCart,
-    subtotal, discount, deliveryFee, totalPaid, remainingAmount,
-    client, contactClient, orderType, deliveryInfo,
-    setClientInfo, setOrderType, setDeliveryInfo,
-    promotion, applyPromoCode, removePromoCode,
-    recordPayment, resetPayments, payRemainingInCash,
-    submitCommandeRetroactive, startNewOrder, isSubmittingCommande,
-    showPaymentPanel, openPaymentPanel, closePaymentPanel,
-    showConfirmation, closeConfirmation, lastOrder,
-    commandesDuJour, loadingCommandes,
-    depenses, ajouterDepense, loadingOperations,
-    statutJournee,
-  } = hook;
-
-  const readOnly = statutJournee?.has_closure;
-
-  return (
     <div className="flex gap-4 h-full overflow-hidden">
       {/* Colonne gauche : Catalogue */}
       <div className="flex-1 min-w-0">
@@ -324,7 +365,7 @@ export const DesktopOngletCommandes = ({ hook }) => {
             menus={menus} loading={menusLoading} error={menusError}
             activeCategory={activeCategory} onCategoryChange={setActiveCategory}
             searchTerm={searchTerm} onSearchChange={setSearchTerm}
-            onAddToCart={readOnly ? undefined : addToCart}
+            onAddToCart={readOnly ? undefined : handleMenuClick}
             cartItems={cartItems} categories={categories}
             compact={false} className="h-full"
           />
@@ -406,6 +447,15 @@ export const DesktopOngletCommandes = ({ hook }) => {
           />
         </Card>
       </div>
+
+      {/* Dialog quantité */}
+      <QuantityDialog
+        open={quantityDialogOpen}
+        onOpenChange={setQuantityDialogOpen}
+        menu={selectedMenu}
+        currentQuantity={selectedMenu ? getCartQuantity(selectedMenu.id) : 0}
+        onConfirm={handleQuantityConfirm}
+      />
 
       {/* Dialog paiement */}
       <Dialog open={showPaymentPanel} onOpenChange={closePaymentPanel}>

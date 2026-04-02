@@ -35,7 +35,7 @@ const JourCalendrier = ({ jour, isSelected, onClick }) => {
     <button
       onClick={() => onClick(jour.date)}
       className={cn(
-        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors",
+        "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-colors",
         "hover:bg-accent",
         isSelected && "bg-accent border border-border"
       )}>
@@ -65,7 +65,7 @@ const JourCalendrier = ({ jour, isSelected, onClick }) => {
 // ─── Légende ──────────────────────────────────────────────────────────────────
 
 const Legende = () => (
-  <div className="flex flex-col gap-1 px-3 py-2 border-t border-border">
+  <div className="flex flex-col gap-1.5 px-5 py-4 border-t border-border">
     <p className="text-xs font-semibold text-muted-foreground mb-1">Légende</p>
     {[
       { etat: STATUTS_JOURNEE.VIDE, label: "Vide" },
@@ -103,13 +103,13 @@ const CalendrierBackDay = ({ jours = [], selectedDate, onSelectDate, className }
   return (
     <div className={cn("flex flex-col h-full overflow-hidden", className)}>
       {/* Titre */}
-      <div className="px-3 py-3 border-b border-border">
+      <div className="px-4 py-3 border-b border-border">
         <p className="text-sm font-semibold">Jours passés</p>
         <p className="text-xs text-muted-foreground">30 derniers jours</p>
       </div>
 
       {/* Liste scrollable */}
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 overflow-y-auto py-2">
         {jours.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-6">Aucune donnée</p>
         ) : (
@@ -121,7 +121,7 @@ const CalendrierBackDay = ({ jours = [], selectedDate, onSelectDate, className }
             });
             return (
               <div key={mois}>
-                <p className="text-xs font-semibold text-muted-foreground px-3 py-1.5 capitalize">
+                <p className="text-xs font-semibold text-muted-foreground px-4 pt-3 pb-1.5 capitalize">
                   {labelMois}
                 </p>
                 {parMois[mois].map((jour) => (
