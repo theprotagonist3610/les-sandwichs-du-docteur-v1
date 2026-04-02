@@ -1,10 +1,11 @@
+import MobileStock from "./outils/stock/MobileStock";
+import DesktopStock from "./outils/stock/DesktopStock";
+
 const Stock = () => {
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold text-foreground mb-4">Stock</h1>
-      <p className="text-muted-foreground">
-        Inventaire et alertes de réapprovisionnement
-      </p>
+    <div>
+      <MobileStock />
+      <DesktopStock />
     </div>
   );
 };

@@ -47,11 +47,11 @@ const DesktopNavbar = () => {
       label: "Commandes",
       options: [], // Options a ajouter plus tard
     },
-    // {
-    //   path: "/stock",
-    //   label: "Stock",
-    //   options: [], // Options a ajouter plus tard
-    // },
+    {
+      path: "/stock",
+      label: "Stock",
+      options: [],
+    },
     // {
     //   path: "/statistiques",
     //   label: "Statistiques",
@@ -76,6 +76,11 @@ const DesktopNavbar = () => {
       path: "/utilisateurs",
       label: "Utilisateurs",
       options: [], // Options a ajouter plus tard
+    },
+    {
+      path: "/back-day",
+      label: "Back-Day",
+      options: [],
     },
   ];
 

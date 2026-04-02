@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -12,87 +11,71 @@ import {
 } from "@/components/ui/select";
 import { Loader2, TrendingUp } from "lucide-react";
 import * as comptabiliteToolkit from "@/utils/comptabiliteToolkit";
+import { getAllEmplacements } from "@/utils/emplacementToolkit";
 
-/**
- * Formulaire de création d'encaissement
- * Responsive et validé
- */
 const EncaissementForm = ({ onSuccess, onCancel }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     compte: comptabiliteToolkit.TYPES_COMPTE.CAISSE,
     montant: "",
-    motif: "",
-    date_operation: new Date().toISOString().split("T")[0], // Format YYYY-MM-DD
+    motifTexte: "",
+    date_operation: new Date().toISOString().split("T")[0],
   });
+  const [emplacements, setEmplacements] = useState([]);
+  const [emplacementId, setEmplacementId] = useState("_none");
   const [errors, setErrors] = useState({});
 
-  // Gestion des changements de champs
+  useEffect(() => {
+    getAllEmplacements({ statut: "actif" }).then(({ emplacements }) =>
+      setEmplacements(emplacements ?? [])
+    );
+  }, []);
+
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Effacer l'erreur du champ modifié
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: null }));
-    }
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
   };
 
-  // Validation du formulaire
   const validateForm = () => {
     const newErrors = {};
-
-    if (!formData.compte) {
-      newErrors.compte = "Le compte est requis";
-    }
-
-    if (!formData.montant || parseFloat(formData.montant) <= 0) {
+    if (!formData.compte) newErrors.compte = "Le compte est requis";
+    if (!formData.montant || parseFloat(formData.montant) <= 0)
       newErrors.montant = "Le montant doit être supérieur à 0";
-    }
-
-    if (!formData.motif || formData.motif.trim() === "") {
-      newErrors.motif = "Le motif est requis";
-    }
-
-    if (!formData.date_operation) {
-      newErrors.date_operation = "La date est requise";
-    }
-
+    if (!formData.motifTexte.trim()) newErrors.motifTexte = "Le motif est requis";
+    if (emplacementId === "_none") newErrors.emplacement = "L'emplacement est requis";
+    if (!formData.date_operation) newErrors.date_operation = "La date est requise";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Soumission du formulaire
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
-
     try {
+      const emplacementNom = emplacements.find((e) => e.id === emplacementId)?.nom ?? "";
       const result = await comptabiliteToolkit.createOperation({
         operation: comptabiliteToolkit.TYPES_OPERATION.ENCAISSEMENT,
         compte: formData.compte,
         montant: parseFloat(formData.montant),
-        motif: formData.motif.trim(),
+        motif: {
+          motif: formData.motifTexte.trim(),
+          emplacement: emplacementNom,
+        },
         date_operation: formData.date_operation,
       });
 
       if (result.success) {
-        // Réinitialiser le formulaire
         setFormData({
           compte: comptabiliteToolkit.TYPES_COMPTE.CAISSE,
           montant: "",
-          motif: "",
+          motifTexte: "",
           date_operation: new Date().toISOString().split("T")[0],
         });
+        setEmplacementId("_none");
         setErrors({});
-
-        // Callback de succès
-        if (onSuccess) {
-          onSuccess(result.operation);
-        }
+        if (onSuccess) onSuccess(result.operation);
       } else {
         setErrors({ submit: result.error });
       }
@@ -105,7 +88,7 @@ const EncaissementForm = ({ onSuccess, onCancel }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Header visuel */}
+      {/* Header */}
       <div className="flex items-center gap-3 pb-4 border-b">
         <div className="p-3 bg-emerald-100 dark:bg-emerald-900 rounded-lg">
           <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
@@ -123,19 +106,36 @@ const EncaissementForm = ({ onSuccess, onCancel }) => {
         <Label htmlFor="compte">
           Compte <span className="text-red-500">*</span>
         </Label>
-        <Select value={formData.compte} onValueChange={(value) => handleChange("compte", value)}>
+        <Select value={formData.compte} onValueChange={(v) => handleChange("compte", v)}>
           <SelectTrigger id="compte" className={errors.compte ? "border-red-500" : ""}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {Object.entries(comptabiliteToolkit.COMPTE_LABELS).map(([key, label]) => (
-              <SelectItem key={key} value={key}>
-                {label}
-              </SelectItem>
+              <SelectItem key={key} value={key}>{label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         {errors.compte && <p className="text-xs text-red-500">{errors.compte}</p>}
+      </div>
+
+      {/* Emplacement */}
+      <div className="space-y-2">
+        <Label htmlFor="emplacement">
+          Emplacement <span className="text-red-500">*</span>
+        </Label>
+        <Select value={emplacementId} onValueChange={setEmplacementId}>
+          <SelectTrigger id="emplacement" className={errors.emplacement ? "border-red-500" : ""}>
+            <SelectValue placeholder="Choisir un emplacement" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_none" disabled>Choisir un emplacement</SelectItem>
+            {emplacements.map((e) => (
+              <SelectItem key={e.id} value={e.id}>{e.nom}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.emplacement && <p className="text-xs text-red-500">{errors.emplacement}</p>}
       </div>
 
       {/* Montant */}
@@ -166,7 +166,7 @@ const EncaissementForm = ({ onSuccess, onCancel }) => {
           type="date"
           value={formData.date_operation}
           onChange={(e) => handleChange("date_operation", e.target.value)}
-          max={new Date().toISOString().split("T")[0]} // Ne pas permettre dates futures
+          max={new Date().toISOString().split("T")[0]}
           className={errors.date_operation ? "border-red-500" : ""}
         />
         {errors.date_operation && (
@@ -176,18 +176,17 @@ const EncaissementForm = ({ onSuccess, onCancel }) => {
 
       {/* Motif */}
       <div className="space-y-2">
-        <Label htmlFor="motif">
-          Motif/Description <span className="text-red-500">*</span>
+        <Label htmlFor="motifTexte">
+          Motif <span className="text-red-500">*</span>
         </Label>
-        <Textarea
-          id="motif"
-          placeholder="Ex: Vente de sandwichs - Commande #1234"
-          value={formData.motif}
-          onChange={(e) => handleChange("motif", e.target.value)}
-          rows={3}
-          className={errors.motif ? "border-red-500" : ""}
+        <Input
+          id="motifTexte"
+          placeholder="Ex: Vente de sandwichs, Commande #1234..."
+          value={formData.motifTexte}
+          onChange={(e) => handleChange("motifTexte", e.target.value)}
+          className={errors.motifTexte ? "border-red-500" : ""}
         />
-        {errors.motif && <p className="text-xs text-red-500">{errors.motif}</p>}
+        {errors.motifTexte && <p className="text-xs text-red-500">{errors.motifTexte}</p>}
       </div>
 
       {/* Erreur générale */}
@@ -199,25 +198,15 @@ const EncaissementForm = ({ onSuccess, onCancel }) => {
 
       {/* Actions */}
       <div className="flex flex-col-reverse sm:flex-row gap-2 pt-4 border-t">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
+        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}
           className="flex-1 sm:flex-initial">
           Annuler
         </Button>
         <Button type="submit" disabled={loading} className="flex-1 sm:flex-initial">
           {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Enregistrement...
-            </>
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enregistrement...</>
           ) : (
-            <>
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Enregistrer l'encaissement
-            </>
+            <><TrendingUp className="h-4 w-4 mr-2" />Enregistrer l'encaissement</>
           )}
         </Button>
       </div>

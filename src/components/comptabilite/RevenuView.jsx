@@ -188,47 +188,43 @@ const RevenuView = () => {
     return null;
   };
 
-  // Composant bougie personnalisée
-  const CandleShape = (props) => {
-    const { x, y, width, height, payload } = props;
-    if (!payload) return null;
+  // Domaine YAxis calculé depuis toutes les valeurs des bougies
+  const candleDomainMin = revenus.length
+    ? Math.min(...revenus.flatMap((r) => [r.ouverture ?? 0, r.fermeture ?? 0, r.min ?? 0]))
+    : 0;
+  const candleDomainMax = revenus.length
+    ? Math.max(...revenus.flatMap((r) => [r.ouverture ?? 0, r.fermeture ?? 0, r.max ?? 0]))
+    : 1;
+  const candlePad = (Math.abs(candleDomainMax - candleDomainMin) * 0.08) || 1000;
+  const candleYMin = candleDomainMin - candlePad;
+  const candleYMax = candleDomainMax + candlePad;
 
-    const { ouverture, fermeture, max, min } = payload;
+  // Shape bougie — utilise background (chart area) + domaine explicite pour calculer les y
+  const candleShape = (props) => {
+    const { x, width, background, payload } = props;
+    if (!payload || !background) return null;
+
+    const ouverture = payload.ouverture ?? 0;
+    const fermeture = payload.fermeture ?? 0;
+    const high = payload.max ?? Math.max(ouverture, fermeture);
+    const low = payload.min ?? Math.min(ouverture, fermeture);
+
+    const range = candleYMax - candleYMin || 1;
+    const toY = (v) => background.y + background.height * (1 - (v - candleYMin) / range);
+
     const isPositive = fermeture >= ouverture;
     const color = isPositive ? "#10b981" : "#ef4444";
+    const cx = x + width / 2;
 
-    // Position réelle basée sur l'échelle
-    const yScale = props.yAxis;
-    const yOuverture = yScale.scale(ouverture);
-    const yFermeture = yScale.scale(fermeture);
-    const yMax = yScale.scale(max);
-    const yMin = yScale.scale(min);
-
-    const bodyTop = Math.min(yOuverture, yFermeture);
-    const bodyHeight = Math.abs(yOuverture - yFermeture);
-    const bodyX = x + width / 2 - 3;
+    const yOuv = toY(ouverture);
+    const yFer = toY(fermeture);
+    const bodyTop = Math.min(yOuv, yFer);
+    const bodyHeight = Math.max(Math.abs(yOuv - yFer), 2);
 
     return (
       <g>
-        {/* Mèche haute et basse */}
-        <line
-          x1={x + width / 2}
-          y1={yMax}
-          x2={x + width / 2}
-          y2={yMin}
-          stroke={color}
-          strokeWidth={1}
-        />
-        {/* Corps de la bougie */}
-        <rect
-          x={bodyX}
-          y={bodyTop}
-          width={6}
-          height={Math.max(bodyHeight, 2)}
-          fill={color}
-          stroke={color}
-          strokeWidth={1}
-        />
+        <line x1={cx} y1={toY(high)} x2={cx} y2={toY(low)} stroke={color} strokeWidth={1.5} />
+        <rect x={cx - 5} y={bodyTop} width={10} height={bodyHeight} fill={color} rx={1} />
       </g>
     );
   };
@@ -471,7 +467,7 @@ const RevenuView = () => {
               <CardContent>
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={revenus}>
-                    <CartesianGrid strokeDasharray="3 3" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis
                       dataKey="periode"
                       tickFormatter={formatPeriode}
@@ -479,15 +475,13 @@ const RevenuView = () => {
                       textAnchor="end"
                       height={80}
                     />
-                    <YAxis tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+                    <YAxis
+                      domain={[candleYMin, candleYMax]}
+                      tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                    />
                     <Tooltip content={<CustomTooltip />} />
                     <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
-                    <Bar
-                      dataKey="revenu"
-                      shape={<CandleShape />}
-                      fill="#8884d8"
-                      name="Revenu"
-                    />
+                    <Bar dataKey="fermeture" shape={candleShape} isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
 

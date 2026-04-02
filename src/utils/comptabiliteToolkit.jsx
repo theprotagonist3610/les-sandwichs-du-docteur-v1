@@ -72,7 +72,9 @@ export const STATUTS_BUDGET = {
  * @param {string} operationData.operation - Type d'opération (encaissement/depense)
  * @param {string} operationData.compte - Type de compte
  * @param {number} operationData.montant - Montant de l'opération
- * @param {string} operationData.motif - Motif de l'opération
+ * @param {Object} operationData.motif - Motif JSONB
+ *   Encaissement : { motif: string, emplacement: string }
+ *   Dépense      : { motif: string, emplacement: string, quantite: number, unite: string }
  * @param {string} operationData.date_operation - Date de l'opération (ISO format)
  * @returns {Promise<{success: boolean, operation?: Object, error?: string}>}
  */
@@ -93,11 +95,22 @@ export const createOperation = async (operationData) => {
       };
     }
 
-    if (!operationData.motif || operationData.motif.trim() === "") {
-      return {
-        success: false,
-        error: "Le motif est requis",
-      };
+    if (!operationData.motif || typeof operationData.motif !== "object") {
+      return { success: false, error: "Le motif est requis" };
+    }
+    if (!operationData.motif.motif?.trim()) {
+      return { success: false, error: "La description du motif est requise" };
+    }
+    if (!operationData.motif.emplacement?.trim()) {
+      return { success: false, error: "L'emplacement est requis" };
+    }
+    if (operationData.operation === TYPES_OPERATION.DEPENSE) {
+      if (!operationData.motif.quantite || operationData.motif.quantite <= 0) {
+        return { success: false, error: "La quantité est requise pour une dépense" };
+      }
+      if (!operationData.motif.unite?.trim()) {
+        return { success: false, error: "L'unité est requise pour une dépense" };
+      }
     }
 
     // Récupérer l'utilisateur authentifié
@@ -115,7 +128,7 @@ export const createOperation = async (operationData) => {
       operation: operationData.operation,
       compte: operationData.compte,
       montant: parseFloat(operationData.montant),
-      motif: operationData.motif.trim(),
+      motif: operationData.motif,
       date_operation: operationData.date_operation || new Date().toISOString(),
       user_id: user.id,
     };
@@ -175,6 +188,7 @@ export const getOperations = async (options = {}) => {
       startDate,
       endDate,
       searchTerm,
+      emplacement,
       limit = 50,
       offset = 0,
       orderBy = "date_operation",
@@ -215,7 +229,11 @@ export const getOperations = async (options = {}) => {
     }
 
     if (searchTerm) {
-      query = query.ilike("motif", `%${searchTerm}%`);
+      query = query.filter("motif->>motif", "ilike", `%${searchTerm}%`);
+    }
+
+    if (emplacement) {
+      query = query.filter("motif->>emplacement", "eq", emplacement);
     }
 
     // Appliquer tri et pagination
@@ -234,6 +252,34 @@ export const getOperations = async (options = {}) => {
   } catch (error) {
     console.error("Erreur inattendue récupération opérations:", error);
     return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Calculer la somme totale des montants pour un ensemble de filtres
+ * (sans pagination — sélectionne uniquement la colonne montant)
+ */
+export const getSommeOperations = async (options = {}) => {
+  try {
+    const { operation, compte, startDate, endDate, searchTerm, emplacement } = options;
+
+    let query = supabase.from("operations_comptables").select("montant");
+
+    if (operation) query = query.eq("operation", operation);
+    if (compte) query = query.eq("compte", compte);
+    if (startDate) query = query.gte("date_operation", startDate);
+    if (endDate) query = query.lte("date_operation", endDate);
+    if (searchTerm) query = query.filter("motif->>motif", "ilike", `%${searchTerm}%`);
+    if (emplacement) query = query.filter("motif->>emplacement", "eq", emplacement);
+
+    const { data, error } = await query;
+
+    if (error) return { success: false, somme: 0, error: error.message };
+
+    const somme = (data || []).reduce((acc, row) => acc + parseFloat(row.montant || 0), 0);
+    return { success: true, somme };
+  } catch (error) {
+    return { success: false, somme: 0, error: error.message };
   }
 };
 
@@ -304,11 +350,13 @@ export const updateOperation = async (operationId, updates) => {
     }
 
     // Validation du motif si présent
-    if (
-      allowedUpdates.motif !== undefined &&
-      allowedUpdates.motif.trim() === ""
-    ) {
-      return { success: false, error: "Le motif ne peut pas être vide" };
+    if (allowedUpdates.motif !== undefined) {
+      if (
+        typeof allowedUpdates.motif !== "object" ||
+        !allowedUpdates.motif.motif?.trim()
+      ) {
+        return { success: false, error: "Le motif ne peut pas être vide" };
+      }
     }
 
     // Mettre à jour
@@ -661,8 +709,10 @@ export const validateOperation = (operationData) => {
     errors.push("Le montant doit être supérieur à 0");
   }
 
-  if (!operationData.motif || operationData.motif.trim() === "") {
+  if (!operationData.motif || typeof operationData.motif !== "object" || !operationData.motif.motif?.trim()) {
     errors.push("Le motif est requis");
+  } else if (!operationData.motif.emplacement?.trim()) {
+    errors.push("L'emplacement est requis");
   }
 
   if (!operationData.date_operation) {
@@ -697,7 +747,7 @@ export const exportToCSV = (operations) => {
       formatted.operationLabel,
       formatted.compteLabel,
       formatted.montantFormate,
-      op.motif,
+      (() => { try { const m = typeof op.motif === "string" ? JSON.parse(op.motif) : op.motif; return m?.motif ?? op.motif; } catch { return op.motif; } })(),
       formatted.userName,
     ];
   });

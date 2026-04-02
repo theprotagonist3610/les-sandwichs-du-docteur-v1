@@ -23,6 +23,17 @@ import {
 } from "lucide-react";
 import * as comptabiliteToolkit from "@/utils/comptabiliteToolkit";
 
+const parseMotif = (motif) => {
+  if (typeof motif === "object" && motif !== null) return motif;
+  if (typeof motif === "string") {
+    try { return JSON.parse(motif); } catch { return { motif }; }
+  }
+  return {};
+};
+
+const getMotifTexte = (motif) => parseMotif(motif)?.motif ?? motif;
+const getMotifEmplacement = (motif) => parseMotif(motif)?.emplacement ?? null;
+
 /**
  * Vue d'ensemble de la caisse avec soldes et historique 24h
  * 100% Responsive
@@ -400,7 +411,10 @@ const CaisseView = () => {
                           </Badge>
                         </td>
                         <td className="p-4">
-                          <p className="text-sm line-clamp-2">{op.motif}</p>
+                          <p className="text-sm line-clamp-1">{getMotifTexte(op.motif)}</p>
+                          {getMotifEmplacement(op.motif) && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{getMotifEmplacement(op.motif)}</p>
+                          )}
                         </td>
                         <td className="p-4 text-right">
                           <span
@@ -451,7 +465,10 @@ const CaisseView = () => {
                       </Badge>
                     </div>
 
-                    <p className="text-sm text-foreground">{op.motif}</p>
+                    <p className="text-sm text-foreground">{getMotifTexte(op.motif)}</p>
+                    {getMotifEmplacement(op.motif) && (
+                      <p className="text-xs text-muted-foreground">{getMotifEmplacement(op.motif)}</p>
+                    )}
 
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">

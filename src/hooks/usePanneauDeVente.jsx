@@ -100,9 +100,9 @@ export const usePanneauDeVente = () => {
    * Si c'est un menu promo, applique automatiquement le code promo associé
    */
   const addToCart = useCallback(
-    async (menu) => {
-      cart.addItem(menu);
-      toast.success(`${menu.nom} ajouté au panier`);
+    async (menu, quantite = 1) => {
+      cart.addItem(menu, quantite);
+      toast.success(`${menu.nom_court ?? menu.nom} ajouté au panier`);
 
       // Auto-appliquer le code promo si menu promo
       if (menu.is_promo && menu.promotion_id && !cart.promotion) {

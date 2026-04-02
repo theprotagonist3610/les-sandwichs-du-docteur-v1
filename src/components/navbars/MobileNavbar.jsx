@@ -17,6 +17,7 @@ import {
   Wifi,
   WifiOff,
   Calendar,
+  History,
 } from "lucide-react";
 import logo from "@/assets/logo-min.png";
 import { useBorderBeam } from "@/hooks/useBorderBeam";
@@ -50,12 +51,13 @@ const MobileNavbar = () => {
   const allNavLinks = [
     { path: "/", label: "Dashboard", icon: Home },
     { path: "/commandes", label: "Commandes", icon: ShoppingCart },
-    // { path: "/stock", label: "Stock", icon: Package },
+    { path: "/stock", label: "Stock", icon: Package },
     // { path: "/statistiques", label: "Statistiques", icon: BarChart3 },
     { path: "/comptabilite", label: "Comptabilite", icon: Calculator },
     { path: "/outils", label: "Outils", icon: ToolCase },
     { path: "/parametres", label: "Parametres", icon: Settings },
     { path: "/utilisateurs", label: "Utilisateurs", icon: Users },
+    { path: "/back-day", label: "Back-Day", icon: History },
   ];
 
   // Liens accessibles pour les vendeurs uniquement

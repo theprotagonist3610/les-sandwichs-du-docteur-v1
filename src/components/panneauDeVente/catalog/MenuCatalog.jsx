@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
 import CategoryTabs from "./CategoryTabs";
 import MenuCard from "./MenuCard";
+import SandwichPersonnaliseDialog from "./SandwichPersonnaliseDialog";
 import { AnimatePresence, motion } from "framer-motion";
+
+const NOM_SANDWICH_PERSONNALISE = "Sandwich personnalisé";
 
 /**
  * Catalogue complet des menus avec recherche et filtres
@@ -23,15 +27,32 @@ const MenuCatalog = ({
   compact = false,
   className,
 }) => {
+  const [sandwichDialogOpen, setSandwichDialogOpen] = useState(false);
+  const [sandwichMenuSelectionne, setSandwichMenuSelectionne] = useState(null);
+
   // Vérifier si un menu est dans le panier et obtenir sa quantité
   const getCartQuantity = (menuId) => {
     const cartItem = cartItems.find((item) => item.menu.id === menuId);
     return cartItem ? cartItem.quantite : 0;
   };
 
+  const handleMenuClick = (menu) => {
+    if (menu.nom === NOM_SANDWICH_PERSONNALISE) {
+      setSandwichMenuSelectionne(menu);
+      setSandwichDialogOpen(true);
+    } else {
+      onAddToCart(menu);
+    }
+  };
+
+  const handleSandwichConfirm = (fakeMenu, quantite) => {
+    onAddToCart(fakeMenu, quantite);
+  };
+
   // Mode compact (mobile) - Layout fixed indépendant
   if (compact) {
     return (
+      <>
       <div className="fixed inset-0 top-[73px] bottom-0 bg-background flex flex-col">
         {/* Header fixe: recherche + catégories */}
         <div className="flex-shrink-0 px-4 pt-4 pb-2 bg-background">
@@ -90,7 +111,7 @@ const MenuCatalog = ({
                   <MenuCard
                     key={menu.id}
                     menu={menu}
-                    onAdd={onAddToCart}
+                    onAdd={handleMenuClick}
                     isInCart={getCartQuantity(menu.id) > 0}
                     quantityInCart={getCartQuantity(menu.id)}
                     compact={true}
@@ -101,6 +122,16 @@ const MenuCatalog = ({
           )}
         </div>
       </div>
+
+      {sandwichMenuSelectionne && (
+        <SandwichPersonnaliseDialog
+          open={sandwichDialogOpen}
+          onOpenChange={setSandwichDialogOpen}
+          menu={sandwichMenuSelectionne}
+          onConfirm={handleSandwichConfirm}
+        />
+      )}
+      </>
     );
   }
 
@@ -164,7 +195,7 @@ const MenuCatalog = ({
                 <MenuCard
                   key={menu.id}
                   menu={menu}
-                  onAdd={onAddToCart}
+                  onAdd={handleMenuClick}
                   isInCart={getCartQuantity(menu.id) > 0}
                   quantityInCart={getCartQuantity(menu.id)}
                   hideImage={true}
@@ -174,6 +205,15 @@ const MenuCatalog = ({
           </motion.div>
         )}
       </div>
+
+      {sandwichMenuSelectionne && (
+        <SandwichPersonnaliseDialog
+          open={sandwichDialogOpen}
+          onOpenChange={setSandwichDialogOpen}
+          menu={sandwichMenuSelectionne}
+          onConfirm={handleSandwichConfirm}
+        />
+      )}
     </div>
   );
 };

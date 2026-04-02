@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
+import {
   Search,
   Filter,
   TrendingUp,
@@ -27,22 +36,53 @@ import {
   Plus,
   Loader2,
   FileText,
+  MapPin,
 } from "lucide-react";
 import * as comptabiliteToolkit from "@/utils/comptabiliteToolkit";
+import { getAllEmplacements } from "@/utils/emplacementToolkit";
 import EncaissementForm from "./EncaissementForm";
 
+const formatMontant = (montant) =>
+  new Intl.NumberFormat("fr-FR").format(montant) + " FCFA";
+
+const parseMotif = (motif) => {
+  if (typeof motif === "object" && motif !== null) return motif;
+  if (typeof motif === "string") {
+    try { return JSON.parse(motif); } catch { return { motif }; }
+  }
+  return {};
+};
+
+const getMotifTexte = (motif) => parseMotif(motif)?.motif ?? motif;
+const getMotifEmplacement = (motif) => parseMotif(motif)?.emplacement ?? null;
+
+const formatDate = (dateString) =>
+  new Date(dateString).toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+const TooltipChart = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-background border border-border rounded-lg px-3 py-2 shadow text-sm">
+      <p className="font-medium mb-1">{label}</p>
+      <p className="text-emerald-600 font-semibold">{formatMontant(payload[0].value)}</p>
+    </div>
+  );
+};
+
 /**
- * Liste complète des encaissements avec filtres et pagination
- * 100% Responsive
+ * Liste complète des encaissements avec filtres, filtre emplacement et barchart
  */
 const EncaissementsList = () => {
-  // États
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  // Filtres
+  // Filtres texte / compte / dates
   const [filters, setFilters] = useState({
     compte: "",
     searchTerm: "",
@@ -50,43 +90,94 @@ const EncaissementsList = () => {
     endDate: "",
   });
 
+  // Filtre emplacement
+  const [emplacements, setEmplacements] = useState([]);
+  const [filtreEmplacementId, setFiltreEmplacementId] = useState("_all");
+
+  // Chart
+  const [chartData, setChartData] = useState([]);
+  const [loadingChart, setLoadingChart] = useState(false);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const limit = 20;
 
   // Statistiques
-  const [stats, setStats] = useState({
-    totalEncaissements: 0,
-    nombreOperations: 0,
-  });
+  const [stats, setStats] = useState({ totalEncaissements: 0, nombreOperations: 0 });
+
+  // Nom de l'emplacement sélectionné
+  const filtreEmplacementNom = useMemo(
+    () => emplacements.find((e) => e.id === filtreEmplacementId)?.nom ?? null,
+    [emplacements, filtreEmplacementId]
+  );
+
+  // Charger les emplacements au montage
+  useEffect(() => {
+    getAllEmplacements({ statut: "actif" }).then(({ emplacements }) =>
+      setEmplacements(emplacements ?? [])
+    );
+  }, []);
+
+  // Charger les données du graphique quand l'emplacement change
+  useEffect(() => {
+    if (!filtreEmplacementNom) {
+      setChartData([]);
+      return;
+    }
+    setLoadingChart(true);
+    comptabiliteToolkit
+      .getOperations({
+        operation: comptabiliteToolkit.TYPES_OPERATION.ENCAISSEMENT,
+        emplacement: filtreEmplacementNom,
+        limit: 500,
+        offset: 0,
+        orderBy: "date_operation",
+        ascending: true,
+      })
+      .then((result) => {
+        setLoadingChart(false);
+        if (!result.success) return;
+        const grouped = {};
+        result.operations.forEach((op) => {
+          const d = new Date(op.date_operation);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const label = d.toLocaleDateString("fr-FR", { month: "short", year: "numeric" });
+          if (!grouped[key]) grouped[key] = { mois: label, total: 0 };
+          grouped[key].total += parseFloat(op.montant);
+        });
+        setChartData(Object.values(grouped));
+      });
+  }, [filtreEmplacementNom]);
 
   // Charger les opérations
-  const fetchOperations = async () => {
+  const fetchOperations = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await comptabiliteToolkit.getOperations({
+      const filterParams = {
         operation: comptabiliteToolkit.TYPES_OPERATION.ENCAISSEMENT,
         compte: filters.compte || undefined,
         searchTerm: filters.searchTerm || undefined,
+        emplacement: filtreEmplacementNom || undefined,
         startDate: filters.startDate || undefined,
         endDate: filters.endDate || undefined,
-        limit,
-        offset: (currentPage - 1) * limit,
-        orderBy: "date_operation",
-        ascending: false,
-      });
+      };
+
+      const [result, sommeResult] = await Promise.all([
+        comptabiliteToolkit.getOperations({
+          ...filterParams,
+          limit,
+          offset: (currentPage - 1) * limit,
+          orderBy: "date_operation",
+          ascending: false,
+        }),
+        comptabiliteToolkit.getSommeOperations(filterParams),
+      ]);
 
       if (result.success) {
         setOperations(result.operations);
         setTotal(result.total);
-
-        // Calculer les stats
-        const totalEnc = result.operations.reduce(
-          (sum, op) => sum + parseFloat(op.montant),
-          0
-        );
         setStats({
-          totalEncaissements: totalEnc,
+          totalEncaissements: sommeResult.somme,
           nombreOperations: result.total,
         });
       }
@@ -95,69 +186,44 @@ const EncaissementsList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, filtreEmplacementNom, currentPage]);
 
-  // Charger au montage et quand les filtres changent
   useEffect(() => {
     fetchOperations();
-  }, [currentPage, filters]);
+  }, [fetchOperations]);
 
   // Réinitialiser à la page 1 quand les filtres changent
   useEffect(() => {
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  }, [filters.compte, filters.searchTerm, filters.startDate, filters.endDate]);
+    if (currentPage !== 1) setCurrentPage(1);
+  }, [filters.compte, filters.searchTerm, filters.startDate, filters.endDate, filtreEmplacementId]);
 
-  // Calculer le nombre de pages
-  const totalPages = useMemo(() => {
-    return Math.ceil(total / limit);
-  }, [total, limit]);
+  const totalPages = useMemo(() => Math.ceil(total / limit), [total]);
 
-  // Gérer le changement de filtre
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Réinitialiser les filtres
   const resetFilters = () => {
-    setFilters({
-      compte: "",
-      searchTerm: "",
-      startDate: "",
-      endDate: "",
-    });
+    setFilters({ compte: "", searchTerm: "", startDate: "", endDate: "" });
+    setFiltreEmplacementId("_all");
   };
 
-  // Gérer le succès d'ajout
   const handleAddSuccess = () => {
     setShowAddDialog(false);
-    fetchOperations(); // Recharger la liste
+    fetchOperations();
   };
 
-  // Formater un montant
-  const formatMontant = (montant) => {
-    return new Intl.NumberFormat("fr-FR").format(montant) + " FCFA";
-  };
-
-  // Formater une date
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
+  const hasActiveFilters =
+    filters.compte || filters.searchTerm || filters.startDate || filters.endDate ||
+    filtreEmplacementId !== "_all";
 
   return (
     <div className="space-y-4">
-      {/* Header avec bouton d'ajout */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Encaissements</h2>
-          <p className="text-sm text-muted-foreground">
-            Gérer et consulter les encaissements
-          </p>
+          <p className="text-sm text-muted-foreground">Gérer et consulter les encaissements</p>
         </div>
         <Button onClick={() => setShowAddDialog(true)} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
@@ -170,7 +236,7 @@ const EncaissementsList = () => {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total encaissé
+              Total encaissé{filtreEmplacementNom ? ` · ${filtreEmplacementNom}` : ""}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -182,7 +248,6 @@ const EncaissementsList = () => {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -206,23 +271,34 @@ const EncaissementsList = () => {
             Filtres
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Recherche */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher un motif..."
-                value={filters.searchTerm}
-                onChange={(e) => handleFilterChange("searchTerm", e.target.value)}
-                className="pl-9"
-              />
-            </div>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Emplacement */}
+            {emplacements.length > 0 && (
+              <Select value={filtreEmplacementId} onValueChange={setFiltreEmplacementId}>
+                <SelectTrigger>
+                  <div className="flex items-center gap-2 truncate">
+                    <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Tous les emplacements" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">Tous les emplacements</SelectItem>
+                  {emplacements.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             {/* Compte */}
             <Select
               value={filters.compte || "tous"}
-              onValueChange={(value) => handleFilterChange("compte", value === "tous" ? "" : value)}>
+              onValueChange={(value) =>
+                handleFilterChange("compte", value === "tous" ? "" : value)
+              }>
               <SelectTrigger>
                 <SelectValue placeholder="Tous les comptes" />
               </SelectTrigger>
@@ -236,10 +312,20 @@ const EncaissementsList = () => {
               </SelectContent>
             </Select>
 
+            {/* Recherche */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher un motif..."
+                value={filters.searchTerm}
+                onChange={(e) => handleFilterChange("searchTerm", e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
             {/* Date début */}
             <Input
               type="date"
-              placeholder="Date début"
               value={filters.startDate}
               onChange={(e) => handleFilterChange("startDate", e.target.value)}
             />
@@ -247,22 +333,62 @@ const EncaissementsList = () => {
             {/* Date fin */}
             <Input
               type="date"
-              placeholder="Date fin"
               value={filters.endDate}
               onChange={(e) => handleFilterChange("endDate", e.target.value)}
             />
           </div>
 
-          {/* Bouton réinitialiser */}
-          {(filters.compte || filters.searchTerm || filters.startDate || filters.endDate) && (
-            <div className="mt-4">
-              <Button variant="outline" size="sm" onClick={resetFilters}>
-                Réinitialiser les filtres
-              </Button>
-            </div>
+          {hasActiveFilters && (
+            <Button variant="outline" size="sm" onClick={resetFilters}>
+              Réinitialiser les filtres
+            </Button>
           )}
         </CardContent>
       </Card>
+
+      {/* BarChart emplacement */}
+      {filtreEmplacementNom && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-emerald-600" />
+              Encaissements par mois · {filtreEmplacementNom}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingChart ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : chartData.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Aucune donnée pour cet emplacement
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="mois"
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => new Intl.NumberFormat("fr-FR", { notation: "compact" }).format(v)}
+                    width={55}
+                  />
+                  <Tooltip content={<TooltipChart />} />
+                  <Bar dataKey="total" fill="#059669" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Liste des opérations */}
       <Card>
@@ -316,7 +442,10 @@ const EncaissementsList = () => {
                           </div>
                         </td>
                         <td className="p-4">
-                          <p className="text-sm line-clamp-2">{op.motif}</p>
+                          <p className="text-sm line-clamp-1">{getMotifTexte(op.motif)}</p>
+                          {getMotifEmplacement(op.motif) && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{getMotifEmplacement(op.motif)}</p>
+                          )}
                         </td>
                         <td className="p-4 text-right">
                           <span className="font-semibold text-emerald-600">
@@ -349,9 +478,10 @@ const EncaissementsList = () => {
                         {comptabiliteToolkit.COMPTE_LABELS[op.compte] || op.compte}
                       </Badge>
                     </div>
-
-                    <p className="text-sm text-foreground">{op.motif}</p>
-
+                    <p className="text-sm text-foreground">{getMotifTexte(op.motif)}</p>
+                    {getMotifEmplacement(op.motif) && (
+                      <p className="text-xs text-muted-foreground">{getMotifEmplacement(op.motif)}</p>
+                    )}
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />

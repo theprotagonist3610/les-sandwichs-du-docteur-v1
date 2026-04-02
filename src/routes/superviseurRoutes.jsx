@@ -31,6 +31,7 @@ import Budget from "../pages/comptabilite/Budget";
 import Prevision from "../pages/comptabilite/Prevision";
 import Caisse from "../pages/comptabilite/Caisse";
 import Revenu from "../pages/comptabilite/Revenu";
+import BackDay from "@/pages/BackDay";
 /**
  * Routes accessibles par les superviseurs et admins
  * Accès: Toutes les sections (Dashboard, Commandes, Stock, Statistiques, Comptabilite, Parametres, Utilisateurs)
@@ -127,6 +128,7 @@ export const superviseurRoutes = {
     { path: "rapports", element: <Rapports /> },
     { path: "emplacements", element: <Emplacements /> },
     { path: "menu", element: <Menu /> },
+    { path: "back-day", element: <BackDay /> },
     {
       path: "profil",
       element: <Profil />,
