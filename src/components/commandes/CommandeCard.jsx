@@ -141,6 +141,17 @@ const CommandeCard = ({
     });
   };
 
+  const formatDate = () => {
+    if (!commande.created_at) return null;
+    const date = new Date(commande.created_at);
+    return date.toLocaleDateString("fr-FR", {
+      weekday: "short",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).replace(/^\w/, (c) => c.toUpperCase());
+  };
+
   // ============================================================================
   // RENDU VUE LISTE MOBILE
   // ============================================================================
@@ -175,6 +186,9 @@ const CommandeCard = ({
               <div className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                 <Clock className="w-2.5 h-2.5" />
                 {formatDateTime()}
+              </div>
+              <div className="font-mono text-[9px] text-muted-foreground/70">
+                {formatDate()}
               </div>
             </div>
           </div>
@@ -286,6 +300,9 @@ const CommandeCard = ({
               <div className="text-xs text-muted-foreground flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 {formatDateTime()}
+                <span className="font-mono text-[10px] text-muted-foreground/70">
+                  {formatDate()}
+                </span>
               </div>
             </div>
           </div>
@@ -449,10 +466,15 @@ const CommandeCard = ({
             <span className="font-semibold text-sm truncate flex-1">
               {commande.client}
             </span>
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {formatDateTime()}
-            </span>
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {formatDateTime()}
+              </span>
+              <span className="font-mono text-[9px] text-muted-foreground/70">
+                {formatDate()}
+              </span>
+            </div>
           </div>
 
           {/* Ligne 2: Contact + Lieu */}
