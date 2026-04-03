@@ -75,7 +75,7 @@ const buildChartData = (periodes, volAnalysis, coutAnalysis, horizon) => {
 
 // ─── Alertes ─────────────────────────────────────────────────────────────────
 
-const buildAlertes = (vol, cout, rendementMoyen, schemas, horizon) => {
+const buildAlertes = (vol, cout, rendementMoyen, schemas, cyclesDashboard, horizon) => {
   const alertes = [];
 
   // Volume en baisse
@@ -133,6 +133,60 @@ const buildAlertes = (vol, cout, rendementMoyen, schemas, horizon) => {
     });
   }
 
+  // ── Alertes cycles ──────────────────────────────────────────────────────────
+
+  if (Array.isArray(cyclesDashboard) && cyclesDashboard.length > 0) {
+    // Schémas par_conservation sans lot actif (rupture de stock)
+    const sansStock = cyclesDashboard.filter(
+      (c) => c.schema?.mode_production === "par_conservation" && !c.etat?.lot
+    );
+    if (sansStock.length > 0) {
+      const noms = sansStock.map((c) => c.schema.nom).join(", ");
+      alertes.push({
+        id:      "conservation_rupture_stock",
+        niveau:  "critique",
+        message: `Rupture de stock conservé : ${noms}. Aucun lot actif en stock — production immédiate requise.`,
+      });
+    }
+
+    // Schémas cycliques sous le seuil de relance
+    const sousSeuilRelance = cyclesDashboard.filter(
+      (c) => c.schema?.mode_production === "cyclique" &&
+             c.etat?.raison?.includes("seuil")
+    );
+    if (sousSeuilRelance.length > 0) {
+      const noms = sousSeuilRelance.map((c) => c.schema.nom).join(", ");
+      alertes.push({
+        id:      "cyclique_seuil_relance",
+        niveau:  "critique",
+        message: `Seuil de relance atteint sur : ${noms}. Relancez la production pour éviter une rupture.`,
+      });
+    }
+
+    // Schémas cycliques dont le cycle est dépassé (mais stock ok)
+    const cycleDepasse = cyclesDashboard.filter(
+      (c) => c.schema?.mode_production === "cyclique" &&
+             c.etat?.raison?.includes("Cycle dépassé")
+    );
+    if (cycleDepasse.length > 0) {
+      const noms = cycleDepasse.map((c) => c.schema.nom).join(", ");
+      alertes.push({
+        id:      "cyclique_cycle_depasse",
+        niveau:  "haute",
+        message: `Cycle de production dépassé sur : ${noms}. Planifiez une nouvelle production pour maintenir la cadence.`,
+      });
+    }
+
+    // Résumé global si plusieurs types de relance
+    if (cyclesDashboard.length > 1) {
+      alertes.push({
+        id:      "cycles_relance_multiple",
+        niveau:  "info",
+        message: `${cyclesDashboard.length} schéma(s) nécessitent une relance de production. Consultez le tableau de bord des cycles ci-dessus.`,
+      });
+    }
+  }
+
   // Projection
   const countF = vol.forecast[0];
   const coutF  = cout.forecast[0];
@@ -154,16 +208,17 @@ const buildAlertes = (vol, cout, rendementMoyen, schemas, horizon) => {
  * @param {Array<{ label, count, coutTotal, isCurrent }>} periodes
  * @param {Array} schemas — agrégat par schéma (pour les alertes rendement/dépassement)
  * @param {number} rendementMoyen — taux de rendement moyen global
+ * @param {Array} cyclesDashboard — schémas cycliques/conservation nécessitant relance
  * @param {string} horizon — HORIZONS.*
  */
-export const analyzeProduction = (periodes, schemas, rendementMoyen, horizon) => {
+export const analyzeProduction = (periodes, schemas, rendementMoyen, cyclesDashboard, horizon) => {
   const counts = periodes.map((p) => p.count);
   const couts  = periodes.map((p) => p.coutTotal);
 
   const volAnalysis  = analyzeSerie(counts, horizon);
   const coutAnalysis = analyzeSerie(couts,  horizon);
 
-  const alertes   = buildAlertes(volAnalysis, coutAnalysis, rendementMoyen, schemas, horizon);
+  const alertes   = buildAlertes(volAnalysis, coutAnalysis, rendementMoyen, schemas, cyclesDashboard, horizon);
   const chartData = buildChartData(periodes, volAnalysis, coutAnalysis, horizon);
 
   return {

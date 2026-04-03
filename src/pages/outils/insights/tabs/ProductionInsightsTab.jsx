@@ -14,6 +14,7 @@ import ProductionVolumeChart    from "./production/ProductionVolumeChart";
 import ProductionSchemasChart   from "./production/ProductionSchemasChart";
 import ProductionRendementChart from "./production/ProductionRendementChart";
 import ProductionCoutsChart     from "./production/ProductionCoutsChart";
+import ProductionCyclesPanel    from "./production/ProductionCyclesPanel";
 import ProductionInsightsAlerts from "./production/ProductionInsightsAlerts";
 import { AlertTriangle, Factory } from "lucide-react";
 import { HORIZON_LABELS } from "@/utils/insightsToolkit/engine/insightTypes";
@@ -26,10 +27,11 @@ const Skeleton = ({ h = "h-24" }) => (
 
 const LoadingSkeleton = () => (
   <div className="flex flex-col gap-4">
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <Skeleton h="h-28" /><Skeleton h="h-28" /><Skeleton h="h-28" />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <Skeleton h="h-28" /><Skeleton h="h-28" /><Skeleton h="h-28" /><Skeleton h="h-28" />
     </div>
     <Skeleton h="h-52" />
+    <Skeleton h="h-40" />
     <Skeleton h="h-64" />
     <Skeleton h="h-48" />
     <Skeleton h="h-64" />
@@ -79,6 +81,9 @@ const ProductionInsightsTab = ({ horizon, refreshKey }) => {
 
       {/* Graphique 1 : Volume & Coût */}
       <ProductionVolumeChart analysis={analysis} isMobile={isMobile} />
+
+      {/* Panel cycles temps réel */}
+      <ProductionCyclesPanel cyclesDashboard={analysis.cyclesDashboard ?? []} />
 
       {/* Graphique 2 : Ranking schémas */}
       <ProductionSchemasChart schemas={analysis.schemas} />

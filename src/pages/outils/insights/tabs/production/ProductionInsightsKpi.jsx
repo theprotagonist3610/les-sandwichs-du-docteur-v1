@@ -7,7 +7,7 @@
  *  - Badge sémantique : vert/bleu/rouge selon tendance + sens
  */
 
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
 import { TENDANCES, TENDANCE_LABELS } from "@/utils/insightsToolkit/production/ProductionInsightsEngine";
 import { HORIZONS } from "@/utils/insightsToolkit/engine/insightTypes";
 import { cn } from "@/lib/utils";
@@ -122,23 +122,82 @@ const KpiCard = ({ widgetKey, serie, horizon, hausseBonne, overrideValue, overri
   );
 };
 
+// ─── Carte cycles (spéciale, pas de série temporelle) ─────────────────────────
+
+const CyclesKpiCard = ({ nbCyclesAlerte, nbCyclesTotal }) => {
+  const aucune   = nbCyclesAlerte === 0;
+  const bg       = aucune ? "bg-muted/40" : "bg-amber-50 dark:bg-amber-950";
+  const border   = aucune
+    ? "border-l-4 border-l-muted border-t border-r border-b border-border"
+    : "border-l-4 border-l-amber-500 border-t border-r border-b border-border";
+  const valColor = aucune ? "text-muted-foreground" : "text-amber-700 dark:text-amber-300";
+  const badgeCls = aucune
+    ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+    : "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300";
+
+  return (
+    <div className={cn("rounded-xl p-4 flex flex-col gap-3", bg, border)}>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Cycles à surveiller
+        </span>
+        <span className={cn("inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full", badgeCls)}>
+          <RefreshCw className="w-3 h-3" />
+          {aucune ? "Tout OK" : "Relance requise"}
+        </span>
+      </div>
+
+      <div>
+        <p className={cn("text-2xl font-bold tracking-tight", valColor)}>
+          {nbCyclesAlerte}
+          <span className="text-sm font-normal ml-1">schéma{nbCyclesAlerte > 1 ? "s" : ""}</span>
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {nbCyclesTotal > 0
+            ? `sur ${nbCyclesTotal} schéma${nbCyclesTotal > 1 ? "s" : ""} conservation/cyclique`
+            : "Aucun schéma cyclique configuré"}
+        </p>
+      </div>
+
+      <div className="pt-1 border-t border-black/5 dark:border-white/10">
+        <p className="text-xs text-muted-foreground">
+          {aucune
+            ? "Tous les lots actifs sont suffisants."
+            : "Consultez le tableau de bord des cycles."}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 const ProductionInsightsKpi = ({ analysis, horizon }) => {
   if (!analysis) return null;
 
+  const nbCyclesTotal = (analysis.schemas ?? []).filter(
+    (s) => s.mode_production === "par_conservation" || s.mode_production === "cyclique"
+  ).length;
+  const hasCycles = nbCyclesTotal > 0 || (analysis.nbCyclesAlerte ?? 0) > 0;
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className={cn("grid gap-3", hasCycles ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-3")}>
       <KpiCard widgetKey="volume"    serie={analysis.volume} horizon={horizon} hausseBonne={true}  />
       <KpiCard widgetKey="cout"      serie={analysis.cout}   horizon={horizon} hausseBonne={false} />
       <KpiCard
         widgetKey="rendement"
-        serie={analysis.volume} /* tendance basée sur le volume, rendement est une valeur globale */
+        serie={analysis.volume}
         horizon={horizon}
         hausseBonne={true}
         overrideValue={analysis.rendementMoyen}
         overrideLabel="Rendement global période"
       />
+      {hasCycles && (
+        <CyclesKpiCard
+          nbCyclesAlerte={analysis.nbCyclesAlerte ?? 0}
+          nbCyclesTotal={nbCyclesTotal}
+        />
+      )}
     </div>
   );
 };

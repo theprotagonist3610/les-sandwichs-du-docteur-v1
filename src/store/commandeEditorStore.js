@@ -1,6 +1,38 @@
 import { create } from "zustand";
 import * as commandeToolkit from "@/utils/commandeToolkit";
 
+// ─── Helper : recalcul automatique des totaux ─────────────────────────────────
+// Appelé après chaque modification des items (add/remove/updateQuantity)
+// Met à jour montant_total + details_paiement.total + details_paiement.total_apres_reduction
+
+const recalculerTotaux = (details_commandes, details_paiement, promotion, frais_livraison) => {
+  const sousTotal = (details_commandes || []).reduce(
+    (sum, item) => sum + (item.total ?? item.quantite * item.prix_unitaire),
+    0
+  );
+
+  const frais = frais_livraison || 0;
+  const totalAvecFrais = sousTotal + frais;
+
+  let reduction = 0;
+  if (promotion) {
+    if (promotion.type === "pourcentage") {
+      reduction = (totalAvecFrais * promotion.valeur) / 100;
+    } else {
+      reduction = promotion.valeur || 0;
+    }
+  }
+
+  return {
+    montant_total: sousTotal,
+    details_paiement: {
+      ...details_paiement,
+      total:                 sousTotal,
+      total_apres_reduction: Math.max(0, totalAvecFrais - reduction),
+    },
+  };
+};
+
 /**
  * Store Zustand pour l'édition d'une commande existante
  *
@@ -257,10 +289,18 @@ const useCommandeEditorStore = create((set, get) => ({
       ];
     }
 
+    const totaux = recalculerTotaux(
+      newDetails,
+      state.commande.details_paiement,
+      state.commande.promotion,
+      state.commande.frais_livraison,
+    );
+
     set({
       commande: {
         ...state.commande,
         details_commandes: newDetails,
+        ...totaux,
       },
       isDirty: true,
     });
@@ -280,10 +320,18 @@ const useCommandeEditorStore = create((set, get) => ({
       (_, i) => i !== index
     );
 
+    const totaux = recalculerTotaux(
+      newDetails,
+      state.commande.details_paiement,
+      state.commande.promotion,
+      state.commande.frais_livraison,
+    );
+
     set({
       commande: {
         ...state.commande,
         details_commandes: newDetails,
+        ...totaux,
       },
       isDirty: true,
     });
@@ -315,10 +363,18 @@ const useCommandeEditorStore = create((set, get) => ({
         : item
     );
 
+    const totaux = recalculerTotaux(
+      newDetails,
+      state.commande.details_paiement,
+      state.commande.promotion,
+      state.commande.frais_livraison,
+    );
+
     set({
       commande: {
         ...state.commande,
         details_commandes: newDetails,
+        ...totaux,
       },
       isDirty: true,
     });

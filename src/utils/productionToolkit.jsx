@@ -48,6 +48,7 @@
 
 import { supabase } from "@/config/supabase";
 import { isSupervisorOrAdmin, ROLES } from "@/utils/permissions";
+import { getLots } from "@/utils/stockToolkit";
 
 // ============================================================================
 // CONSTANTES
@@ -107,6 +108,18 @@ export const UNITES_LABELS = {
   [UNITES.TRANCHE]: "Tranche",
   [UNITES.SACHET]: "Sachet",
   [UNITES.BOITE]: "Boîte",
+};
+
+export const MODES_PRODUCTION = {
+  A_LA_DEMANDE:     "a_la_demande",
+  PAR_CONSERVATION: "par_conservation",
+  CYCLIQUE:         "cyclique",
+};
+
+export const MODES_PRODUCTION_LABELS = {
+  [MODES_PRODUCTION.A_LA_DEMANDE]:     "À la demande",
+  [MODES_PRODUCTION.PAR_CONSERVATION]: "Par conservation (batch)",
+  [MODES_PRODUCTION.CYCLIQUE]:         "Cyclique (relance auto)",
 };
 
 // ============================================================================
@@ -199,6 +212,24 @@ export const validateSchema = (schemaData) => {
       !schemaData.rendement_estime.unite)
   ) {
     errors.push("Le rendement estimé est invalide.");
+  }
+
+  // Validation mode de production
+  const modeValide = Object.values(MODES_PRODUCTION);
+  if (schemaData.mode_production && !modeValide.includes(schemaData.mode_production)) {
+    errors.push("Le mode de production est invalide.");
+  }
+
+  if (schemaData.mode_production === MODES_PRODUCTION.CYCLIQUE) {
+    if (!schemaData.cycle_jours || parseInt(schemaData.cycle_jours) <= 0) {
+      errors.push("Le mode cyclique requiert une durée de cycle en jours (> 0).");
+    }
+    if (
+      schemaData.seuil_relance &&
+      (!schemaData.seuil_relance.quantite || parseFloat(schemaData.seuil_relance.quantite) <= 0)
+    ) {
+      errors.push("Le seuil de relance doit avoir une quantité > 0.");
+    }
   }
 
   return { valid: errors.length === 0, errors };
@@ -309,6 +340,10 @@ export const initProductionFromSchema = (schema) => {
       cout_unitaire: 0,
       cout_total: 0,
     })),
+    // Métadonnées du mode de production (lecture seule — héritées du schéma)
+    _mode_production: schema.mode_production || MODES_PRODUCTION.A_LA_DEMANDE,
+    _cycle_jours:     schema.cycle_jours     || null,
+    _seuil_relance:   schema.seuil_relance   || null,
   };
 };
 
@@ -364,6 +399,14 @@ export const createSchema = async (schemaData, userRole) => {
       notes: schemaData.notes?.trim() || null,
       actif: true,
       created_by: user.id,
+      mode_production: schemaData.mode_production || MODES_PRODUCTION.A_LA_DEMANDE,
+      cycle_jours: schemaData.cycle_jours ? parseInt(schemaData.cycle_jours) : null,
+      seuil_relance: schemaData.seuil_relance
+        ? {
+            quantite: parseFloat(schemaData.seuil_relance.quantite),
+            unite:    schemaData.seuil_relance.unite || "",
+          }
+        : null,
     };
 
     const { data, error } = await supabase
@@ -468,6 +511,15 @@ export const updateSchema = async (schemaId, updates, userRole) => {
     if (payload.notes) payload.notes = payload.notes.trim();
     if (payload.ingredient_principal?.nom)
       payload.ingredient_principal.nom = payload.ingredient_principal.nom.trim();
+
+    // Nettoyage des champs de mode production
+    if (payload.cycle_jours !== undefined && payload.cycle_jours !== null)
+      payload.cycle_jours = parseInt(payload.cycle_jours);
+    if (payload.seuil_relance?.quantite !== undefined)
+      payload.seuil_relance = {
+        quantite: parseFloat(payload.seuil_relance.quantite),
+        unite:    payload.seuil_relance.unite || "",
+      };
 
     const { data, error } = await supabase
       .from("production_schemas")
@@ -1161,6 +1213,208 @@ export const getDashboardProductions = async (options = {}) => {
     };
   } catch (error) {
     console.error("Exception getDashboardProductions:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ============================================================================
+// GESTION DES CYCLES DE PRODUCTION
+// ============================================================================
+
+/**
+ * Récupérer le lot actif (disponible / partiellement vendu, non périmé)
+ * issu d'un schéma de production donné.
+ * Retourne le lot le plus récent ou null si aucun.
+ *
+ * @param {string} schemaId
+ * @returns {Promise<{ success: boolean, lot?: Object|null, error?: string }>}
+ */
+export const getBatchActif = async (schemaId) => {
+  try {
+    const result = await getLots({
+      schemaId,
+      includeEpuise: false,
+      includePerime: false,
+      limit: 1,
+    });
+
+    if (!result.success) return { success: false, error: result.error };
+
+    const lot = result.lots?.[0] ?? null;
+    return { success: true, lot };
+  } catch (error) {
+    console.error("Exception getBatchActif:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Détecter si un schéma nécessite une relance de production.
+ *
+ * Logique par mode :
+ *  - a_la_demande    : jamais de relance automatique → false
+ *  - par_conservation: relance si aucun lot actif (épuisé ou périmé)
+ *  - cyclique        : relance si lot actif en dessous du seuil_relance,
+ *                      ou si aucun lot actif, ou si le cycle est dépassé.
+ *
+ * @param {string} schemaId
+ * @param {Object} schema - production_schema (avec mode_production, cycle_jours, seuil_relance)
+ * @returns {Promise<{ success: boolean, besoinRelance: boolean, raison?: string, error?: string }>}
+ */
+export const detecterBesoinRelance = async (schemaId, schema) => {
+  try {
+    const mode = schema?.mode_production || MODES_PRODUCTION.A_LA_DEMANDE;
+
+    if (mode === MODES_PRODUCTION.A_LA_DEMANDE) {
+      return { success: true, besoinRelance: false };
+    }
+
+    const { success, lot, error } = await getBatchActif(schemaId);
+    if (!success) return { success: false, error };
+
+    if (mode === MODES_PRODUCTION.PAR_CONSERVATION) {
+      if (!lot) {
+        return { success: true, besoinRelance: true, raison: "Aucun lot actif en stock." };
+      }
+      return { success: true, besoinRelance: false };
+    }
+
+    if (mode === MODES_PRODUCTION.CYCLIQUE) {
+      // Pas de lot actif
+      if (!lot) {
+        return { success: true, besoinRelance: true, raison: "Aucun lot actif en stock." };
+      }
+
+      // Vérification seuil_relance
+      const seuil = schema.seuil_relance;
+      if (seuil?.quantite > 0) {
+        const qteDispo = parseFloat(lot.quantite_disponible ?? 0);
+        if (qteDispo <= parseFloat(seuil.quantite)) {
+          return {
+            success: true,
+            besoinRelance: true,
+            raison: `Stock (${qteDispo} ${seuil.unite}) ≤ seuil de relance (${seuil.quantite} ${seuil.unite}).`,
+          };
+        }
+      }
+
+      // Vérification cycle_jours : la dernière production date de plus de cycle_jours
+      if (schema.cycle_jours > 0 && lot.date_production) {
+        const derniereProduction = new Date(lot.date_production);
+        const maintenant = new Date();
+        const joursEcoules = Math.floor(
+          (maintenant - derniereProduction) / (1000 * 60 * 60 * 24)
+        );
+        if (joursEcoules >= schema.cycle_jours) {
+          return {
+            success: true,
+            besoinRelance: true,
+            raison: `Cycle dépassé : ${joursEcoules}j depuis la dernière production (cycle = ${schema.cycle_jours}j).`,
+          };
+        }
+      }
+
+      return { success: true, besoinRelance: false };
+    }
+
+    return { success: true, besoinRelance: false };
+  } catch (error) {
+    console.error("Exception detecterBesoinRelance:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Récupérer l'état complet du cycle pour un schéma donné.
+ * Agrège lot actif, besoin de relance et métriques utiles pour l'UI.
+ *
+ * @param {string} schemaId
+ * @param {Object} schema - production_schema
+ * @returns {Promise<{
+ *   success: boolean,
+ *   etat?: {
+ *     lot: Object|null,
+ *     quantite_disponible: number,
+ *     jours_avant_peremption: number|null,
+ *     besoinRelance: boolean,
+ *     raison: string|null,
+ *     mode_production: string,
+ *   },
+ *   error?: string
+ * }>}
+ */
+export const getEtatCycleSchema = async (schemaId, schema) => {
+  try {
+    const [batchResult, relanceResult] = await Promise.all([
+      getBatchActif(schemaId),
+      detecterBesoinRelance(schemaId, schema),
+    ]);
+
+    if (!batchResult.success) return { success: false, error: batchResult.error };
+    if (!relanceResult.success) return { success: false, error: relanceResult.error };
+
+    const lot = batchResult.lot;
+    return {
+      success: true,
+      etat: {
+        lot,
+        quantite_disponible:    parseFloat(lot?.quantite_disponible ?? 0),
+        jours_avant_peremption: lot?.jours_avant_peremption ?? null,
+        besoinRelance:          relanceResult.besoinRelance,
+        raison:                 relanceResult.raison ?? null,
+        mode_production:        schema?.mode_production || MODES_PRODUCTION.A_LA_DEMANDE,
+      },
+    };
+  } catch (error) {
+    console.error("Exception getEtatCycleSchema:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Récupérer tous les schémas cycliques / par conservation qui nécessitent une relance.
+ * Utile pour un tableau de bord des alertes de production.
+ *
+ * @param {string} userRole - Pour filtrer selon les permissions
+ * @returns {Promise<{
+ *   success: boolean,
+ *   schemas?: Array<{ schema: Object, etat: Object }>,
+ *   error?: string
+ * }>}
+ */
+export const getSchemasCycliquesARelancer = async () => {
+  try {
+    // Récupérer uniquement les schémas avec un mode non "a_la_demande"
+    const { data, error } = await supabase
+      .from("production_schemas")
+      .select("*")
+      .eq("actif", true)
+      .in("mode_production", [
+        MODES_PRODUCTION.PAR_CONSERVATION,
+        MODES_PRODUCTION.CYCLIQUE,
+      ])
+      .order("nom", { ascending: true });
+
+    if (error) return { success: false, error: error.message };
+
+    const schemas = data || [];
+
+    // Évaluer le besoin de relance en parallèle
+    const resultats = await Promise.all(
+      schemas.map(async (schema) => {
+        const etatResult = await getEtatCycleSchema(schema.id, schema);
+        if (!etatResult.success) return null;
+        return { schema, etat: etatResult.etat };
+      })
+    );
+
+    // Ne garder que ceux qui nécessitent une relance
+    const aRelancer = resultats
+      .filter((r) => r !== null && r.etat.besoinRelance);
+
+    return { success: true, schemas: aRelancer };
+  } catch (error) {
+    console.error("Exception getSchemasCycliquesARelancer:", error);
     return { success: false, error: error.message };
   }
 };

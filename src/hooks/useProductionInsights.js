@@ -3,19 +3,23 @@
  * Hook React pour les insights production.
  *
  * Requête directe Supabase (date_production range) → agrégations locales → analyzeProduction.
+ * Appel parallèle à getSchemasCycliquesARelancer pour l'état temps réel des cycles.
  *
  * Retourne : { analysis, loading, error }
  * analysis = {
  *   periodes, volume, cout, alertes, chartData,   ← depuis analyzeProduction
- *   schemas,     ← [{ nomSchema, categorie, count, coutTotal, coutUnitaireMoyen, rendementMoyen, ecartCoutTotal }]
- *   coutsChart,  ← [{ label, [schema]: coutTotal }] pour linechart interactif
+ *   schemas,        ← [{ nomSchema, categorie, mode_production, count, coutTotal, ... }]
+ *   coutsChart,     ← [{ label, [schema]: coutTotal }]
  *   rendementMoyen, ← taux global
+ *   cyclesDashboard,← [{ schema, etat }] depuis getSchemasCycliquesARelancer
+ *   nbCyclesAlerte, ← count besoinRelance=true
  * }
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/config/supabase";
 import { analyzeProduction } from "@/utils/insightsToolkit/production/ProductionInsightsEngine";
+import { getSchemasCycliquesARelancer } from "@/utils/productionToolkit";
 import { HORIZONS } from "@/utils/insightsToolkit/engine/insightTypes";
 
 // ─── Helpers date ─────────────────────────────────────────────────────────────
@@ -97,8 +101,8 @@ const getWindowConfig = (horizon) => {
 // ─── Agrégations locales ──────────────────────────────────────────────────────
 
 const buildAggregations = (productions, groupFn, labelFn, isCurrentFn) => {
-  const periodesMap = new Map(); // periodKey → { count, coutTotal, rendementSum, rendementN }
-  const schemasMap  = new Map(); // nomSchema → { categorie, count, coutTotal, coutUnitaireSum, rendementSum, rendementN, ecartCoutTotal }
+  const periodesMap = new Map(); // periodKey → { count, coutTotal }
+  const schemasMap  = new Map(); // nomSchema → { ...stats, mode_production, cycle_jours, seuil_relance }
   const coutsMap    = new Map(); // nomSchema → Map(periodKey → coutTotal)
   const allKeys     = new Set();
 
@@ -109,6 +113,9 @@ const buildAggregations = (productions, groupFn, labelFn, isCurrentFn) => {
     const key       = groupFn(dateStr);
     const nomSchema = prod.schema?.nom ?? prod.nom ?? "Inconnu";
     const categorie = prod.schema?.categorie ?? "autre";
+    const mode      = prod.schema?.mode_production ?? "a_la_demande";
+    const cycleJ    = prod.schema?.cycle_jours ?? null;
+    const seuil     = prod.schema?.seuil_relance ?? null;
     const cout      = prod.cout_total ?? 0;
     const coutU     = prod.cout_unitaire ?? 0;
     const rendt     = prod.taux_rendement;
@@ -117,19 +124,27 @@ const buildAggregations = (productions, groupFn, labelFn, isCurrentFn) => {
     allKeys.add(key);
 
     // ── Périodes ──
-    if (!periodesMap.has(key)) periodesMap.set(key, { count: 0, coutTotal: 0, rendementSum: 0, rendementN: 0 });
+    if (!periodesMap.has(key)) periodesMap.set(key, { count: 0, coutTotal: 0 });
     const per = periodesMap.get(key);
     per.count     += 1;
     per.coutTotal += cout;
-    if (rendt != null) { per.rendementSum += rendt; per.rendementN += 1; }
 
     // ── Schémas ──
     if (!schemasMap.has(nomSchema)) {
-      schemasMap.set(nomSchema, { categorie, count: 0, coutTotal: 0, coutUnitaireSum: 0, coutUnitaireN: 0, rendementSum: 0, rendementN: 0, ecartCoutTotal: 0 });
+      schemasMap.set(nomSchema, {
+        categorie,
+        mode_production: mode,
+        cycle_jours:     cycleJ,
+        seuil_relance:   seuil,
+        count: 0, coutTotal: 0,
+        coutUnitaireSum: 0, coutUnitaireN: 0,
+        rendementSum: 0, rendementN: 0,
+        ecartCoutTotal: 0,
+      });
     }
     const sch = schemasMap.get(nomSchema);
-    sch.count        += 1;
-    sch.coutTotal    += cout;
+    sch.count          += 1;
+    sch.coutTotal      += cout;
     sch.ecartCoutTotal += ecart;
     if (coutU > 0) { sch.coutUnitaireSum += coutU; sch.coutUnitaireN += 1; }
     if (rendt != null) { sch.rendementSum += rendt; sch.rendementN += 1; }
@@ -151,6 +166,9 @@ const buildAggregations = (productions, groupFn, labelFn, isCurrentFn) => {
     .map(([nomSchema, s]) => ({
       nomSchema,
       categorie:         s.categorie,
+      mode_production:   s.mode_production,
+      cycle_jours:       s.cycle_jours,
+      seuil_relance:     s.seuil_relance,
       count:             s.count,
       coutTotal:         s.coutTotal,
       coutUnitaireMoyen: s.coutUnitaireN > 0 ? s.coutUnitaireSum / s.coutUnitaireN : 0,
@@ -160,11 +178,11 @@ const buildAggregations = (productions, groupFn, labelFn, isCurrentFn) => {
     .sort((a, b) => b.coutTotal - a.coutTotal);
 
   // Rendement moyen global
-  const totalRendSum = schemas.reduce((s, sc) => s + sc.rendementMoyen * sc.count, 0);
-  const totalN       = schemas.reduce((s, sc) => s + (sc.rendementMoyen > 0 ? sc.count : 0), 0);
+  const totalRendSum   = schemas.reduce((s, sc) => s + sc.rendementMoyen * sc.count, 0);
+  const totalN         = schemas.reduce((s, sc) => s + (sc.rendementMoyen > 0 ? sc.count : 0), 0);
   const rendementMoyen = totalN > 0 ? totalRendSum / totalN : 0;
 
-  // CoutsChart : par schéma (trié par coût desc) par période
+  // CoutsChart : par schéma par période
   const sortedKeys = [...allKeys].sort();
   const coutsChart = sortedKeys.map((key) => {
     const point = { label: labelFn(key) };
@@ -191,34 +209,44 @@ const useProductionInsights = (horizon = HORIZONS.H24, refreshKey = 0) => {
     try {
       const { startDate, endDate, groupFn, labelFn, isCurrentFn } = getWindowConfig(horizon);
 
-      const { data, error: dbErr } = await supabase
-        .from("productions")
-        .select(`
-          date_production,
-          nom,
-          cout_total,
-          cout_unitaire,
-          taux_rendement,
-          ecart_cout,
-          rendement_reel,
-          statut,
-          schema:production_schemas(nom, categorie)
-        `)
-        .gte("date_production", startDate)
-        .lte("date_production", endDate)
-        .neq("statut", "annulee");
+      // Requête historique + état cycles en parallèle
+      const [prodResult, cycleResult] = await Promise.all([
+        supabase
+          .from("productions")
+          .select(`
+            date_production,
+            nom,
+            cout_total,
+            cout_unitaire,
+            taux_rendement,
+            ecart_cout,
+            rendement_reel,
+            statut,
+            schema:production_schemas(
+              nom, categorie,
+              mode_production, cycle_jours, seuil_relance
+            )
+          `)
+          .gte("date_production", startDate)
+          .lte("date_production", endDate)
+          .neq("statut", "annulee"),
+        getSchemasCycliquesARelancer(),
+      ]);
 
-      if (dbErr) throw new Error(dbErr.message);
+      if (prodResult.error) throw new Error(prodResult.error.message);
 
       const { periodes, schemas, rendementMoyen, coutsChart } = buildAggregations(
-        data ?? [],
+        prodResult.data ?? [],
         groupFn,
         labelFn,
         isCurrentFn,
       );
 
-      const computed = analyzeProduction(periodes, schemas, rendementMoyen, horizon);
-      setAnalysis({ ...computed, schemas, coutsChart, rendementMoyen });
+      const cyclesDashboard = cycleResult.success ? (cycleResult.schemas ?? []) : [];
+      const nbCyclesAlerte  = cyclesDashboard.length;
+
+      const computed = analyzeProduction(periodes, schemas, rendementMoyen, cyclesDashboard, horizon);
+      setAnalysis({ ...computed, schemas, coutsChart, rendementMoyen, cyclesDashboard, nbCyclesAlerte });
     } catch (err) {
       console.error("[useProductionInsights]", err);
       setError("Impossible de charger les données de production.");

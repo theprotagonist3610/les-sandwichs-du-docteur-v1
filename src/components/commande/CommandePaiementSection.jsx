@@ -25,22 +25,11 @@ const CommandePaiementSection = ({
 
   const paiement = commande.details_paiement || {};
 
-  // Calculs
-  const total = paiement.total || commande.montant_total || 0;
-  const fraisLivraison = commande.frais_livraison || 0;
-  const totalAvecFrais = total + fraisLivraison;
-
-  // Réduction
-  let reduction = 0;
-  if (commande.promotion) {
-    if (commande.promotion.type === "pourcentage") {
-      reduction = (totalAvecFrais * commande.promotion.valeur) / 100;
-    } else {
-      reduction = commande.promotion.valeur || 0;
-    }
-  }
-
-  const totalApresReduction = paiement.total_apres_reduction || totalAvecFrais - reduction;
+  // Les totaux sont maintenus à jour par le store (recalculerTotaux appelé à chaque
+  // ajout/suppression/modification d'item). On lit directement depuis details_paiement.
+  const sousTotal          = paiement.total ?? commande.montant_total ?? 0;
+  const fraisLivraison     = commande.frais_livraison || 0;
+  const totalApresReduction = paiement.total_apres_reduction ?? sousTotal + fraisLivraison;
   const momo = paiement.momo || 0;
   const cash = paiement.cash || 0;
   const autre = paiement.autre || 0;
@@ -93,7 +82,7 @@ const CommandePaiementSection = ({
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Sous-total articles</span>
-            <span>{formatPrice(commande.montant_total || 0)}</span>
+            <span>{formatPrice(sousTotal)}</span>
           </div>
 
           {fraisLivraison > 0 && (

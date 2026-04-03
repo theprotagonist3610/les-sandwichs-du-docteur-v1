@@ -20,6 +20,11 @@ const CATEGORIE_LABELS = {
   autre:      "Autre",
 };
 
+const MODE_BADGE = {
+  par_conservation: { label: "Conservation", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" },
+  cyclique:         { label: "Cyclique",      cls: "bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300" },
+};
+
 const getRendementCls = (r) => {
   if (r <= 0) return "bg-muted text-muted-foreground";
   if (r >= 95) return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300";
@@ -48,7 +53,16 @@ const SchemaRow = ({ schema, rank, maxCout, totalCout }) => {
           </span>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{schema.nomSchema}</p>
-            <p className="text-[10px] text-muted-foreground">{CATEGORIE_LABELS[schema.categorie] ?? schema.categorie} · {schema.count} prod.</p>
+            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+              <span className="text-[10px] text-muted-foreground">
+                {CATEGORIE_LABELS[schema.categorie] ?? schema.categorie} · {schema.count} prod.
+              </span>
+              {MODE_BADGE[schema.mode_production] && (
+                <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap", MODE_BADGE[schema.mode_production].cls)}>
+                  {MODE_BADGE[schema.mode_production].label}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-1 justify-end shrink-0">
