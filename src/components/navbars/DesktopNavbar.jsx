@@ -82,6 +82,11 @@ const DesktopNavbar = () => {
       label: "Back-Day",
       options: [],
     },
+    {
+      path: "/insights",
+      label: "Insights",
+      options: [],
+    },
   ];
 
   // Liens accessibles pour les vendeurs uniquement

@@ -18,6 +18,7 @@ import {
   WifiOff,
   Calendar,
   History,
+  Lightbulb,
 } from "lucide-react";
 import logo from "@/assets/logo-min.png";
 import { useBorderBeam } from "@/hooks/useBorderBeam";
@@ -58,6 +59,7 @@ const MobileNavbar = () => {
     { path: "/parametres", label: "Parametres", icon: Settings },
     { path: "/utilisateurs", label: "Utilisateurs", icon: Users },
     { path: "/back-day", label: "Back-Day", icon: History },
+    { path: "/insights", label: "Insights", icon: Lightbulb },
   ];
 
   // Liens accessibles pour les vendeurs uniquement

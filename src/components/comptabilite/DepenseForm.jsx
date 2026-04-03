@@ -24,6 +24,7 @@ const CATEGORIES_DEPENSE = [
   "Achat boisson",
   "Achat ustensiles",
   "Achat autres",
+  "Charges fixes",
 ];
 
 const UNITES_DEPENSE = ["kg", "g", "L", "cL", "pièce(s)", "lot(s)", "boîte(s)", "sachet(s)", "carton(s)"];

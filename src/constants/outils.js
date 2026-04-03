@@ -13,6 +13,7 @@ import {
   PartyPopper,
   Gamepad2,
   Hamburger,
+  Lightbulb,
 } from "lucide-react";
 
 /**
@@ -20,6 +21,17 @@ import {
  * Chaque outil définit les rôles qui peuvent y accéder
  */
 export const TOUS_LES_OUTILS = [
+  {
+    name: "insights",
+    label: "Insights",
+    path: "/insights",
+    description:
+      "Analyses intelligentes, tendances et recommandations pour piloter votre activité.",
+    icon: Lightbulb,
+    color: "text-yellow-600 dark:text-yellow-400",
+    bgColor: "bg-yellow-50 dark:bg-yellow-950",
+    roles: ["superviseur", "admin"],
+  },
   {
     name: "taches-recurrentes",
     label: "Tâches récurrentes",
