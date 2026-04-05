@@ -617,8 +617,7 @@ const CommandeCard = ({
                 -{reductionAmount.toLocaleString()} F
               </span>
             )}
-            {commande.statut_paiement ===
-              commandeToolkit.STATUTS_PAIEMENT.PARTIELLEMENT_PAYEE && (
+            {resteAPayer > 0 && (
               <span className="text-[9px] text-red-500 font-medium ml-1">
                 (reste {resteAPayer.toLocaleString()})
               </span>
