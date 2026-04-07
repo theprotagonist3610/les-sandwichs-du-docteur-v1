@@ -89,21 +89,30 @@ const CustomTooltip = ({ active, payload, label }) => {
 const CommandesVolumeChart = ({ analysis, isMobile = false }) => {
   if (!analysis?.chartData?.length) return null;
 
-  const { chartData } = analysis;
+  const { chartData, previousPeriodes } = analysis;
   const h = isMobile ? 180 : 220;
 
   const firstForecastIdx = chartData.findIndex((d) => d.isForecast);
   const refLabel = firstForecastIdx > 0 ? chartData[firstForecastIdx]?.label : null;
 
+  // Fusionner données période précédente par position
+  const mergedData = previousPeriodes
+    ? chartData.map((point, i) => ({
+        ...point,
+        volume_prev: !point.isForecast ? (previousPeriodes[i]?.volume ?? null) : null,
+        ca_prev:     !point.isForecast ? (previousPeriodes[i]?.ca     ?? null) : null,
+      }))
+    : chartData;
+
   // Domaine Y volume
-  const allVol = chartData.flatMap((d) =>
-    d.isForecast ? [d.volMin ?? 0, d.volMax ?? 0] : [d.volume ?? 0]
+  const allVol = mergedData.flatMap((d) =>
+    d.isForecast ? [d.volMin ?? 0, d.volMax ?? 0] : [d.volume ?? 0, d.volume_prev ?? 0]
   ).filter((v) => !isNaN(v));
   const yVolMax = allVol.length ? Math.ceil(Math.max(...allVol) * 1.25) : 10;
 
   // Domaine Y CA
-  const allCA = chartData.flatMap((d) =>
-    d.isForecast ? [d.caMoy ?? 0] : [d.ca ?? 0]
+  const allCA = mergedData.flatMap((d) =>
+    d.isForecast ? [d.caMoy ?? 0] : [d.ca ?? 0, d.ca_prev ?? 0]
   ).filter((v) => !isNaN(v));
   const yCAMax = allCA.length ? Math.ceil(Math.max(...allCA) * 1.25) : 1000;
 
@@ -114,7 +123,7 @@ const CommandesVolumeChart = ({ analysis, isMobile = false }) => {
     <div className="bg-background rounded-xl border border-border p-4">
       <p className="text-sm font-semibold mb-4">Volume & CA — historique & prévision</p>
       <ResponsiveContainer width="100%" height={h}>
-        <ComposedChart data={chartData} margin={{ top: 4, right: 40, left: 0, bottom: 0 }}>
+        <ComposedChart data={mergedData} margin={{ top: 4, right: 40, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
           <XAxis
             dataKey="label"
@@ -197,6 +206,34 @@ const CommandesVolumeChart = ({ analysis, isMobile = false }) => {
             name="ca"
           />
 
+          {/* Lignes période précédente (comparaison) */}
+          {previousPeriodes && (
+            <>
+              <Line
+                yAxisId="vol"
+                dataKey="volume_prev"
+                stroke={COLOR_VOL}
+                strokeWidth={1.5}
+                strokeDasharray="3 4"
+                strokeOpacity={0.45}
+                dot={false}
+                activeDot={{ r: 3 }}
+                name="Vol. préc."
+              />
+              <Line
+                yAxisId="ca"
+                dataKey="ca_prev"
+                stroke={COLOR_CA}
+                strokeWidth={1.5}
+                strokeDasharray="3 4"
+                strokeOpacity={0.45}
+                dot={false}
+                activeDot={{ r: 3 }}
+                name="CA préc."
+              />
+            </>
+          )}
+
           {/* Ligne forecast CA central */}
           <Line
             yAxisId="ca"
@@ -236,6 +273,12 @@ const CommandesVolumeChart = ({ analysis, isMobile = false }) => {
           <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: COLOR_VOL, opacity: 0.2 }} />
           Fourchette prévision vol.
         </span>
+        {previousPeriodes && (
+          <span className="flex items-center gap-1.5">
+            <span className="w-5 h-0.5 inline-block border-t-2 border-dashed opacity-45" style={{ borderColor: COLOR_VOL }} />
+            Période précédente
+          </span>
+        )}
       </div>
     </div>
   );

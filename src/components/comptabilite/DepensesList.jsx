@@ -29,6 +29,7 @@ import {
   Search,
   Filter,
   TrendingDown,
+  TrendingUp,
   Calendar,
   Wallet,
   ChevronLeft,
@@ -37,10 +38,37 @@ import {
   Loader2,
   FileText,
   MapPin,
+  Pencil,
+  Trash2,
+  Tag,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import * as comptabiliteToolkit from "@/utils/comptabiliteToolkit";
 import { getAllEmplacements } from "@/utils/emplacementToolkit";
 import DepenseForm from "./DepenseForm";
+
+const CATEGORIES_DEPENSE = [
+  "Achat poisson",
+  "Achat viande",
+  "Achat légumes",
+  "Achat épices",
+  "Achat emballage",
+  "Achat pain",
+  "Achat lait",
+  "Achat boisson",
+  "Achat ustensiles",
+  "Achat autres",
+  "Charges fixes",
+];
 
 const formatMontant = (montant) =>
   new Intl.NumberFormat("fr-FR").format(montant) + " FCFA";
@@ -83,18 +111,26 @@ const DepensesList = () => {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingOp, setEditingOp] = useState(null);
+  const [deletingOp, setDeletingOp] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  // Filtres texte / compte / dates
+  // Filtres texte / compte / dates / emplacement / catégorie
   const [filters, setFilters] = useState({
     compte: "",
     searchTerm: "",
     startDate: "",
     endDate: "",
+    emplacementId: "_all",
+    categorie: "",
   });
 
-  // Filtre emplacement
+  // Emplacements disponibles
   const [emplacements, setEmplacements] = useState([]);
-  const [filtreEmplacementId, setFiltreEmplacementId] = useState("_all");
+
+  // KPI panel
+  const [kpiData, setKpiData] = useState(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
 
   // Chart
   const [chartData, setChartData] = useState([]);
@@ -107,10 +143,10 @@ const DepensesList = () => {
   // Statistiques
   const [stats, setStats] = useState({ totalDepenses: 0, nombreOperations: 0 });
 
-  // Nom de l'emplacement sélectionné
+  // Nom de l'emplacement sélectionné (dérivé de filters.emplacementId)
   const filtreEmplacementNom = useMemo(
-    () => emplacements.find((e) => e.id === filtreEmplacementId)?.nom ?? null,
-    [emplacements, filtreEmplacementId]
+    () => emplacements.find((e) => e.id === filters.emplacementId)?.nom ?? null,
+    [emplacements, filters.emplacementId]
   );
 
   // Charger les emplacements au montage
@@ -160,6 +196,7 @@ const DepensesList = () => {
         compte: filters.compte || undefined,
         searchTerm: filters.searchTerm || undefined,
         emplacement: filtreEmplacementNom || undefined,
+        categorie: filters.categorie || undefined,
         startDate: filters.startDate || undefined,
         endDate: filters.endDate || undefined,
       };
@@ -190,14 +227,80 @@ const DepensesList = () => {
     }
   }, [filters, filtreEmplacementNom, currentPage]);
 
+  // Charger les KPI (sur l'ensemble des résultats, pas seulement la page courante)
+  const fetchKpi = useCallback(async () => {
+    const hasFilters =
+      filters.compte || filters.searchTerm || filters.startDate || filters.endDate ||
+      filters.emplacementId !== "_all" || filters.categorie;
+
+    if (!hasFilters) { setKpiData(null); return; }
+
+    setKpiLoading(true);
+    try {
+      const today = new Date();
+      const toISO = (d) => d.toISOString().split("T")[0];
+      const sub   = (days) => { const d = new Date(); d.setDate(d.getDate() - days); return d; };
+
+      // Filtres de base (sans dates — pour les tendances)
+      const baseNoDate = {
+        operation: comptabiliteToolkit.TYPES_OPERATION.DEPENSE,
+        compte:      filters.compte      || undefined,
+        searchTerm:  filters.searchTerm  || undefined,
+        emplacement: filtreEmplacementNom || undefined,
+        categorie:   filters.categorie   || undefined,
+      };
+
+      // Filtres complets (avec dates utilisateur)
+      const allFilters = {
+        ...baseNoDate,
+        startDate: filters.startDate || undefined,
+        endDate:   filters.endDate   || undefined,
+      };
+
+      const [filteredRes, globalRes, c7, p7, c30, p30] = await Promise.all([
+        // Total filtré (tous les filtres actifs)
+        comptabiliteToolkit.getSommeOperations(allFilters),
+        // Total global (sans filtre catégorie — référence pour le %)
+        comptabiliteToolkit.getSommeOperations({ ...allFilters, categorie: undefined }),
+        // Tendance 7j — derniers 7 jours
+        comptabiliteToolkit.getSommeOperations({ ...baseNoDate, startDate: toISO(sub(7)),  endDate: toISO(today) }),
+        // Tendance 7j — 7 jours précédents
+        comptabiliteToolkit.getSommeOperations({ ...baseNoDate, startDate: toISO(sub(14)), endDate: toISO(sub(8)) }),
+        // Tendance 30j — derniers 30 jours
+        comptabiliteToolkit.getSommeOperations({ ...baseNoDate, startDate: toISO(sub(30)), endDate: toISO(today) }),
+        // Tendance 30j — 30 jours précédents
+        comptabiliteToolkit.getSommeOperations({ ...baseNoDate, startDate: toISO(sub(60)), endDate: toISO(sub(31)) }),
+      ]);
+
+      setKpiData({
+        filteredTotal: filteredRes.somme ?? 0,
+        globalTotal:   globalRes.somme   ?? 0,
+        curr7:  c7.somme  ?? 0,
+        prev7:  p7.somme  ?? 0,
+        curr30: c30.somme ?? 0,
+        prev30: p30.somme ?? 0,
+        hasCategorie: !!filters.categorie,
+      });
+    } catch (e) {
+      console.error("Erreur KPI dépenses:", e);
+    } finally {
+      setKpiLoading(false);
+    }
+  }, [filters, filtreEmplacementNom]);
+
   useEffect(() => {
     fetchOperations();
   }, [fetchOperations]);
 
+  useEffect(() => {
+    fetchKpi();
+  }, [fetchKpi]);
+
   // Réinitialiser à la page 1 quand les filtres changent
   useEffect(() => {
     if (currentPage !== 1) setCurrentPage(1);
-  }, [filters.compte, filters.searchTerm, filters.startDate, filters.endDate, filtreEmplacementId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.compte, filters.searchTerm, filters.startDate, filters.endDate, filters.emplacementId, filters.categorie]);
 
   const totalPages = useMemo(() => Math.ceil(total / limit), [total]);
 
@@ -206,8 +309,7 @@ const DepensesList = () => {
   };
 
   const resetFilters = () => {
-    setFilters({ compte: "", searchTerm: "", startDate: "", endDate: "" });
-    setFiltreEmplacementId("_all");
+    setFilters({ compte: "", searchTerm: "", startDate: "", endDate: "", emplacementId: "_all", categorie: "" });
   };
 
   const handleAddSuccess = () => {
@@ -215,9 +317,28 @@ const DepensesList = () => {
     fetchOperations();
   };
 
+  const handleEditSuccess = () => {
+    setEditingOp(null);
+    fetchOperations();
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingOp) return;
+    setDeleting(true);
+    try {
+      await comptabiliteToolkit.deleteOperation(deletingOp.id);
+      setDeletingOp(null);
+      fetchOperations();
+    } catch (error) {
+      console.error("Erreur suppression:", error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const hasActiveFilters =
     filters.compte || filters.searchTerm || filters.startDate || filters.endDate ||
-    filtreEmplacementId !== "_all";
+    filters.emplacementId !== "_all" || filters.categorie;
 
   return (
     <div className="space-y-4">
@@ -277,7 +398,9 @@ const DepensesList = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Emplacement */}
             {emplacements.length > 0 && (
-              <Select value={filtreEmplacementId} onValueChange={setFiltreEmplacementId}>
+              <Select
+                value={filters.emplacementId}
+                onValueChange={(v) => handleFilterChange("emplacementId", v)}>
                 <SelectTrigger>
                   <div className="flex items-center gap-2 truncate">
                     <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -294,6 +417,24 @@ const DepensesList = () => {
                 </SelectContent>
               </Select>
             )}
+
+            {/* Catégorie */}
+            <Select
+              value={filters.categorie || "_all"}
+              onValueChange={(v) => handleFilterChange("categorie", v === "_all" ? "" : v)}>
+              <SelectTrigger>
+                <div className="flex items-center gap-2 truncate">
+                  <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Toutes les catégories" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">Toutes les catégories</SelectItem>
+                {CATEGORIES_DEPENSE.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {/* Compte */}
             <Select
@@ -347,6 +488,67 @@ const DepensesList = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* KPI Panel — visible quand au moins un filtre est actif */}
+      {hasActiveFilters && (
+        kpiLoading ? (
+          <div className="h-20 rounded-xl bg-muted animate-pulse" />
+        ) : kpiData ? (
+          <Card className="border-red-200 bg-red-50/50 dark:border-red-900/30 dark:bg-red-950/20">
+            <CardContent className="py-3 px-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {/* Total filtré */}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Total filtré</p>
+                  <p className="text-lg font-bold text-red-600">{formatMontant(kpiData.filteredTotal)}</p>
+                </div>
+
+                {/* % du total global (affiché seulement si filtre catégorie actif) */}
+                {kpiData.hasCategorie && kpiData.globalTotal > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Part du total</p>
+                    <p className="text-lg font-bold">
+                      {((kpiData.filteredTotal / kpiData.globalTotal) * 100).toFixed(1)}%
+                    </p>
+                  </div>
+                )}
+
+                {/* Tendance 7 jours */}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Tendance 7j</p>
+                  {kpiData.prev7 > 0 ? (() => {
+                    const delta = ((kpiData.curr7 - kpiData.prev7) / kpiData.prev7) * 100;
+                    const up = delta >= 0;
+                    return (
+                      <span className={`flex items-center gap-1 text-sm font-semibold ${up ? "text-red-600" : "text-green-600"}`}>
+                        {up ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                        {up ? "+" : ""}{delta.toFixed(1)}%
+                      </span>
+                    );
+                  })() : <span className="text-xs text-muted-foreground">—</span>}
+                  <p className="text-xs text-muted-foreground mt-0.5">{formatMontant(kpiData.curr7)}</p>
+                </div>
+
+                {/* Tendance 30 jours */}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Tendance 30j</p>
+                  {kpiData.prev30 > 0 ? (() => {
+                    const delta = ((kpiData.curr30 - kpiData.prev30) / kpiData.prev30) * 100;
+                    const up = delta >= 0;
+                    return (
+                      <span className={`flex items-center gap-1 text-sm font-semibold ${up ? "text-red-600" : "text-green-600"}`}>
+                        {up ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                        {up ? "+" : ""}{delta.toFixed(1)}%
+                      </span>
+                    );
+                  })() : <span className="text-xs text-muted-foreground">—</span>}
+                  <p className="text-xs text-muted-foreground mt-0.5">{formatMontant(kpiData.curr30)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null
+      )}
 
       {/* BarChart emplacement */}
       {filtreEmplacementNom && (
@@ -426,6 +628,7 @@ const DepensesList = () => {
                       <th className="text-left p-4 font-medium text-sm">Motif</th>
                       <th className="text-right p-4 font-medium text-sm">Montant</th>
                       <th className="text-left p-4 font-medium text-sm">Par</th>
+                      <th className="p-4 w-20"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -468,6 +671,24 @@ const DepensesList = () => {
                             {op.user?.prenoms} {op.user?.nom}
                           </span>
                         </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              onClick={() => setEditingOp(op)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                              onClick={() => setDeletingOp(op)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -500,14 +721,28 @@ const DepensesList = () => {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
                         {formatDate(op.date_operation)}
+                        <span className="ml-1">{op.user?.prenoms} {op.user?.nom}</span>
                       </div>
-                      <span>
-                        {op.user?.prenoms} {op.user?.nom}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground"
+                          onClick={() => setEditingOp(op)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-red-600"
+                          onClick={() => setDeletingOp(op)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -554,6 +789,57 @@ const DepensesList = () => {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Dialog d'édition */}
+      <Dialog open={!!editingOp} onOpenChange={(open) => !open && setEditingOp(null)}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifier la dépense</DialogTitle>
+          </DialogHeader>
+          {editingOp && (
+            <DepenseForm
+              initialData={editingOp}
+              onSuccess={handleEditSuccess}
+              onCancel={() => setEditingOp(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog de suppression */}
+      <AlertDialog open={!!deletingOp} onOpenChange={(open) => !open && setDeletingOp(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer la dépense ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingOp && (
+                <>
+                  <span className="font-medium">{getMotifTexte(deletingOp.motif)}</span>
+                  {" — "}
+                  <span className="text-red-600 font-semibold">
+                    {formatMontant(deletingOp.montant)}
+                  </span>
+                  <br />
+                  Cette action est irréversible.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleting}
+              onClick={handleDeleteConfirm}>
+              {deleting ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Suppression...</>
+              ) : (
+                "Supprimer"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

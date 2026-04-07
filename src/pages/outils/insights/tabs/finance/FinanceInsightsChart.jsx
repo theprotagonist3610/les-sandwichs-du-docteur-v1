@@ -72,9 +72,9 @@ const CustomTooltip = ({ active, payload, label, type }) => {
 // ─── Graphique unique (enc ou dep) ────────────────────────────────────────────
 
 /**
- * @param {{ chartData, type: "enc"|"dep", title, color, height }}
+ * @param {{ chartData, type: "enc"|"dep", title, color, height, previousPeriodes }}
  */
-const SingleChart = ({ chartData, type, title, color, height = 220 }) => {
+const SingleChart = ({ chartData, type, title, color, height = 220, previousPeriodes = null }) => {
   // Trouver l'index du premier point forecast pour la ReferenceLine
   const firstForecastIdx = chartData.findIndex((d) => d.isForecast);
   const refLabel = firstForecastIdx > 0 ? chartData[firstForecastIdx]?.label : null;
@@ -85,11 +85,20 @@ const SingleChart = ({ chartData, type, title, color, height = 220 }) => {
   const maxKey  = type === "enc" ? "encMax"  : "depMax";
   const predKey = type === "enc" ? "encPred" : "depPred";
 
+  // Fusionner les données période précédente dans chartData par position
+  const prevKey = `${type}_prev`;
+  const mergedData = previousPeriodes
+    ? chartData.map((point, i) => ({
+        ...point,
+        [prevKey]: !point.isForecast ? (previousPeriodes[i]?.[type] ?? null) : null,
+      }))
+    : chartData;
+
   // Calcul du domaine Y pour éviter les barres écrasées
-  const allVals = chartData.flatMap((d) =>
+  const allVals = mergedData.flatMap((d) =>
     d.isForecast
       ? [d[minKey] ?? 0, d[maxKey] ?? 0]
-      : [d[barKey] ?? 0]
+      : [d[barKey] ?? 0, d[prevKey] ?? 0]
   ).filter((v) => v != null && !isNaN(v));
   const yMax = allVals.length ? Math.ceil(Math.max(...allVals) * 1.15) : 100;
 
@@ -97,7 +106,7 @@ const SingleChart = ({ chartData, type, title, color, height = 220 }) => {
     <div className="bg-background rounded-xl border border-border p-4">
       <p className="text-sm font-semibold mb-4">{title}</p>
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <ComposedChart data={mergedData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
           <XAxis
             dataKey="label"
@@ -124,6 +133,20 @@ const SingleChart = ({ chartData, type, title, color, height = 220 }) => {
             maxBarSize={32}
             name={barKey}
           />
+
+          {/* Ligne période précédente (comparaison) */}
+          {previousPeriodes && (
+            <Line
+              dataKey={prevKey}
+              stroke={color}
+              strokeWidth={1.5}
+              strokeDasharray="3 4"
+              strokeOpacity={0.45}
+              dot={false}
+              activeDot={{ r: 3 }}
+              name="Période préc."
+            />
+          )}
 
           {/* Ligne tendance (régression) */}
           <Line
@@ -192,6 +215,12 @@ const SingleChart = ({ chartData, type, title, color, height = 220 }) => {
           <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: color, opacity: 0.2 }} />
           Fourchette prévision
         </span>
+        {previousPeriodes && (
+          <span className="flex items-center gap-1.5">
+            <span className="w-5 h-0.5 inline-block border-t-2 border-dashed opacity-45" style={{ borderColor: color }} />
+            Période précédente
+          </span>
+        )}
       </div>
     </div>
   );
@@ -202,7 +231,7 @@ const SingleChart = ({ chartData, type, title, color, height = 220 }) => {
 const FinanceInsightsChart = ({ analysis, isMobile = false }) => {
   if (!analysis?.chartData?.length) return null;
 
-  const { chartData } = analysis;
+  const { chartData, previousPeriodes } = analysis;
   const h = isMobile ? 180 : 220;
 
   return (
@@ -213,6 +242,7 @@ const FinanceInsightsChart = ({ analysis, isMobile = false }) => {
         title="Encaissements — historique & prévision"
         color="#22c55e"
         height={h}
+        previousPeriodes={previousPeriodes}
       />
       <SingleChart
         chartData={chartData}
@@ -220,6 +250,7 @@ const FinanceInsightsChart = ({ analysis, isMobile = false }) => {
         title="Dépenses — historique & prévision"
         color="#ef4444"
         height={h}
+        previousPeriodes={previousPeriodes}
       />
     </div>
   );

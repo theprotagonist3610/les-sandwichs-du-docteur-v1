@@ -29,6 +29,8 @@ import {
   MapPin,
   Check,
   ChevronsUpDown,
+  CalendarRange,
+  History,
 } from "lucide-react";
 import {
   Popover,
@@ -84,6 +86,9 @@ const DesktopGestionDesCommandes = () => {
   const [filterCommunes, setFilterCommunes] = useState([]);
   const [filterQuartiers, setFilterQuartiers] = useState([]);
   const [filterArrondissements, setFilterArrondissements] = useState([]);
+  // Filtres date (vue historique)
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [viewMode, setViewMode] = useState("grid");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [commandeToDelete, setCommandeToDelete] = useState(null);
@@ -144,22 +149,43 @@ const DesktopGestionDesCommandes = () => {
     }
   }, [visible]);
 
+  // Recharger quand les filtres de date changent
+  useEffect(() => {
+    if (visible) {
+      loadCommandes(dateFrom, dateTo);
+    }
+  }, [dateFrom, dateTo]);
+
   // Charger les commandes depuis le cache et Supabase
-  const loadCommandes = async () => {
+  const loadCommandes = async (fromDate = dateFrom, toDate = dateTo) => {
     setLoading(true);
     setError(null);
     try {
-      const {
-        commandes: data,
-        error: err,
-        fromCache,
-      } = await syncAndLoadCommandes();
-
-      if (err) {
-        setError(err.message || "Erreur lors du chargement des commandes");
+      // Si un filtre de date est actif, bypass cache et requête directe
+      if (fromDate || toDate) {
+        const { commandes: data, error: err } = await commandeToolkit.getAllCommandes({
+          dateFrom: fromDate || undefined,
+          dateTo: toDate || undefined,
+        });
+        if (err) {
+          setError(err.message || "Erreur lors du chargement des commandes");
+        } else {
+          setCommandes(data || []);
+          setIsCached(false);
+        }
       } else {
-        setCommandes(data || []);
-        setIsCached(fromCache);
+        const {
+          commandes: data,
+          error: err,
+          fromCache,
+        } = await syncAndLoadCommandes();
+
+        if (err) {
+          setError(err.message || "Erreur lors du chargement des commandes");
+        } else {
+          setCommandes(data || []);
+          setIsCached(fromCache);
+        }
       }
     } catch (err) {
       setError("Une erreur est survenue lors du chargement des commandes");
@@ -256,6 +282,8 @@ const DesktopGestionDesCommandes = () => {
     filterCommunes,
     filterQuartiers,
     filterArrondissements,
+    dateFrom,
+    dateTo,
   ]);
 
   // Réinitialiser les filtres
@@ -268,6 +296,8 @@ const DesktopGestionDesCommandes = () => {
     setFilterCommunes([]);
     setFilterQuartiers([]);
     setFilterArrondissements([]);
+    setDateFrom("");
+    setDateTo("");
   };
 
   // Vérifier si des filtres géographiques sont actifs
@@ -312,6 +342,7 @@ const DesktopGestionDesCommandes = () => {
   };
 
   // Filtres actifs
+  const hasDateFilter = !!(dateFrom || dateTo);
   const hasActiveFilters =
     searchTerm ||
     filterType !== "all" ||
@@ -320,7 +351,8 @@ const DesktopGestionDesCommandes = () => {
     filterStatutPaiement !== "all" ||
     filterCommunes.length > 0 ||
     filterQuartiers.length > 0 ||
-    filterArrondissements.length > 0;
+    filterArrondissements.length > 0 ||
+    hasDateFilter;
 
   return (
     <div
@@ -451,6 +483,46 @@ const DesktopGestionDesCommandes = () => {
               <List className="w-4 h-4" />
             </Button>
           </div>
+        </div>
+
+        {/* Filtres date */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CalendarRange className="w-4 h-4" />
+            <span>Période:</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-10 w-[160px]"
+              placeholder="Du"
+            />
+            <span className="text-muted-foreground text-sm">→</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-10 w-[160px]"
+              placeholder="Au"
+            />
+            {hasDateFilter && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setDateFrom(""); setDateTo(""); }}>
+                <X className="w-3 h-3 mr-1" />
+                Effacer
+              </Button>
+            )}
+          </div>
+          {hasDateFilter && (
+            <Badge className="bg-amber-100 text-amber-800 border-amber-300">
+              <History className="w-3 h-3 mr-1" />
+              Vue historique
+            </Badge>
+          )}
         </div>
 
         {/* Filtres additionnels */}
@@ -671,6 +743,24 @@ const DesktopGestionDesCommandes = () => {
             <span className="text-sm text-muted-foreground">
               Filtres actifs:
             </span>
+            {dateFrom && (
+              <Badge variant="secondary">
+                Depuis: {dateFrom}
+                <X
+                  className="w-3 h-3 ml-1 cursor-pointer"
+                  onClick={() => setDateFrom("")}
+                />
+              </Badge>
+            )}
+            {dateTo && (
+              <Badge variant="secondary">
+                Jusqu'au: {dateTo}
+                <X
+                  className="w-3 h-3 ml-1 cursor-pointer"
+                  onClick={() => setDateTo("")}
+                />
+              </Badge>
+            )}
             {searchTerm && (
               <Badge variant="secondary">
                 Recherche: "{searchTerm}"
@@ -789,7 +879,12 @@ const DesktopGestionDesCommandes = () => {
           <h2 className="text-2xl font-semibold">
             {filteredCommandes.length} commande
             {filteredCommandes.length > 1 ? "s" : ""}
-            {isCached && (
+            {hasDateFilter ? (
+              <Badge className="ml-3 text-xs bg-amber-100 text-amber-800 border-amber-300">
+                <History className="w-3 h-3 mr-1" />
+                Vue historique
+              </Badge>
+            ) : isCached && (
               <Badge variant="secondary" className="ml-3 text-xs">
                 Données en cache
               </Badge>

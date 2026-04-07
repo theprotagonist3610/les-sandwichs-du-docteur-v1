@@ -5,6 +5,20 @@ import * as commandeToolkit from "@/utils/commandeToolkit";
 // Appelé après chaque modification des items (add/remove/updateQuantity)
 // Met à jour montant_total + details_paiement.total + details_paiement.total_apres_reduction
 
+const calculerStatutPaiement = (details_paiement) => {
+  const totalDu  = details_paiement?.total_apres_reduction
+                ?? details_paiement?.total
+                ?? 0;
+  const totalPaye = (details_paiement?.momo   || 0)
+                  + (details_paiement?.cash   || 0)
+                  + (details_paiement?.autre  || 0);
+
+  if (totalDu <= 0)           return "non_payee";
+  if (totalPaye >= totalDu)   return "payee";
+  if (totalPaye > 0)          return "partiellement_payee";
+  return "non_payee";
+};
+
 const recalculerTotaux = (details_commandes, details_paiement, promotion, frais_livraison) => {
   const sousTotal = (details_commandes || []).reduce(
     (sum, item) => sum + (item.total ?? item.quantite * item.prix_unitaire),
@@ -23,13 +37,16 @@ const recalculerTotaux = (details_commandes, details_paiement, promotion, frais_
     }
   }
 
+  const nouveauDetailsPaiement = {
+    ...details_paiement,
+    total:                 sousTotal,
+    total_apres_reduction: Math.max(0, totalAvecFrais - reduction),
+  };
+
   return {
-    montant_total: sousTotal,
-    details_paiement: {
-      ...details_paiement,
-      total:                 sousTotal,
-      total_apres_reduction: Math.max(0, totalAvecFrais - reduction),
-    },
+    montant_total:   sousTotal,
+    details_paiement: nouveauDetailsPaiement,
+    statut_paiement: calculerStatutPaiement(nouveauDetailsPaiement),
   };
 };
 
@@ -436,13 +453,16 @@ const useCommandeEditorStore = create((set, get) => ({
 
     get().saveToHistory();
 
+    const nouveauDetailsPaiement = {
+      ...state.commande.details_paiement,
+      ...paiement,
+    };
+
     set({
       commande: {
         ...state.commande,
-        details_paiement: {
-          ...state.commande.details_paiement,
-          ...paiement,
-        },
+        details_paiement: nouveauDetailsPaiement,
+        statut_paiement:  calculerStatutPaiement(nouveauDetailsPaiement),
       },
       isDirty: true,
     });

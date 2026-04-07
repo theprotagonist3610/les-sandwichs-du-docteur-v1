@@ -31,6 +31,7 @@ import Budget from "../pages/comptabilite/Budget";
 import Prevision from "../pages/comptabilite/Prevision";
 import Caisse from "../pages/comptabilite/Caisse";
 import Revenu from "../pages/comptabilite/Revenu";
+import Cloture from "../pages/comptabilite/Cloture";
 import BackDay from "@/pages/BackDay";
 import Insights from "@/pages/outils/Insights";
 /**
@@ -88,6 +89,10 @@ export const superviseurRoutes = {
     {
       path: "encaissement",
       element: <Encaissement />,
+    },
+    {
+      path: "cloture",
+      element: <Cloture />,
     },
     {
       path: "outils",

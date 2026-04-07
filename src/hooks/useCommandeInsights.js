@@ -191,9 +191,23 @@ const buildAggregations = (commandes, groupFn, labelFn, isCurrentFn) => {
   return { periodes, menus, jours, pdv };
 };
 
+// ─── Fenêtre précédente ────────────────────────────────────────────────────────
+
+const getPrevWindow = (startDate, endDate) => {
+  const start   = new Date(startDate + "T12:00:00");
+  const end     = new Date(endDate.slice(0, 10) + "T12:00:00");
+  const durMs   = end - start;
+  const prevEnd = new Date(start.getTime() - 86400_000);
+  const prevStart = new Date(prevEnd.getTime() - durMs);
+  return {
+    prevStartDate: toISO(prevStart),
+    prevEndDate:   toISO(prevEnd) + "T23:59:59",
+  };
+};
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-const useCommandeInsights = (horizon = HORIZONS.H24, refreshKey = 0) => {
+const useCommandeInsights = (horizon = HORIZONS.H24, refreshKey = 0, compareWithPrevious = false) => {
   const [analysis, setAnalysis] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -205,36 +219,56 @@ const useCommandeInsights = (horizon = HORIZONS.H24, refreshKey = 0) => {
     try {
       const { startDate, endDate, groupFn, labelFn, isCurrentFn } = getWindowConfig(horizon);
 
-      const { data, error: dbErr } = await supabase
-        .from("commandes")
-        .select(`
-          created_at,
-          details_commandes,
-          details_paiement,
-          point_de_vente_info:emplacements!point_de_vente(id, nom)
-        `)
-        .gte("created_at", startDate)
-        .lte("created_at", endDate)
-        .neq("statut_commande", "annulee");
+      const fetchCommandes = (from, to) =>
+        supabase
+          .from("commandes")
+          .select(`
+            created_at,
+            details_commandes,
+            details_paiement,
+            point_de_vente_info:emplacements!point_de_vente(id, nom)
+          `)
+          .gte("created_at", from)
+          .lte("created_at", to)
+          .neq("statut_commande", "annulee");
 
-      if (dbErr) throw new Error(dbErr.message);
+      const requests = [fetchCommandes(startDate, endDate)];
+
+      if (compareWithPrevious) {
+        const { prevStartDate, prevEndDate } = getPrevWindow(startDate, endDate);
+        requests.push(fetchCommandes(prevStartDate, prevEndDate));
+      }
+
+      const [result, prevResult] = await Promise.all(requests);
+      if (result.error) throw new Error(result.error.message);
 
       const { periodes, menus, jours, pdv } = buildAggregations(
-        data ?? [],
+        result.data ?? [],
         groupFn,
         labelFn,
         isCurrentFn,
       );
 
+      let previousPeriodes = null;
+      if (compareWithPrevious && !prevResult?.error) {
+        const { periodes: pp } = buildAggregations(
+          prevResult.data ?? [],
+          groupFn,
+          labelFn,
+          () => false,
+        );
+        previousPeriodes = pp;
+      }
+
       const computed = analyzeCommandes(periodes, horizon);
-      setAnalysis({ ...computed, menus, jours, pdv });
+      setAnalysis({ ...computed, menus, jours, pdv, previousPeriodes });
     } catch (err) {
       console.error("[useCommandeInsights]", err);
       setError("Impossible de charger les données de commandes.");
     } finally {
       setLoading(false);
     }
-  }, [horizon, refreshKey]);
+  }, [horizon, refreshKey, compareWithPrevious]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

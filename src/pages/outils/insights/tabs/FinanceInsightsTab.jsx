@@ -7,13 +7,15 @@
  *  - refreshKey {number}  — incrémenté pour forcer un re-fetch
  */
 
+import { useState } from "react";
 import useFinanceInsights from "@/hooks/useFinanceInsights";
 import useBreakpoint from "@/hooks/useBreakpoint";
 import FinanceInsightsKpi    from "./finance/FinanceInsightsKpi";
 import FinanceInsightsChart  from "./finance/FinanceInsightsChart";
 import FinanceDepensesChart  from "./finance/FinanceDepensesChart";
 import FinanceInsightsAlerts from "./finance/FinanceInsightsAlerts";
-import { Loader2, AlertTriangle, TrendingUp } from "lucide-react";
+import { Loader2, AlertTriangle, TrendingUp, GitCompare } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { HORIZON_LABELS } from "@/utils/insightsToolkit/engine/insightTypes";
 
 // ─── Squelettes de chargement ─────────────────────────────────────────────────
@@ -55,7 +57,8 @@ const EtatVide = ({ horizon }) => (
 
 const FinanceInsightsTab = ({ horizon, refreshKey }) => {
   const { isMobile } = useBreakpoint();
-  const { analysis, loading, error } = useFinanceInsights(horizon, refreshKey);
+  const [compareWithPrev, setCompareWithPrev] = useState(false);
+  const { analysis, loading, error } = useFinanceInsights(horizon, refreshKey, compareWithPrev);
 
   if (loading) return <LoadingSkeleton />;
 
@@ -73,6 +76,18 @@ const FinanceInsightsTab = ({ horizon, refreshKey }) => {
 
   return (
     <div className="flex flex-col gap-5">
+
+      {/* Toggle comparaison */}
+      <div className="flex justify-end">
+        <Button
+          variant={compareWithPrev ? "default" : "outline"}
+          size="sm"
+          onClick={() => setCompareWithPrev((v) => !v)}
+          className="gap-2">
+          <GitCompare className="w-4 h-4" />
+          Comparer période précédente
+        </Button>
+      </div>
 
       {/* KPI Cards */}
       <FinanceInsightsKpi analysis={analysis} horizon={horizon} />

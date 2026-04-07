@@ -43,6 +43,7 @@ const CommandeHeader = ({
   onClose,
   onDeliverAndClose,
   onShowHistory,
+  resteAPayer = 0,
   isMobile = false,
 }) => {
   if (!commande) return null;
@@ -185,17 +186,22 @@ const CommandeHeader = ({
             )}
             {canClose && (
               <Button
-                variant="outline"
+                variant={resteAPayer > 0 ? "destructive" : "outline"}
                 size="sm"
                 onClick={onClose}
-                className="flex-1">
+                className="flex-1 relative">
                 <CheckCheck className="h-4 w-4 mr-1" />
                 Clôturer
+                {resteAPayer > 0 && (
+                  <span className="ml-1 text-[10px] font-bold opacity-90">
+                    ({new Intl.NumberFormat("fr-FR").format(resteAPayer)} impayé)
+                  </span>
+                )}
               </Button>
             )}
             {canDeliver && canClose && (
               <Button
-                variant="default"
+                variant={resteAPayer > 0 ? "destructive" : "default"}
                 size="sm"
                 onClick={onDeliverAndClose}
                 className="flex-1">
@@ -315,14 +321,25 @@ const CommandeHeader = ({
           )}
 
           {canClose && (
-            <Button variant="outline" size="sm" onClick={onClose}>
+            <Button
+              variant={resteAPayer > 0 ? "destructive" : "outline"}
+              size="sm"
+              onClick={onClose}>
               <CheckCheck className="h-4 w-4 mr-2" />
               Clôturer
+              {resteAPayer > 0 && (
+                <span className="ml-1.5 text-[10px] font-bold opacity-90">
+                  {new Intl.NumberFormat("fr-FR").format(resteAPayer)} impayé
+                </span>
+              )}
             </Button>
           )}
 
           {(canDeliver || canClose) && (
-            <Button variant="default" size="sm" onClick={onDeliverAndClose}>
+            <Button
+              variant={resteAPayer > 0 ? "destructive" : "default"}
+              size="sm"
+              onClick={onDeliverAndClose}>
               <CheckCheck className="h-4 w-4 mr-2" />
               Livrer et clôturer
             </Button>

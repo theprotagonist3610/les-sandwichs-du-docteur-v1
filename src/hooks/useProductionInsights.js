@@ -195,9 +195,35 @@ const buildAggregations = (productions, groupFn, labelFn, isCurrentFn) => {
   return { periodes, schemas, rendementMoyen, coutsChart };
 };
 
+// ─── Fenêtre précédente ────────────────────────────────────────────────────────
+
+const getPrevWindow = (startDate, endDate) => {
+  const start   = new Date(startDate + "T12:00:00");
+  const end     = new Date(endDate   + "T12:00:00");
+  const durMs   = end - start;
+  const prevEnd = new Date(start.getTime() - 86400_000);
+  const prevStart = new Date(prevEnd.getTime() - durMs);
+  return { prevStartDate: toISO(prevStart), prevEndDate: toISO(prevEnd) };
+};
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-const useProductionInsights = (horizon = HORIZONS.H24, refreshKey = 0) => {
+const PROD_SELECT = `
+  date_production,
+  nom,
+  cout_total,
+  cout_unitaire,
+  taux_rendement,
+  ecart_cout,
+  rendement_reel,
+  statut,
+  schema:production_schemas(
+    nom, categorie,
+    mode_production, cycle_jours, seuil_relance
+  )
+`;
+
+const useProductionInsights = (horizon = HORIZONS.H24, refreshKey = 0, compareWithPrevious = false) => {
   const [analysis, setAnalysis] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -209,29 +235,22 @@ const useProductionInsights = (horizon = HORIZONS.H24, refreshKey = 0) => {
     try {
       const { startDate, endDate, groupFn, labelFn, isCurrentFn } = getWindowConfig(horizon);
 
-      // Requête historique + état cycles en parallèle
-      const [prodResult, cycleResult] = await Promise.all([
+      const fetchProds = (from, to) =>
         supabase
           .from("productions")
-          .select(`
-            date_production,
-            nom,
-            cout_total,
-            cout_unitaire,
-            taux_rendement,
-            ecart_cout,
-            rendement_reel,
-            statut,
-            schema:production_schemas(
-              nom, categorie,
-              mode_production, cycle_jours, seuil_relance
-            )
-          `)
-          .gte("date_production", startDate)
-          .lte("date_production", endDate)
-          .neq("statut", "annulee"),
-        getSchemasCycliquesARelancer(),
-      ]);
+          .select(PROD_SELECT)
+          .gte("date_production", from)
+          .lte("date_production", to)
+          .neq("statut", "annulee");
+
+      const requests = [fetchProds(startDate, endDate), getSchemasCycliquesARelancer()];
+
+      if (compareWithPrevious) {
+        const { prevStartDate, prevEndDate } = getPrevWindow(startDate, endDate);
+        requests.push(fetchProds(prevStartDate, prevEndDate));
+      }
+
+      const [prodResult, cycleResult, prevProdResult] = await Promise.all(requests);
 
       if (prodResult.error) throw new Error(prodResult.error.message);
 
@@ -242,18 +261,29 @@ const useProductionInsights = (horizon = HORIZONS.H24, refreshKey = 0) => {
         isCurrentFn,
       );
 
+      let previousPeriodes = null;
+      if (compareWithPrevious && prevProdResult && !prevProdResult.error) {
+        const { periodes: pp } = buildAggregations(
+          prevProdResult.data ?? [],
+          groupFn,
+          labelFn,
+          () => false,
+        );
+        previousPeriodes = pp;
+      }
+
       const cyclesDashboard = cycleResult.success ? (cycleResult.schemas ?? []) : [];
       const nbCyclesAlerte  = cyclesDashboard.length;
 
       const computed = analyzeProduction(periodes, schemas, rendementMoyen, cyclesDashboard, horizon);
-      setAnalysis({ ...computed, schemas, coutsChart, rendementMoyen, cyclesDashboard, nbCyclesAlerte });
+      setAnalysis({ ...computed, schemas, coutsChart, rendementMoyen, cyclesDashboard, nbCyclesAlerte, previousPeriodes });
     } catch (err) {
       console.error("[useProductionInsights]", err);
       setError("Impossible de charger les données de production.");
     } finally {
       setLoading(false);
     }
-  }, [horizon, refreshKey]);
+  }, [horizon, refreshKey, compareWithPrevious]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

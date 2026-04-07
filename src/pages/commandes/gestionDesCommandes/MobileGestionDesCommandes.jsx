@@ -27,6 +27,8 @@ import {
   SlidersHorizontal,
   MapPin,
   Check,
+  CalendarRange,
+  History,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -78,6 +80,9 @@ const MobileGestionDesCommandes = () => {
   const [filterCommunes, setFilterCommunes] = useState([]);
   const [filterQuartiers, setFilterQuartiers] = useState([]);
   const [filterArrondissements, setFilterArrondissements] = useState([]);
+  // Filtres date (vue historique)
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [viewMode, setViewMode] = useState("grid");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [commandeToDelete, setCommandeToDelete] = useState(null);
@@ -130,21 +135,41 @@ const MobileGestionDesCommandes = () => {
     }
   }, [visible]);
 
-  const loadCommandes = async () => {
+  // Recharger quand les filtres de date changent
+  useEffect(() => {
+    if (visible) {
+      loadCommandes(dateFrom, dateTo);
+    }
+  }, [dateFrom, dateTo]);
+
+  const loadCommandes = async (fromDate = dateFrom, toDate = dateTo) => {
     setLoading(true);
     setError(null);
     try {
-      const {
-        commandes: data,
-        error: err,
-        fromCache,
-      } = await syncAndLoadCommandes();
-
-      if (err) {
-        setError(err.message || "Erreur lors du chargement des commandes");
+      if (fromDate || toDate) {
+        const { commandes: data, error: err } = await commandeToolkit.getAllCommandes({
+          dateFrom: fromDate || undefined,
+          dateTo: toDate || undefined,
+        });
+        if (err) {
+          setError(err.message || "Erreur lors du chargement des commandes");
+        } else {
+          setCommandes(data || []);
+          setIsCached(false);
+        }
       } else {
-        setCommandes(data || []);
-        setIsCached(fromCache);
+        const {
+          commandes: data,
+          error: err,
+          fromCache,
+        } = await syncAndLoadCommandes();
+
+        if (err) {
+          setError(err.message || "Erreur lors du chargement des commandes");
+        } else {
+          setCommandes(data || []);
+          setIsCached(fromCache);
+        }
       }
     } catch (err) {
       setError("Une erreur est survenue lors du chargement des commandes");
@@ -224,7 +249,7 @@ const MobileGestionDesCommandes = () => {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterType, filterStatutCommande, filterStatutLivraison, filterStatutPaiement, filterCommunes, filterQuartiers, filterArrondissements]);
+  }, [searchTerm, filterType, filterStatutCommande, filterStatutLivraison, filterStatutPaiement, filterCommunes, filterQuartiers, filterArrondissements, dateFrom, dateTo]);
 
   // Vérifier si des filtres géographiques sont actifs
   const hasGeoFilters = filterCommunes.length > 0 || filterQuartiers.length > 0 || filterArrondissements.length > 0;
@@ -238,6 +263,8 @@ const MobileGestionDesCommandes = () => {
     setFilterCommunes([]);
     setFilterQuartiers([]);
     setFilterArrondissements([]);
+    setDateFrom("");
+    setDateTo("");
     setFiltersSheetOpen(false);
   };
 
@@ -271,6 +298,7 @@ const MobileGestionDesCommandes = () => {
     }
   };
 
+  const hasDateFilter = !!(dateFrom || dateTo);
   const hasActiveFilters =
     filterType !== "all" ||
     filterStatutCommande !== "all" ||
@@ -278,7 +306,8 @@ const MobileGestionDesCommandes = () => {
     filterStatutPaiement !== "all" ||
     filterCommunes.length > 0 ||
     filterQuartiers.length > 0 ||
-    filterArrondissements.length > 0;
+    filterArrondissements.length > 0 ||
+    hasDateFilter;
 
   const activeFiltersCount = [
     filterType !== "all",
@@ -288,6 +317,7 @@ const MobileGestionDesCommandes = () => {
     filterCommunes.length > 0,
     filterQuartiers.length > 0,
     filterArrondissements.length > 0,
+    hasDateFilter,
   ].filter(Boolean).length;
 
   return (
@@ -299,9 +329,14 @@ const MobileGestionDesCommandes = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">Commandes</h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
               {filteredCommandes.length} commande{filteredCommandes.length > 1 ? "s" : ""}
-              {isCached && " (cache)"}
+              {hasDateFilter ? (
+                <span className="inline-flex items-center gap-0.5 text-amber-700 font-medium">
+                  <History className="w-3 h-3" />
+                  historique
+                </span>
+              ) : isCached && " (cache)"}
             </p>
           </div>
 
@@ -363,6 +398,34 @@ const MobileGestionDesCommandes = () => {
               </div>
               <ScrollArea className="h-[calc(75vh-80px)] mt-4">
                 <div className="space-y-4 px-6 pb-6">
+                {/* Période */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <CalendarRange className="w-4 h-4" />
+                    Période
+                  </label>
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-xs text-muted-foreground">Du</span>
+                      <Input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="h-10 mt-1"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Au</span>
+                      <Input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="h-10 mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Type */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Type</label>
@@ -635,6 +698,25 @@ const MobileGestionDesCommandes = () => {
         {/* Filtres actifs */}
         {hasActiveFilters && (
           <div className="flex items-center gap-2 flex-wrap">
+            {dateFrom && (
+              <Badge variant="secondary" className="text-xs">
+                <CalendarRange className="w-2.5 h-2.5 mr-0.5" />
+                {dateFrom}
+                <X
+                  className="w-3 h-3 ml-1 cursor-pointer"
+                  onClick={() => setDateFrom("")}
+                />
+              </Badge>
+            )}
+            {dateTo && (
+              <Badge variant="secondary" className="text-xs">
+                →{dateTo}
+                <X
+                  className="w-3 h-3 ml-1 cursor-pointer"
+                  onClick={() => setDateTo("")}
+                />
+              </Badge>
+            )}
             {filterType !== "all" && (
               <Badge variant="secondary" className="text-xs">
                 {filterType}

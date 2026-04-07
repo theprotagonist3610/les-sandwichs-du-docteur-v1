@@ -169,7 +169,7 @@ const RevenuView = () => {
                 {formatMontant(data.revenu)}
               </span>
             </div>
-            {data.variationPourcent !== undefined && data.variationPourcent !== 0 && (
+            {data.variationPourcent !== undefined && Number(data.variationPourcent) !== 0 && (
               <div className="flex items-center justify-between gap-4 text-xs">
                 <span className="text-muted-foreground">Variation:</span>
                 <span
@@ -539,7 +539,7 @@ const RevenuView = () => {
                         {formatMontant(revenu.revenu)}
                       </td>
                       <td className="p-3 text-right">
-                        {revenu.variationPourcent !== 0 && (
+                        {Number(revenu.variationPourcent) !== 0 && (
                           <Badge
                             variant="outline"
                             className={

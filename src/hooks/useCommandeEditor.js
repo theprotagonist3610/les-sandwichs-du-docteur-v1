@@ -245,6 +245,22 @@ export const useCommandeEditor = () => {
     return store.commande.statut_commande === "en_cours";
   }, [store.commande]);
 
+  /**
+   * Montant restant à percevoir (0 si entièrement payée)
+   */
+  const resteAPayer = useMemo(() => {
+    if (!store.commande) return 0;
+    const paiement = store.commande.details_paiement || {};
+    const totalAPayer =
+      paiement.total_apres_reduction ??
+      paiement.total ??
+      store.commande.montant_total ??
+      0;
+    const totalPaye =
+      (paiement.momo || 0) + (paiement.cash || 0) + (paiement.autre || 0);
+    return Math.max(0, totalAPayer - totalPaye);
+  }, [store.commande]);
+
   // ============================================================================
   // ACTIONS DE MODIFICATION
   // ============================================================================
@@ -490,9 +506,15 @@ export const useCommandeEditor = () => {
       return { success: false };
     }
 
+    const warningPaiement =
+      resteAPayer > 0
+        ? `⚠️ Il reste ${new Intl.NumberFormat("fr-FR").format(resteAPayer)} FCFA à percevoir. `
+        : "";
+
     setConfirmAction({
       title: "Clôturer la commande ?",
-      message: "Cette action ne peut pas être annulée.",
+      message: `${warningPaiement}Cette action ne peut pas être annulée.`,
+      variant: resteAPayer > 0 ? "destructive" : undefined,
       onConfirm: async () => {
         setConfirmAction(null);
 
@@ -507,7 +529,7 @@ export const useCommandeEditor = () => {
       },
       onCancel: () => setConfirmAction(null),
     });
-  }, [canClose, store, user, commandeId, loadHistory]);
+  }, [canClose, store, user, commandeId, loadHistory, resteAPayer]);
 
   /**
    * Livrer et clôturer
@@ -518,10 +540,15 @@ export const useCommandeEditor = () => {
       return { success: false };
     }
 
+    const warningPaiementLivr =
+      resteAPayer > 0
+        ? `⚠️ Il reste ${new Intl.NumberFormat("fr-FR").format(resteAPayer)} FCFA à percevoir. `
+        : "";
+
     setConfirmAction({
       title: "Livrer et clôturer ?",
-      message:
-        "La commande sera marquée comme livrée et clôturée. Cette action ne peut pas être annulée.",
+      message: `${warningPaiementLivr}La commande sera marquée comme livrée et clôturée. Cette action ne peut pas être annulée.`,
+      variant: resteAPayer > 0 ? "destructive" : undefined,
       onConfirm: async () => {
         setConfirmAction(null);
 
@@ -536,7 +563,7 @@ export const useCommandeEditor = () => {
       },
       onCancel: () => setConfirmAction(null),
     });
-  }, [canDeliver, canClose, store, user, commandeId, loadHistory]);
+  }, [canDeliver, canClose, store, user, commandeId, loadHistory, resteAPayer]);
 
   // ============================================================================
   // ACTIONS HISTORIQUE
@@ -639,6 +666,7 @@ export const useCommandeEditor = () => {
     canClose,
     canUndo: store.canUndo(),
     canRedo: store.canRedo(),
+    resteAPayer,
 
     // Actions de modification
     updateField,

@@ -36,6 +36,18 @@ import {
   BarChart3,
   Zap,
 } from "lucide-react";
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
 import * as comptabiliteToolkit from "@/utils/comptabiliteToolkit";
 
 /**
@@ -971,6 +983,52 @@ const PrevisionView = () => {
                         </CardContent>
                       </Card>
                     </div>
+
+                    {/* Courbe de prévision */}
+                    {scenariosCalcules.historiqueChart?.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-sm flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-orange-500" />
+                          Tendance & prévision (régression linéaire)
+                        </h4>
+                        <ResponsiveContainer width="100%" height={220}>
+                          <ComposedChart
+                            data={[
+                              ...scenariosCalcules.historiqueChart,
+                              ...scenariosCalcules.forecastChart,
+                            ]}
+                            margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                              dataKey="label"
+                              tick={{ fontSize: 10 }}
+                              angle={-40}
+                              textAnchor="end"
+                              height={56}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 10 }}
+                              tickFormatter={(v) =>
+                                new Intl.NumberFormat("fr-FR", { notation: "compact" }).format(v)
+                              }
+                              width={52}
+                            />
+                            <Tooltip
+                              formatter={(value, name) => [
+                                new Intl.NumberFormat("fr-FR").format(value) + " FCFA",
+                                name,
+                              ]}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 11 }} />
+                            <ReferenceLine x={scenariosCalcules.forecastChart[0]?.label} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "Prévision", fontSize: 10 }} />
+                            <Bar dataKey="encaissements" name="Enc. historique" fill="#10b981" opacity={0.7} />
+                            <Bar dataKey="depenses" name="Dép. historique" fill="#ef4444" opacity={0.7} />
+                            <Line dataKey="encaissements_real" name="Enc. réaliste" stroke="#10b981" strokeWidth={2} dot={{ r: 5 }} strokeDasharray="5 3" />
+                            <Line dataKey="depenses_real" name="Dép. réaliste" stroke="#ef4444" strokeWidth={2} dot={{ r: 5 }} strokeDasharray="5 3" />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
 
                     {/* Montants par compte (éditable) */}
                     <div className="space-y-3">

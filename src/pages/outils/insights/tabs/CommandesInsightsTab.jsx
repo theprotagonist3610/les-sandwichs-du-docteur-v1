@@ -7,6 +7,7 @@
  *  - refreshKey {number}  — incrémenté pour forcer un re-fetch
  */
 
+import { useState } from "react";
 import useCommandeInsights from "@/hooks/useCommandeInsights";
 import useBreakpoint from "@/hooks/useBreakpoint";
 import CommandesInsightsKpi    from "./commandes/CommandesInsightsKpi";
@@ -15,7 +16,8 @@ import CommandesMenusChart     from "./commandes/CommandesMenusChart";
 import CommandesJoursChart     from "./commandes/CommandesJoursChart";
 import CommandesPdvChart       from "./commandes/CommandesPdvChart";
 import CommandesInsightsAlerts from "./commandes/CommandesInsightsAlerts";
-import { AlertTriangle, ShoppingCart } from "lucide-react";
+import { AlertTriangle, ShoppingCart, GitCompare } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { HORIZON_LABELS } from "@/utils/insightsToolkit/engine/insightTypes";
 
 // ─── Squelettes ───────────────────────────────────────────────────────────────
@@ -55,7 +57,8 @@ const EtatVide = ({ horizon }) => (
 
 const CommandesInsightsTab = ({ horizon, refreshKey }) => {
   const { isMobile } = useBreakpoint();
-  const { analysis, loading, error } = useCommandeInsights(horizon, refreshKey);
+  const [compareWithPrev, setCompareWithPrev] = useState(false);
+  const { analysis, loading, error } = useCommandeInsights(horizon, refreshKey, compareWithPrev);
 
   if (loading) return <LoadingSkeleton />;
 
@@ -73,6 +76,18 @@ const CommandesInsightsTab = ({ horizon, refreshKey }) => {
 
   return (
     <div className="flex flex-col gap-5">
+
+      {/* Toggle comparaison */}
+      <div className="flex justify-end">
+        <Button
+          variant={compareWithPrev ? "default" : "outline"}
+          size="sm"
+          onClick={() => setCompareWithPrev((v) => !v)}
+          className="gap-2">
+          <GitCompare className="w-4 h-4" />
+          Comparer période précédente
+        </Button>
+      </div>
 
       {/* KPI Cards */}
       <CommandesInsightsKpi analysis={analysis} horizon={horizon} />

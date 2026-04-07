@@ -17,6 +17,7 @@ import {
   ChartLine,
   PiggyBank,
   ChevronRight,
+  Lock,
 } from "lucide-react";
 
 const liste = [
@@ -79,6 +80,16 @@ const liste = [
     bgColor: "bg-teal-50 dark:bg-teal-950",
     color: "text-teal-600 dark:text-teal-400",
     roles: ["admin"],
+  },
+  {
+    name: "cloture",
+    label: "Clôture journalière",
+    description: "Clôturer la journée et consulter l'historique des clôtures",
+    path: "/cloture",
+    icon: Lock,
+    bgColor: "bg-slate-50 dark:bg-slate-950",
+    color: "text-slate-600 dark:text-slate-400",
+    roles: ["superviseur", "admin"],
   },
 ];
 

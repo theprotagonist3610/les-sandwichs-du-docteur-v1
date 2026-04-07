@@ -52,6 +52,7 @@ const MobileCommande = () => {
     canClose,
     canUndo,
     canRedo,
+    resteAPayer,
 
     // Actions de modification
     updateField,
@@ -184,6 +185,7 @@ const MobileCommande = () => {
         onClose={close}
         onDeliverAndClose={deliverAndClose}
         onShowHistory={() => setShowHistoryModal(true)}
+        resteAPayer={resteAPayer}
         isMobile={true}
       />
 

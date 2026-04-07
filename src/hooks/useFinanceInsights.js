@@ -201,9 +201,21 @@ const aggregerOperations = (operations, groupFn, labelFn, isCurrentFn) => {
   }));
 };
 
+// ─── Fenêtre précédente ────────────────────────────────────────────────────────
+
+/** Retourne { prevStartDate, prevEndDate } pour la fenêtre qui précède [startDate, endDate] */
+const getPrevWindow = (startDate, endDate) => {
+  const start   = new Date(startDate + "T12:00:00");
+  const end     = new Date(endDate   + "T12:00:00");
+  const durMs   = end - start;                        // durée en ms
+  const prevEnd = new Date(start.getTime() - 86400_000); // veille du début courant
+  const prevStart = new Date(prevEnd.getTime() - durMs);
+  return { prevStartDate: toISO(prevStart), prevEndDate: toISO(prevEnd) };
+};
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-const useFinanceInsights = (horizon = HORIZONS.H24, refreshKey = 0) => {
+const useFinanceInsights = (horizon = HORIZONS.H24, refreshKey = 0, compareWithPrevious = false) => {
   const [analysis, setAnalysis] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -215,25 +227,38 @@ const useFinanceInsights = (horizon = HORIZONS.H24, refreshKey = 0) => {
     try {
       const { startDate, endDate, groupFn, labelFn, isCurrentFn } = getWindowConfig(horizon);
 
-      // Fetch toutes les opérations de la fenêtre (pas de pagination — on veut tout)
-      const result = await getOperations({ startDate, endDate, limit: 2000, offset: 0 });
+      // Fetch opérations courantes (+ période précédente si demandée)
+      const requests = [getOperations({ startDate, endDate, limit: 2000, offset: 0 })];
+
+      if (compareWithPrevious) {
+        const { prevStartDate, prevEndDate } = getPrevWindow(startDate, endDate);
+        requests.push(getOperations({ startDate: prevStartDate, endDate: prevEndDate, limit: 2000, offset: 0 }));
+      }
+
+      const [result, prevResult] = await Promise.all(requests);
 
       if (!result.success) throw new Error(result.error ?? "Erreur de chargement");
 
       const ops = result.operations ?? [];
 
-      const periodes = aggregerOperations(ops, groupFn, labelFn, isCurrentFn);
+      const periodes  = aggregerOperations(ops, groupFn, labelFn, isCurrentFn);
       const motifData = aggregerMotifs(ops, groupFn, labelFn);
 
+      let previousPeriodes = null;
+      if (compareWithPrevious && prevResult?.success) {
+        const prevOps = prevResult.operations ?? [];
+        previousPeriodes = aggregerOperations(prevOps, groupFn, labelFn, () => false);
+      }
+
       const computed = analyzeFinance(periodes, horizon);
-      setAnalysis({ ...computed, motifData });
+      setAnalysis({ ...computed, motifData, previousPeriodes });
     } catch (err) {
       console.error("[useFinanceInsights]", err);
       setError("Impossible de charger les données financières.");
     } finally {
       setLoading(false);
     }
-  }, [horizon, refreshKey]);
+  }, [horizon, refreshKey, compareWithPrevious]);
 
   useEffect(() => { fetch(); }, [fetch]);
 

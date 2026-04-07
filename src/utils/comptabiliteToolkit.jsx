@@ -1,4 +1,5 @@
 import { supabase } from "@/config/supabase";
+import { linearRegression } from "@/utils/insightsToolkit/finance/FinanceInsightsEngine";
 
 /**
  * Toolkit pour la gestion de la comptabilité de caisse
@@ -189,6 +190,7 @@ export const getOperations = async (options = {}) => {
       endDate,
       searchTerm,
       emplacement,
+      categorie,
       limit = 50,
       offset = 0,
       orderBy = "date_operation",
@@ -233,7 +235,11 @@ export const getOperations = async (options = {}) => {
     }
 
     if (emplacement) {
-      query = query.filter("motif->>emplacement", "eq", emplacement);
+      query = query.contains("motif", { emplacement });
+    }
+
+    if (categorie) {
+      query = query.filter("motif->>motif", "ilike", `${categorie}%`);
     }
 
     // Appliquer tri et pagination
@@ -261,7 +267,7 @@ export const getOperations = async (options = {}) => {
  */
 export const getSommeOperations = async (options = {}) => {
   try {
-    const { operation, compte, startDate, endDate, searchTerm, emplacement } = options;
+    const { operation, compte, startDate, endDate, searchTerm, emplacement, categorie } = options;
 
     let query = supabase.from("operations_comptables").select("montant");
 
@@ -270,7 +276,8 @@ export const getSommeOperations = async (options = {}) => {
     if (startDate) query = query.gte("date_operation", startDate);
     if (endDate) query = query.lte("date_operation", endDate);
     if (searchTerm) query = query.filter("motif->>motif", "ilike", `%${searchTerm}%`);
-    if (emplacement) query = query.filter("motif->>emplacement", "eq", emplacement);
+    if (emplacement) query = query.contains("motif", { emplacement });
+    if (categorie) query = query.filter("motif->>motif", "ilike", `${categorie}%`);
 
     const { data, error } = await query;
 
@@ -1459,28 +1466,39 @@ export const calculerPrevisionsAutomatiques = async (
       });
     });
 
-    // Calculer les statistiques pour chaque compte
-    Object.keys(stats).forEach((compte) => {
-      // Encaissements
-      const encValues = stats[compte].encaissements.valeurs;
-      if (encValues.length > 0) {
-        stats[compte].encaissements.moyenne =
-          encValues.reduce((a, b) => a + b, 0) / encValues.length;
-        stats[compte].encaissements.min = Math.min(...encValues);
-        stats[compte].encaissements.max = Math.max(...encValues);
-      }
+    // Projection via régression linéaire par compte
+    const projeterSerie = (valeurs) => {
+      if (valeurs.length === 0) return { moy: 0, sigma: 0 };
+      if (valeurs.length === 1) return { moy: valeurs[0], sigma: 0 };
+      const { a, b, predicted } = linearRegression(valeurs);
+      const n = valeurs.length;
+      const projection = Math.max(0, a * n + b); // prochain point sur la droite
+      // Écart-type des résidus pour l'incertitude
+      const residuals = valeurs.map((v, i) => v - predicted[i]);
+      const meanRes = residuals.reduce((s, r) => s + r, 0) / n;
+      const variance = residuals.reduce((s, r) => s + (r - meanRes) ** 2, 0) / Math.max(1, n - 1);
+      const sigma = Math.sqrt(variance) * 1.5;
+      return { moy: projection, sigma };
+    };
 
-      // Dépenses
+    // Calculer les statistiques + projections pour chaque compte
+    Object.keys(stats).forEach((compte) => {
+      const encValues = stats[compte].encaissements.valeurs;
       const depValues = stats[compte].depenses.valeurs;
+
+      stats[compte].encaissements.projection = projeterSerie(encValues);
+      stats[compte].depenses.projection = projeterSerie(depValues);
+
+      // Garder les stats de base pour compatibilité
+      if (encValues.length > 0) {
+        stats[compte].encaissements.moyenne = encValues.reduce((a, b) => a + b, 0) / encValues.length;
+      }
       if (depValues.length > 0) {
-        stats[compte].depenses.moyenne =
-          depValues.reduce((a, b) => a + b, 0) / depValues.length;
-        stats[compte].depenses.min = Math.min(...depValues);
-        stats[compte].depenses.max = Math.max(...depValues);
+        stats[compte].depenses.moyenne = depValues.reduce((a, b) => a + b, 0) / depValues.length;
       }
     });
 
-    // Générer les trois scénarios
+    // Générer les trois scénarios à partir des projections
     const scenarios = {
       pessimiste: {},
       realiste: {},
@@ -1488,22 +1506,25 @@ export const calculerPrevisionsAutomatiques = async (
     };
 
     Object.entries(stats).forEach(([compte, stat]) => {
-      // Pessimiste: 80% de la moyenne des encaissements, 120% de la moyenne des dépenses
+      const encProj = stat.encaissements.projection;
+      const depProj = stat.depenses.projection;
+
+      // Pessimiste: projection - σ pour encaissements, + σ pour dépenses
       scenarios.pessimiste[compte] = {
-        encaissements: Math.round(stat.encaissements.moyenne * 0.8),
-        depenses: Math.round(stat.depenses.moyenne * 1.2),
+        encaissements: Math.round(Math.max(0, encProj.moy - encProj.sigma)),
+        depenses: Math.round(depProj.moy + depProj.sigma),
       };
 
-      // Réaliste: moyenne exacte
+      // Réaliste: projection centrale de la régression
       scenarios.realiste[compte] = {
-        encaissements: Math.round(stat.encaissements.moyenne),
-        depenses: Math.round(stat.depenses.moyenne),
+        encaissements: Math.round(encProj.moy),
+        depenses: Math.round(depProj.moy),
       };
 
-      // Optimiste: 120% de la moyenne des encaissements, 80% de la moyenne des dépenses
+      // Optimiste: projection + σ pour encaissements, - σ pour dépenses
       scenarios.optimiste[compte] = {
-        encaissements: Math.round(stat.encaissements.moyenne * 1.2),
-        depenses: Math.round(stat.depenses.moyenne * 0.8),
+        encaissements: Math.round(encProj.moy + encProj.sigma),
+        depenses: Math.round(Math.max(0, depProj.moy - depProj.sigma)),
       };
     });
 
@@ -1523,6 +1544,39 @@ export const calculerPrevisionsAutomatiques = async (
         solde_net: totalEncaissements - totalDepenses,
       };
     };
+
+    // Historique mensuel agrégé pour la courbe de prévision (graphique)
+    const moisNoms = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+    const historiqueChart = Object.entries(dataParMois)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([cle, compteData]) => {
+        const [y, m] = cle.split("-");
+        const encTotal = Object.values(compteData).reduce((s, c) => s + c.encaissements, 0);
+        const depTotal = Object.values(compteData).reduce((s, c) => s + c.depenses, 0);
+        return {
+          periode: cle,
+          label: `${moisNoms[parseInt(m) - 1]} ${y}`,
+          encaissements: Math.round(encTotal),
+          depenses: Math.round(depTotal),
+          revenu: Math.round(encTotal - depTotal),
+        };
+      });
+
+    // Points de prévision (scénarios) pour le graphique
+    const moisCibles = [`${annee}-${String(mois).padStart(2, "0")}`];
+    const forecastChart = [
+      {
+        periode: moisCibles[0],
+        label: `${moisNoms[mois - 1]} ${annee} (prévu)`,
+        encaissements_pess: calculerTotaux(scenarios.pessimiste).total_encaissements,
+        encaissements_real: calculerTotaux(scenarios.realiste).total_encaissements,
+        encaissements_opti: calculerTotaux(scenarios.optimiste).total_encaissements,
+        depenses_pess: calculerTotaux(scenarios.pessimiste).total_depenses,
+        depenses_real: calculerTotaux(scenarios.realiste).total_depenses,
+        depenses_opti: calculerTotaux(scenarios.optimiste).total_depenses,
+        isForecast: true,
+      },
+    ];
 
     return {
       success: true,
@@ -1546,6 +1600,8 @@ export const calculerPrevisionsAutomatiques = async (
           },
         },
         statistiques: stats,
+        historiqueChart,
+        forecastChart,
       },
     };
   } catch (error) {

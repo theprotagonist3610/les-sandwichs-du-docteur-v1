@@ -36,7 +36,39 @@ const FORM_VIDE = {
   date_operation: new Date().toISOString().split("T")[0],
 };
 
-const DepenseForm = ({ onSuccess, onCancel }) => {
+const parseInitialData = (initialData, emplacements) => {
+  if (!initialData) return null;
+  const motifObj =
+    typeof initialData.motif === "string"
+      ? (() => { try { return JSON.parse(initialData.motif); } catch { return { motif: initialData.motif }; } })()
+      : initialData.motif ?? {};
+  const motifTexte = motifObj?.motif ?? "";
+  const matchedCat = CATEGORIES_DEPENSE.find((c) => motifTexte.startsWith(c));
+  const categorie = matchedCat ?? "_none";
+  const details =
+    matchedCat && motifTexte.length > matchedCat.length
+      ? motifTexte.slice(matchedCat.length + 3).trim()
+      : "";
+  const emplacementNom = motifObj?.emplacement ?? "";
+  const emplacementId =
+    emplacements.find((e) => e.nom === emplacementNom)?.id ?? "_none";
+  return {
+    formData: {
+      compte: initialData.compte ?? comptabiliteToolkit.TYPES_COMPTE.CAISSE,
+      montant: initialData.montant?.toString() ?? "",
+      quantite: motifObj?.quantite?.toString() ?? "",
+      date_operation:
+        initialData.date_operation?.split("T")[0] ??
+        new Date().toISOString().split("T")[0],
+    },
+    emplacementId,
+    categorieDepense: categorie,
+    detailsMotif: details,
+    unite: motifObj?.unite ?? "_none",
+  };
+};
+
+const DepenseForm = ({ onSuccess, onCancel, initialData }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState(FORM_VIDE);
   const [errors, setErrors] = useState({});
@@ -48,9 +80,19 @@ const DepenseForm = ({ onSuccess, onCancel }) => {
   const [unite, setUnite] = useState("_none");
 
   useEffect(() => {
-    getAllEmplacements({ statut: "actif" }).then(({ emplacements }) =>
-      setEmplacements(emplacements ?? [])
-    );
+    getAllEmplacements({ statut: "actif" }).then(({ emplacements: list }) => {
+      setEmplacements(list ?? []);
+      if (initialData) {
+        const parsed = parseInitialData(initialData, list ?? []);
+        if (parsed) {
+          setFormData(parsed.formData);
+          setEmplacementId(parsed.emplacementId);
+          setCategorieDepense(parsed.categorieDepense);
+          setDetailsMotif(parsed.detailsMotif);
+          setUnite(parsed.unite);
+        }
+      }
+    });
   }, []);
 
   const handleChange = (field, value) => {
@@ -84,8 +126,7 @@ const DepenseForm = ({ onSuccess, onCancel }) => {
         ? `${categorieDepense} - ${detailsMotif.trim()}`
         : categorieDepense;
 
-      const result = await comptabiliteToolkit.createOperation({
-        operation: comptabiliteToolkit.TYPES_OPERATION.DEPENSE,
+      const payload = {
         compte: formData.compte,
         montant: parseFloat(formData.montant),
         motif: {
@@ -95,14 +136,23 @@ const DepenseForm = ({ onSuccess, onCancel }) => {
           unite,
         },
         date_operation: formData.date_operation,
-      });
+      };
+
+      const result = initialData?.id
+        ? await comptabiliteToolkit.updateOperation(initialData.id, payload)
+        : await comptabiliteToolkit.createOperation({
+            operation: comptabiliteToolkit.TYPES_OPERATION.DEPENSE,
+            ...payload,
+          });
 
       if (result.success) {
-        setFormData(FORM_VIDE);
-        setEmplacementId("_none");
-        setCategorieDepense("_none");
-        setDetailsMotif("");
-        setUnite("_none");
+        if (!initialData?.id) {
+          setFormData(FORM_VIDE);
+          setEmplacementId("_none");
+          setCategorieDepense("_none");
+          setDetailsMotif("");
+          setUnite("_none");
+        }
         setErrors({});
         if (onSuccess) onSuccess(result.operation);
       } else {
@@ -123,9 +173,13 @@ const DepenseForm = ({ onSuccess, onCancel }) => {
           <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />
         </div>
         <div>
-          <h3 className="font-semibold text-lg">Nouvelle dépense</h3>
+          <h3 className="font-semibold text-lg">
+            {initialData ? "Modifier la dépense" : "Nouvelle dépense"}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            Enregistrer une dépense dans la comptabilité
+            {initialData
+              ? "Mettre à jour les informations de la dépense"
+              : "Enregistrer une dépense dans la comptabilité"}
           </p>
         </div>
       </div>
@@ -298,6 +352,8 @@ const DepenseForm = ({ onSuccess, onCancel }) => {
         <Button type="submit" disabled={loading} className="flex-1 sm:flex-initial">
           {loading ? (
             <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enregistrement...</>
+          ) : initialData ? (
+            <><TrendingDown className="h-4 w-4 mr-2" />Mettre à jour</>
           ) : (
             <><TrendingDown className="h-4 w-4 mr-2" />Enregistrer la dépense</>
           )}

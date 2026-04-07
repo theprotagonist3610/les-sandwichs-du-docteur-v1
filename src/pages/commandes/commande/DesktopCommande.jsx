@@ -51,6 +51,7 @@ const DesktopCommande = () => {
     canClose,
     canUndo,
     canRedo,
+    resteAPayer,
 
     // Actions de modification
     updateField,
@@ -178,6 +179,7 @@ const DesktopCommande = () => {
         onClose={close}
         onDeliverAndClose={deliverAndClose}
         onShowHistory={() => setShowHistoryModal(true)}
+        resteAPayer={resteAPayer}
         isMobile={false}
       />
 
