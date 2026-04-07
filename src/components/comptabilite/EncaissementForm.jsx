@@ -13,22 +13,51 @@ import { Loader2, TrendingUp } from "lucide-react";
 import * as comptabiliteToolkit from "@/utils/comptabiliteToolkit";
 import { getAllEmplacements } from "@/utils/emplacementToolkit";
 
-const EncaissementForm = ({ onSuccess, onCancel }) => {
+const parseMotif = (motif) => {
+  if (typeof motif === "object" && motif !== null) return motif;
+  if (typeof motif === "string") {
+    try { return JSON.parse(motif); } catch { return { motif }; }
+  }
+  return {};
+};
+
+const EncaissementForm = ({ onSuccess, onCancel, initialData = null }) => {
+  const isEditMode = !!initialData;
+
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    compte: comptabiliteToolkit.TYPES_COMPTE.CAISSE,
-    montant: "",
-    motifTexte: "",
-    date_operation: new Date().toISOString().split("T")[0],
+  const [formData, setFormData] = useState(() => {
+    if (initialData) {
+      const m = parseMotif(initialData.motif);
+      return {
+        compte: initialData.compte ?? comptabiliteToolkit.TYPES_COMPTE.CAISSE,
+        montant: String(initialData.montant ?? ""),
+        motifTexte: m?.motif ?? "",
+        date_operation: initialData.date_operation?.split("T")[0] ?? new Date().toISOString().split("T")[0],
+      };
+    }
+    return {
+      compte: comptabiliteToolkit.TYPES_COMPTE.CAISSE,
+      montant: "",
+      motifTexte: "",
+      date_operation: new Date().toISOString().split("T")[0],
+    };
   });
   const [emplacements, setEmplacements] = useState([]);
   const [emplacementId, setEmplacementId] = useState("_none");
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    getAllEmplacements({ statut: "actif" }).then(({ emplacements }) =>
-      setEmplacements(emplacements ?? [])
-    );
+    getAllEmplacements({ statut: "actif" }).then(({ emplacements: list }) => {
+      const loaded = list ?? [];
+      setEmplacements(loaded);
+      // En mode édition, retrouver l'ID à partir du nom stocké dans motif
+      if (initialData) {
+        const m = parseMotif(initialData.motif);
+        const nom = m?.emplacement ?? "";
+        const found = loaded.find((e) => e.nom === nom);
+        setEmplacementId(found ? found.id : "_none");
+      }
+    });
   }, []);
 
   const handleChange = (field, value) => {
@@ -55,26 +84,37 @@ const EncaissementForm = ({ onSuccess, onCancel }) => {
     setLoading(true);
     try {
       const emplacementNom = emplacements.find((e) => e.id === emplacementId)?.nom ?? "";
-      const result = await comptabiliteToolkit.createOperation({
-        operation: comptabiliteToolkit.TYPES_OPERATION.ENCAISSEMENT,
-        compte: formData.compte,
-        montant: parseFloat(formData.montant),
-        motif: {
-          motif: formData.motifTexte.trim(),
-          emplacement: emplacementNom,
-        },
-        date_operation: formData.date_operation,
-      });
+      const motif = { motif: formData.motifTexte.trim(), emplacement: emplacementNom };
+
+      let result;
+      if (isEditMode) {
+        result = await comptabiliteToolkit.updateOperation(initialData.id, {
+          compte: formData.compte,
+          montant: parseFloat(formData.montant),
+          motif,
+          date_operation: formData.date_operation,
+        });
+      } else {
+        result = await comptabiliteToolkit.createOperation({
+          operation: comptabiliteToolkit.TYPES_OPERATION.ENCAISSEMENT,
+          compte: formData.compte,
+          montant: parseFloat(formData.montant),
+          motif,
+          date_operation: formData.date_operation,
+        });
+      }
 
       if (result.success) {
-        setFormData({
-          compte: comptabiliteToolkit.TYPES_COMPTE.CAISSE,
-          montant: "",
-          motifTexte: "",
-          date_operation: new Date().toISOString().split("T")[0],
-        });
-        setEmplacementId("_none");
-        setErrors({});
+        if (!isEditMode) {
+          setFormData({
+            compte: comptabiliteToolkit.TYPES_COMPTE.CAISSE,
+            montant: "",
+            motifTexte: "",
+            date_operation: new Date().toISOString().split("T")[0],
+          });
+          setEmplacementId("_none");
+          setErrors({});
+        }
         if (onSuccess) onSuccess(result.operation);
       } else {
         setErrors({ submit: result.error });
@@ -94,9 +134,13 @@ const EncaissementForm = ({ onSuccess, onCancel }) => {
           <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
         </div>
         <div>
-          <h3 className="font-semibold text-lg">Nouvel encaissement</h3>
+          <h3 className="font-semibold text-lg">
+            {isEditMode ? "Modifier l'encaissement" : "Nouvel encaissement"}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            Enregistrer un encaissement dans la comptabilité
+            {isEditMode
+              ? "Mettre à jour les informations de l'encaissement"
+              : "Enregistrer un encaissement dans la comptabilité"}
           </p>
         </div>
       </div>
@@ -205,6 +249,8 @@ const EncaissementForm = ({ onSuccess, onCancel }) => {
         <Button type="submit" disabled={loading} className="flex-1 sm:flex-initial">
           {loading ? (
             <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enregistrement...</>
+          ) : isEditMode ? (
+            <><TrendingUp className="h-4 w-4 mr-2" />Mettre à jour</>
           ) : (
             <><TrendingUp className="h-4 w-4 mr-2" />Enregistrer l'encaissement</>
           )}

@@ -19,6 +19,10 @@ import {
 import {
   BarChart,
   Bar,
+  ComposedChart,
+  Line,
+  Area,
+  ReferenceLine,
   XAxis,
   YAxis,
   Tooltip,
@@ -103,6 +107,23 @@ const TooltipChart = ({ active, payload, label }) => {
   );
 };
 
+const fmt = (v) => (v == null ? "—" : `${Math.round(v).toLocaleString("fr-FR")} F`);
+
+const PrixTooltip = ({ active, payload, label, unite }) => {
+  if (!active || !payload?.length) return null;
+  const prix = payload.find((p) => p.dataKey === "prix")?.value;
+  return (
+    <div className="bg-popover border border-border rounded-lg shadow-lg px-3 py-2 text-xs">
+      <p className="font-medium mb-1">{label}</p>
+      {prix != null && (
+        <p className="text-red-600 font-semibold">
+          {fmt(prix)} / {unite}
+        </p>
+      )}
+    </div>
+  );
+};
+
 /**
  * Liste complète des dépenses avec filtres, filtre emplacement et barchart
  */
@@ -131,6 +152,10 @@ const DepensesList = () => {
   // KPI panel
   const [kpiData, setKpiData] = useState(null);
   const [kpiLoading, setKpiLoading] = useState(false);
+
+  // Analyse prix unitaire (active quand filtre catégorie)
+  const [prixData, setPrixData] = useState(null);
+  const [prixLoading, setPrixLoading] = useState(false);
 
   // Chart
   const [chartData, setChartData] = useState([]);
@@ -288,6 +313,75 @@ const DepensesList = () => {
     }
   }, [filters, filtreEmplacementNom]);
 
+  // Analyse prix unitaire par catégorie
+  const fetchPrixAnalysis = useCallback(async () => {
+    if (!filters.categorie) { setPrixData(null); return; }
+    setPrixLoading(true);
+    try {
+      const result = await comptabiliteToolkit.getOperations({
+        operation: comptabiliteToolkit.TYPES_OPERATION.DEPENSE,
+        compte:      filters.compte      || undefined,
+        emplacement: filtreEmplacementNom || undefined,
+        categorie:   filters.categorie,
+        startDate:   filters.startDate   || undefined,
+        endDate:     filters.endDate     || undefined,
+        limit:  500,
+        offset: 0,
+        orderBy:   "date_operation",
+        ascending: true,
+      });
+
+      if (!result.success || !result.operations.length) { setPrixData(null); return; }
+
+      // Calcul du prix unitaire pour chaque opération
+      const points = result.operations
+        .map((op) => {
+          const m = parseMotif(op.motif);
+          const qte = parseFloat(m?.quantite);
+          if (!qte || qte <= 0) return null;
+          return {
+            date:         op.date_operation,
+            prixUnitaire: op.montant / qte,
+            unite:        m?.unite || "",
+          };
+        })
+        .filter(Boolean);
+
+      if (!points.length) { setPrixData(null); return; }
+
+      // Stats globales
+      const prices = points.map((p) => p.prixUnitaire);
+      const mean     = prices.reduce((a, b) => a + b, 0) / prices.length;
+      const variance = prices.reduce((a, b) => a + (b - mean) ** 2, 0) / prices.length;
+      const std      = Math.sqrt(variance);
+      const min      = Math.min(...prices);
+      const max      = Math.max(...prices);
+      const unite    = points[0].unite;
+
+      // Regroupement par jour (prix moyen, min, max du jour)
+      const byDay = {};
+      points.forEach(({ date, prixUnitaire }) => {
+        if (!byDay[date]) byDay[date] = [];
+        byDay[date].push(prixUnitaire);
+      });
+      const chartPoints = Object.entries(byDay)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, vals]) => ({
+          label:   new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }),
+          prix:    vals.reduce((a, b) => a + b, 0) / vals.length,
+          prixMin: Math.min(...vals),
+          prixMax: Math.max(...vals),
+        }));
+
+      setPrixData({ chartPoints, mean, std, min, max, unite, count: points.length });
+    } catch (e) {
+      console.error("Prix analysis error:", e);
+      setPrixData(null);
+    } finally {
+      setPrixLoading(false);
+    }
+  }, [filters, filtreEmplacementNom]);
+
   useEffect(() => {
     fetchOperations();
   }, [fetchOperations]);
@@ -295,6 +389,10 @@ const DepensesList = () => {
   useEffect(() => {
     fetchKpi();
   }, [fetchKpi]);
+
+  useEffect(() => {
+    fetchPrixAnalysis();
+  }, [fetchPrixAnalysis]);
 
   // Réinitialiser à la page 1 quand les filtres changent
   useEffect(() => {
@@ -544,6 +642,116 @@ const DepensesList = () => {
                   })() : <span className="text-xs text-muted-foreground">—</span>}
                   <p className="text-xs text-muted-foreground mt-0.5">{formatMontant(kpiData.curr30)}</p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null
+      )}
+
+      {/* Graphique évolution prix unitaire — visible quand filtre catégorie actif */}
+      {filters.categorie && (
+        prixLoading ? (
+          <div className="h-56 rounded-xl bg-muted animate-pulse" />
+        ) : prixData ? (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-red-600" />
+                Évolution du prix unitaire · {filters.categorie}
+                <span className="text-xs font-normal text-muted-foreground">/ {prixData.unite}</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* KPI prix */}
+              <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+                <div className="bg-muted/40 rounded-lg py-2 px-3">
+                  <p className="text-xs text-muted-foreground mb-0.5">Prix moyen</p>
+                  <p className="text-base font-bold">{fmt(prixData.mean)}</p>
+                  <p className="text-xs text-muted-foreground">/ {prixData.unite}</p>
+                </div>
+                <div className="bg-muted/40 rounded-lg py-2 px-3">
+                  <p className="text-xs text-muted-foreground mb-0.5">Fourchette</p>
+                  <p className="text-sm font-semibold text-green-600">{fmt(prixData.min)}</p>
+                  <p className="text-xs text-muted-foreground">→</p>
+                  <p className="text-sm font-semibold text-red-600">{fmt(prixData.max)}</p>
+                </div>
+                <div className="bg-muted/40 rounded-lg py-2 px-3">
+                  <p className="text-xs text-muted-foreground mb-0.5">Écart type</p>
+                  <p className="text-base font-bold">±{fmt(prixData.std)}</p>
+                  <p className="text-xs text-muted-foreground">{prixData.count} achats</p>
+                </div>
+              </div>
+
+              {/* Courbe */}
+              <ResponsiveContainer width="100%" height={180}>
+                <ComposedChart data={prixData.chartPoints} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                    width={38}
+                    domain={["auto", "auto"]}
+                  />
+                  <Tooltip content={<PrixTooltip unite={prixData.unite} />} />
+
+                  {/* Bande min–max du jour (fourchette journalière) */}
+                  <Area
+                    dataKey="prixMax"
+                    stroke="none"
+                    fill="#ef4444"
+                    fillOpacity={0.12}
+                    legendType="none"
+                  />
+                  <Area
+                    dataKey="prixMin"
+                    stroke="none"
+                    fill="#ffffff"
+                    fillOpacity={1}
+                    legendType="none"
+                  />
+
+                  {/* Courbe prix moyen journalier */}
+                  <Line
+                    dataKey="prix"
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "#ef4444", stroke: "#fff", strokeWidth: 1.5 }}
+                    activeDot={{ r: 5 }}
+                    name="Prix unitaire"
+                  />
+
+                  {/* Ligne de référence — prix moyen global */}
+                  <ReferenceLine
+                    y={prixData.mean}
+                    stroke="#94a3b8"
+                    strokeDasharray="4 3"
+                    label={{ value: "moy.", position: "insideTopRight", fontSize: 9, fill: "#94a3b8" }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+
+              {/* Légende */}
+              <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-0.5 bg-red-500 inline-block rounded" />
+                  Prix unitaire moyen / jour
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm inline-block bg-red-500 opacity-15" />
+                  Fourchette journalière
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-5 h-0.5 inline-block border-t border-dashed border-slate-400" />
+                  Prix moyen global
+                </span>
               </div>
             </CardContent>
           </Card>

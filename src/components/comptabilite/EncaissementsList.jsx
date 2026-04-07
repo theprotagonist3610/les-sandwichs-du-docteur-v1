@@ -26,6 +26,16 @@ import {
   CartesianGrid,
 } from "recharts";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Search,
   Filter,
   TrendingUp,
@@ -37,9 +47,12 @@ import {
   Loader2,
   FileText,
   MapPin,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import * as comptabiliteToolkit from "@/utils/comptabiliteToolkit";
 import { getAllEmplacements } from "@/utils/emplacementToolkit";
+import usePermissions from "@/hooks/usePermissions";
 import EncaissementForm from "./EncaissementForm";
 
 const formatMontant = (montant) =>
@@ -77,10 +90,14 @@ const TooltipChart = ({ active, payload, label }) => {
  * Liste complète des encaissements avec filtres, filtre emplacement et barchart
  */
 const EncaissementsList = () => {
+  const { isAdmin } = usePermissions();
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingOp, setEditingOp] = useState(null);
+  const [deletingOp, setDeletingOp] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Filtres texte / compte / dates
   const [filters, setFilters] = useState({
@@ -211,6 +228,25 @@ const EncaissementsList = () => {
   const handleAddSuccess = () => {
     setShowAddDialog(false);
     fetchOperations();
+  };
+
+  const handleEditSuccess = () => {
+    setEditingOp(null);
+    fetchOperations();
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingOp) return;
+    setDeleteLoading(true);
+    try {
+      const result = await comptabiliteToolkit.deleteOperation(deletingOp.id);
+      if (result.success) {
+        setDeletingOp(null);
+        fetchOperations();
+      }
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const hasActiveFilters =
@@ -422,6 +458,7 @@ const EncaissementsList = () => {
                       <th className="text-left p-4 font-medium text-sm">Motif</th>
                       <th className="text-right p-4 font-medium text-sm">Montant</th>
                       <th className="text-left p-4 font-medium text-sm">Par</th>
+                      {isAdmin && <th className="p-4" />}
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -457,6 +494,26 @@ const EncaissementsList = () => {
                             {op.user?.prenoms} {op.user?.nom}
                           </span>
                         </td>
+                        {isAdmin && (
+                          <td className="p-4">
+                            <div className="flex items-center gap-1 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                onClick={() => setEditingOp(op)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => setDeletingOp(op)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -491,6 +548,26 @@ const EncaissementsList = () => {
                         {op.user?.prenoms} {op.user?.nom}
                       </span>
                     </div>
+                    {isAdmin && (
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 h-8 text-xs"
+                          onClick={() => setEditingOp(op)}>
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Modifier
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 h-8 text-xs text-destructive hover:text-destructive"
+                          onClick={() => setDeletingOp(op)}>
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          Supprimer
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -536,6 +613,57 @@ const EncaissementsList = () => {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Dialog d'édition (admin) */}
+      <Dialog open={!!editingOp} onOpenChange={(open) => { if (!open) setEditingOp(null); }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifier l'encaissement</DialogTitle>
+          </DialogHeader>
+          {editingOp && (
+            <EncaissementForm
+              initialData={editingOp}
+              onSuccess={handleEditSuccess}
+              onCancel={() => setEditingOp(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog de suppression (admin) */}
+      <AlertDialog open={!!deletingOp} onOpenChange={(open) => { if (!open) setDeletingOp(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer l'encaissement ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingOp && (
+                <>
+                  <span className="font-medium">{formatMontant(deletingOp.montant)}</span>
+                  {" — "}
+                  {getMotifTexte(deletingOp.motif)}
+                  {" · "}
+                  {formatDate(deletingOp.date_operation)}
+                </>
+              )}
+              <br />
+              Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLoading}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleteLoading}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteLoading ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Suppression...</>
+              ) : (
+                "Supprimer"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
