@@ -1,775 +1,306 @@
 /**
  * MobileProductions.jsx
- * Page de gestion des productions — version mobile
+ * Layout mobile — onglets par recette + liste des lots
  */
 
-import { useState, useEffect } from "react";
-import useBreakpoint from "@/hooks/useBreakpoint";
-import useProductions, { ONGLETS } from "@/hooks/useProductions";
-import {
-  CATEGORIES_LABELS,
-  STATUTS_LABELS,
-  STATUTS_PRODUCTION,
-} from "@/utils/productionToolkit";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useState } from "react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Plus,
-  Search,
-  FlaskConical,
-  ClipboardList,
-  ChevronRight,
-  Archive,
-  Pencil,
-  Trash2,
-  BarChart2,
-  Filter,
-  PackageCheck,
-} from "lucide-react";
-import SchemaForm from "@/components/productions/SchemaForm";
+import { Badge }  from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Plus, Settings2, Pencil, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import ProductionForm from "@/components/productions/ProductionForm";
-import MetriquesPanel from "@/components/productions/MetriquesPanel";
+import RecetteConfig  from "@/components/productions/RecetteConfig";
+import {
+  RECETTE_COLORS, RECETTE_LABELS, RECETTE_ICONS, RECETTES_IDS,
+  formatMontant, formatQte, formatDate, formatRendement,
+} from "@/utils/productionToolkit";
 
-// ── Badges ─────────────────────────────────────────────────────────────────────
+// ─── Mini-carte résumé recette ────────────────────────────────────────────────
 
-const STATUT_CLASSES = {
-  [STATUTS_PRODUCTION.PLANIFIEE]: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  [STATUTS_PRODUCTION.EN_COURS]: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  [STATUTS_PRODUCTION.TERMINEE]: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  [STATUTS_PRODUCTION.ANNULEE]: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-};
-
-const StatutBadge = ({ statut }) => (
-  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUT_CLASSES[statut] || ""}`}>
-    {STATUTS_LABELS[statut] || statut}
-  </span>
-);
-
-// ── Carte Schéma ───────────────────────────────────────────────────────────────
-
-const CarteSchema = ({ schema, onClick }) => (
-  <button
-    onClick={() => onClick(schema)}
-    className="w-full flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-xl hover:bg-accent/50 transition-colors text-left">
-    <div className="flex-1 min-w-0">
-      <p className="text-sm font-medium text-foreground truncate">{schema.nom}</p>
-      <p className="text-xs text-muted-foreground mt-0.5">
-        {CATEGORIES_LABELS[schema.categorie] || schema.categorie}
-        {schema.rendement_estime &&
-          ` · ${schema.rendement_estime.quantite} ${schema.rendement_estime.unite}`}
-        {!schema.actif && " · Archivé"}
-      </p>
-    </div>
-    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-  </button>
-);
-
-// ── Carte Production ───────────────────────────────────────────────────────────
-
-const CarteProduction = ({ production, onClick }) => (
-  <button
-    onClick={() => onClick(production)}
-    className="w-full flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-xl hover:bg-accent/50 transition-colors text-left">
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-sm font-medium text-foreground truncate flex-1">
-          {production.nom}
-        </p>
-        <StatutBadge statut={production.statut} />
-      </div>
-      <p className="text-xs text-muted-foreground mt-0.5">
-        {production.date_production}
-        {production.schema?.nom && ` · ${production.schema.nom}`}
-        {production.cout_total > 0 &&
-          ` · ${production.cout_total.toLocaleString("fr-FR")} F`}
-      </p>
-    </div>
-    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-  </button>
-);
-
-// ── Onglet Schémas ─────────────────────────────────────────────────────────────
-
-const OngletSchemas = ({ hook }) => {
-  const {
-    schemas,
-    loadingSchemas,
-    schemaSelectionne,
-    selectionnerSchema,
-    metriquesSchema,
-    loadingMetriques,
-    filtreCategorie,
-    setFiltreCategorie,
-    searchTerm,
-    setSearchTerm,
-    afficherArchives,
-    setAfficherArchives,
-    canManage,
-    canDelete,
-    ouvrirCreerSchema,
-    ouvrirEditerSchema,
-    confirmerArchiverSchema,
-    confirmerSupprimerSchema,
-    ouvrirCreerProduction,
-  } = hook;
+const MiniRecetteCard = ({ recette, dernierLot, onNouveauLot, onConfig }) => {
+  const color = RECETTE_COLORS[recette.id];
+  const marge = dernierLot?.marge_estimee;
 
   return (
-    <div className="flex flex-col gap-3 p-4">
-      {/* Barre de recherche */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Rechercher un schéma..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9"
-        />
+    <div className="rounded-xl border-2 bg-card mx-4 mt-3 p-4" style={{ borderColor: color + "30" }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs text-muted-foreground">Rendement estimé</span>
+          <span className="text-sm font-semibold">{recette.rendement_estime_pct} %</span>
+        </div>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="text-xs text-muted-foreground">Prix / {recette.ingredient_principal?.unite}</span>
+          <span className="text-sm font-semibold">{formatMontant(recette.prix_vente_par_unite_produite)}</span>
+        </div>
       </div>
 
-      {/* Filtres */}
+      {dernierLot ? (
+        <div className="rounded-lg bg-muted/40 p-2.5 mb-3 flex flex-col gap-1 text-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span>Dernier lot</span>
+            <span>{formatDate(dernierLot.date_production)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="font-medium">{formatQte(dernierLot.qte_produite_reelle, dernierLot.recette?.ingredient_principal?.unite)}</span>
+            <span className={cn("font-semibold", marge >= 0 ? "text-green-600" : "text-destructive")}>
+              {marge >= 0 ? "+" : ""}{formatMontant(marge)}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground italic mb-3">Aucun lot enregistré</p>
+      )}
+
       <div className="flex gap-2">
-        <Select
-          value={filtreCategorie || "_all"}
-          onValueChange={(v) => setFiltreCategorie(v === "_all" ? "" : v)}>
-          <SelectTrigger className="flex-1 h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">Toutes catégories</SelectItem>
-            {Object.entries(CATEGORIES_LABELS).map(([val, label]) => (
-              <SelectItem key={val} value={val}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <button
-          onClick={() => setAfficherArchives(!afficherArchives)}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-            afficherArchives
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-card border-border text-muted-foreground"
-          }`}>
-          <Archive className="w-3.5 h-3.5" />
-          Archivés
-        </button>
+        <Button
+          size="sm"
+          className="flex-1 text-white font-medium"
+          style={{ background: color }}
+          onClick={onNouveauLot}
+        >
+          <Plus className="w-4 h-4 mr-1" /> Nouveau lot
+        </Button>
+        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={onConfig}>
+          <Settings2 className="w-4 h-4" />
+        </Button>
       </div>
-
-      {/* Liste */}
-      {loadingSchemas ? (
-        <p className="text-sm text-muted-foreground text-center py-6 animate-pulse">
-          Chargement...
-        </p>
-      ) : schemas.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-8 text-center">
-          <FlaskConical className="w-10 h-10 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">Aucun schéma trouvé</p>
-          {canManage && (
-            <Button size="sm" onClick={ouvrirCreerSchema}>
-              <Plus className="w-4 h-4 mr-1" />
-              Créer un schéma
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {schemas.map((s) => (
-            <CarteSchema key={s.id} schema={s} onClick={selectionnerSchema} />
-          ))}
-        </div>
-      )}
-
-      {/* FAB */}
-      {canManage && (
-        <button
-          onClick={ouvrirCreerSchema}
-          className="fixed bottom-6 right-4 z-30 flex items-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-colors">
-          <Plus className="w-5 h-5" />
-          <span className="text-sm font-medium">Nouveau schéma</span>
-        </button>
-      )}
-
-      {/* Fiche Schéma — Sheet */}
-      <Sheet open={!!schemaSelectionne} onOpenChange={(o) => !o && selectionnerSchema(null)}>
-        <SheetContent side="bottom" className="h-[85vh] overflow-y-auto rounded-t-xl">
-          {schemaSelectionne && (
-            <>
-              <SheetHeader className="mb-4">
-                <SheetTitle>{schemaSelectionne.nom}</SheetTitle>
-                <p className="text-xs text-muted-foreground">
-                  {CATEGORIES_LABELS[schemaSelectionne.categorie]}
-                  {!schemaSelectionne.actif && " · Archivé"}
-                </p>
-              </SheetHeader>
-
-              {/* Infos schéma */}
-              <div className="flex flex-col gap-3 mb-4">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="flex flex-col gap-0.5 p-2.5 bg-muted/30 rounded-lg">
-                    <span className="text-xs text-muted-foreground">Ingrédient principal</span>
-                    <span className="font-medium">
-                      {schemaSelectionne.ingredient_principal?.nom}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {schemaSelectionne.ingredient_principal?.quantite}{" "}
-                      {schemaSelectionne.ingredient_principal?.unite}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 p-2.5 bg-muted/30 rounded-lg">
-                    <span className="text-xs text-muted-foreground">Rendement estimé</span>
-                    <span className="font-medium">
-                      {schemaSelectionne.rendement_estime?.quantite || "—"}{" "}
-                      {schemaSelectionne.rendement_estime?.unite || ""}
-                    </span>
-                  </div>
-                  {schemaSelectionne.duree_preparation_minutes && (
-                    <div className="flex flex-col gap-0.5 p-2.5 bg-muted/30 rounded-lg">
-                      <span className="text-xs text-muted-foreground">Durée estimée</span>
-                      <span className="font-medium">
-                        {schemaSelectionne.duree_preparation_minutes} min
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {schemaSelectionne.ingredients_secondaires?.length > 0 && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      Ingrédients secondaires
-                    </span>
-                    {schemaSelectionne.ingredients_secondaires.map((ing, i) => (
-                      <span key={i} className="text-xs text-foreground px-2">
-                        · {ing.nom} — {ing.quantite} {ing.unite}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {schemaSelectionne.notes && (
-                  <p className="text-xs text-muted-foreground italic px-1">
-                    {schemaSelectionne.notes}
-                  </p>
-                )}
-              </div>
-
-              {/* Métriques */}
-              <div className="mb-4">
-                <h4 className="text-sm font-semibold mb-2">Métriques</h4>
-                <MetriquesPanel
-                  schema={schemaSelectionne}
-                  metriques={metriquesSchema}
-                  loading={loadingMetriques}
-                />
-              </div>
-
-              {/* Actions */}
-              {canManage && (
-                <div className="flex flex-col gap-2 border-t border-border pt-4">
-                  <Button
-                    onClick={() => {
-                      selectionnerSchema(null);
-                      ouvrirCreerProduction(schemaSelectionne);
-                    }}
-                    className="w-full">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nouvelle production
-                  </Button>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => {
-                        selectionnerSchema(null);
-                        ouvrirEditerSchema(schemaSelectionne);
-                      }}>
-                      <Pencil className="w-4 h-4 mr-1" />
-                      Modifier
-                    </Button>
-                    {schemaSelectionne.actif && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => confirmerArchiverSchema(schemaSelectionne)}>
-                        <Archive className="w-4 h-4 mr-1" />
-                        Archiver
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive hover:bg-destructive/10"
-                        onClick={() => confirmerSupprimerSchema(schemaSelectionne)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 };
 
-// ── Onglet Productions ─────────────────────────────────────────────────────────
+// ─── Carte lot dans la liste ──────────────────────────────────────────────────
 
-const OngletProductions = ({ hook }) => {
-  const {
-    productions,
-    loadingProductions,
-    productionSelectionnee,
-    setProductionSelectionnee,
-    schemas,
-    dashboard,
-    filtreSchema,
-    setFiltreSchema,
-    filtreStatut,
-    setFiltreStatut,
-    canManage,
-    canDelete,
-    ouvrirCreerProduction,
-    ouvrirEditerProduction,
-    changerStatut,
-    supprimerProduction,
-    integrerAuStock,
-    integrationLoading,
-  } = hook;
-
-  const [filtresOuverts, setFiltresOuverts] = useState(false);
+const CarteLot = ({ prod, onEdit, onDelete }) => {
+  const color     = RECETTE_COLORS[prod.recette_id] ?? "#6b7280";
+  const marge     = prod.marge_estimee;
+  const rendement = prod.rendement_reel_pct;
+  const recEstime = prod.recette?.rendement_estime_pct ?? 85;
+  const rendColor = rendement == null ? "text-muted-foreground"
+    : rendement >= recEstime       ? "text-green-600"
+    : rendement >= recEstime * 0.8 ? "text-amber-600"
+    : "text-destructive";
 
   return (
-    <div className="flex flex-col gap-3 p-4">
-      {/* Dashboard mini */}
-      {dashboard && (
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "Total", value: dashboard.nb_productions_total },
-            {
-              label: "Coût total",
-              value: `${(dashboard.cout_total || 0).toLocaleString("fr-FR")} F`,
-            },
-            {
-              label: "Taux rdt",
-              value: dashboard.taux_rendement_global
-                ? `${parseFloat(dashboard.taux_rendement_global).toFixed(1)}%`
-                : "—",
-            },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="flex flex-col gap-0.5 p-2 bg-card border border-border rounded-lg text-center">
-              <span className="text-lg font-bold text-foreground">{s.value ?? "—"}</span>
-              <span className="text-xs text-muted-foreground">{s.label}</span>
-            </div>
-          ))}
+    <div className="rounded-xl border bg-card p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{RECETTE_ICONS[prod.recette_id]}</span>
+          <span className="text-sm font-medium">{RECETTE_LABELS[prod.recette_id]}</span>
         </div>
-      )}
-
-      {/* Filtres */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setFiltresOuverts(!filtresOuverts)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-            filtresOuverts || filtreSchema || filtreStatut
-              ? "bg-primary/10 border-primary/30 text-primary"
-              : "bg-card border-border text-muted-foreground"
-          }`}>
-          <Filter className="w-3.5 h-3.5" />
-          Filtres
-        </button>
+        <span className="text-xs text-muted-foreground">{formatDate(prod.date_production)}</span>
       </div>
 
-      {filtresOuverts && (
-        <div className="flex flex-col gap-2 p-3 bg-muted/30 rounded-lg border border-border">
-          <Select
-            value={filtreSchema || "_all"}
-            onValueChange={(v) => setFiltreSchema(v === "_all" ? "" : v)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all">Tous les schémas</SelectItem>
-              {schemas.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.nom}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filtreStatut || "_all"}
-            onValueChange={(v) => setFiltreStatut(v === "_all" ? "" : v)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all">Tous les statuts</SelectItem>
-              {Object.entries(STATUTS_LABELS).map(([val, label]) => (
-                <SelectItem key={val} value={val}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-muted-foreground">Qté produite</span>
+          <span className="font-semibold">
+            {formatQte(prod.qte_produite_reelle, prod.recette?.ingredient_principal?.unite)}
+          </span>
         </div>
-      )}
-
-      {/* Liste */}
-      {loadingProductions ? (
-        <p className="text-sm text-muted-foreground text-center py-6 animate-pulse">
-          Chargement...
-        </p>
-      ) : productions.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-8 text-center">
-          <ClipboardList className="w-10 h-10 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">Aucune production trouvée</p>
-          {canManage && (
-            <Button size="sm" onClick={() => ouvrirCreerProduction()}>
-              <Plus className="w-4 h-4 mr-1" />
-              Enregistrer une production
-            </Button>
-          )}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-muted-foreground">Coût matières</span>
+          <span className="font-medium">{formatMontant(prod.cout_total_reel)}</span>
         </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {productions.map((p) => (
-            <CarteProduction
-              key={p.id}
-              production={p}
-              onClick={setProductionSelectionnee}
-            />
-          ))}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-muted-foreground">Prix vente estimé</span>
+          <span className="font-medium">{formatMontant(prod.prix_vente_estime)}</span>
         </div>
-      )}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-muted-foreground">Rendement</span>
+          <span className={cn("font-semibold", rendColor)}>{formatRendement(rendement)}</span>
+        </div>
+      </div>
 
-      {/* FAB */}
-      {canManage && (
-        <button
-          onClick={() => ouvrirCreerProduction()}
-          className="fixed bottom-6 right-4 z-30 flex items-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-colors">
-          <Plus className="w-5 h-5" />
-          <span className="text-sm font-medium">Nouvelle production</span>
-        </button>
-      )}
-
-      {/* Fiche Production — Sheet */}
-      <Sheet
-        open={!!productionSelectionnee}
-        onOpenChange={(o) => !o && setProductionSelectionnee(null)}>
-        <SheetContent side="bottom" className="h-[80vh] overflow-y-auto rounded-t-xl">
-          {productionSelectionnee && (
-            <>
-              <SheetHeader className="mb-3">
-                <SheetTitle>{productionSelectionnee.nom}</SheetTitle>
-                <div className="flex items-center gap-2">
-                  <StatutBadge statut={productionSelectionnee.statut} />
-                  <span className="text-xs text-muted-foreground">
-                    {productionSelectionnee.date_production}
-                  </span>
-                </div>
-              </SheetHeader>
-
-              <div className="grid grid-cols-2 gap-2 text-sm mb-4">
-                {productionSelectionnee.cout_total > 0 && (
-                  <div className="flex flex-col gap-0.5 p-2.5 bg-muted/30 rounded-lg">
-                    <span className="text-xs text-muted-foreground">Coût total</span>
-                    <span className="font-semibold">
-                      {productionSelectionnee.cout_total.toLocaleString("fr-FR")} F
-                    </span>
-                  </div>
-                )}
-                {productionSelectionnee.cout_unitaire > 0 && (
-                  <div className="flex flex-col gap-0.5 p-2.5 bg-muted/30 rounded-lg">
-                    <span className="text-xs text-muted-foreground">Coût unitaire</span>
-                    <span className="font-semibold">
-                      {productionSelectionnee.cout_unitaire.toLocaleString("fr-FR")} F
-                    </span>
-                  </div>
-                )}
-                {productionSelectionnee.taux_rendement != null && (
-                  <div className="flex flex-col gap-0.5 p-2.5 bg-muted/30 rounded-lg">
-                    <span className="text-xs text-muted-foreground">Taux rendement</span>
-                    <span className="font-semibold">
-                      {parseFloat(productionSelectionnee.taux_rendement).toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-                {productionSelectionnee.duree_reelle_minutes && (
-                  <div className="flex flex-col gap-0.5 p-2.5 bg-muted/30 rounded-lg">
-                    <span className="text-xs text-muted-foreground">Durée réelle</span>
-                    <span className="font-semibold">
-                      {productionSelectionnee.duree_reelle_minutes} min
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {productionSelectionnee.notes && (
-                <p className="text-xs text-muted-foreground italic px-1 mb-4">
-                  {productionSelectionnee.notes}
-                </p>
-              )}
-
-              {/* Changement de statut */}
-              {canManage &&
-                productionSelectionnee.statut !== STATUTS_PRODUCTION.TERMINEE && (
-                  <div className="flex flex-col gap-2 mb-4">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      Changer le statut
-                    </span>
-                    <div className="flex gap-2 flex-wrap">
-                      {Object.entries(STATUTS_PRODUCTION)
-                        .filter(([, v]) => v !== productionSelectionnee.statut)
-                        .map(([, v]) => (
-                          <Button
-                            key={v}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              changerStatut(productionSelectionnee.id, v);
-                              setProductionSelectionnee(null);
-                            }}>
-                            → {STATUTS_LABELS[v]}
-                          </Button>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-              {/* Intégrer au stock */}
-              {canManage &&
-                productionSelectionnee.statut === STATUTS_PRODUCTION.TERMINEE && (
-                  <div className="border-t border-border pt-3">
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      disabled={integrationLoading}
-                      onClick={() => integrerAuStock(productionSelectionnee.id)}>
-                      <PackageCheck className="w-4 h-4 mr-2" />
-                      {integrationLoading ? "Intégration..." : "Intégrer au stock"}
-                    </Button>
-                  </div>
-                )}
-
-              {/* Actions */}
-              {canManage && (
-                <div className="flex gap-2 border-t border-border pt-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => {
-                      setProductionSelectionnee(null);
-                      ouvrirEditerProduction(productionSelectionnee);
-                    }}>
-                    <Pencil className="w-4 h-4 mr-1" />
-                    Modifier
-                  </Button>
-                  {canDelete && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:bg-destructive/10"
-                      onClick={() => {
-                        supprimerProduction(productionSelectionnee.id);
-                        setProductionSelectionnee(null);
-                      }}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+      <div className="flex items-center justify-between pt-1 border-t">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs text-muted-foreground">Marge estimée</span>
+          <span className={cn("text-sm font-bold", marge >= 0 ? "text-green-600" : "text-destructive")}>
+            {marge >= 0 ? "+" : ""}{formatMontant(marge)}
+          </span>
+        </div>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(prod)}>
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(prod.id)}>
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };
 
-// ── MobileProductions ──────────────────────────────────────────────────────────
+// ─── Composant principal ──────────────────────────────────────────────────────
 
-const MobileProductions = () => {
-  const { isMobile } = useBreakpoint();
-  const [visible, setVisible] = useState(false);
-  useEffect(() => setVisible(isMobile), [isMobile]);
-
-  const hook = useProductions();
+const MobileProductions = ({ hook }) => {
   const {
-    ongletActif,
-    setOngletActif,
-    schemas,
-    dialogSchemaOuvert,
-    setDialogSchemaOuvert,
-    schemaEnEdition,
-    soumettreSchema,
-    submitting,
-    dialogProductionOuvert,
-    setDialogProductionOuvert,
-    productionEnEdition,
-    schemaInitProd,
-    soumettreProduction,
-    confirmArchiver,
-    setConfirmArchiver,
-    archiverSchemaAction,
-    confirmSupprimer,
-    setConfirmSupprimer,
-    supprimerSchemaAction,
+    recettes, recettesLoading,
+    productions, productionsLoading,
+    filtreRecette, setFiltreRecette,
+    dialogProduction, setDialogProduction,
+    dialogConfig, setDialogConfig,
+    confirmDelete, setConfirmDelete,
+    soumettreProduction, supprimerProduction, sauvegarderConfig,
+    ouvrirNouveauLot, ouvrirEditionLot, ouvrirConfig,
+    derniersLots, recetteParId,
   } = hook;
 
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const lastLots = derniersLots();
+
+  const handleSubmit = async (data) => {
+    setSubmitLoading(true);
+    await soumettreProduction(data);
+    setSubmitLoading(false);
+  };
+
+  const handleSaveConfig = async (id, updates) => {
+    setSubmitLoading(true);
+    await sauvegarderConfig(id, updates);
+    setSubmitLoading(false);
+  };
+
+  const tabs = [{ value: "all", label: "Tous" }, ...RECETTES_IDS.map((id) => ({
+    value: id,
+    label: RECETTE_ICONS[id],
+    title: RECETTE_LABELS[id],
+  }))];
+
+  const prodsFiltrées = filtreRecette
+    ? productions.filter((p) => p.recette_id === filtreRecette)
+    : productions;
+
   return (
-    <div
-      className="min-h-screen bg-background flex flex-col"
-      style={{ display: visible ? "flex" : "none" }}>
-      {/* Header */}
-      <div className="bg-background border-b px-4 py-3 shrink-0">
-        <h1 className="text-lg font-semibold">Productions</h1>
-        <p className="text-xs text-muted-foreground">
-          Schémas et historique de production
-        </p>
+    <div className="flex flex-col min-h-full pb-24">
+
+      {/* Titre */}
+      <div className="px-4 pt-4 pb-2">
+        <h1 className="text-lg font-bold">Productions</h1>
+        <p className="text-xs text-muted-foreground">Suivi des lots par recette</p>
       </div>
 
-      {/* Tabs */}
+      {/* Onglets */}
       <Tabs
-        value={ongletActif}
-        onValueChange={setOngletActif}
-        className="flex flex-col flex-1 min-h-0">
-        <TabsList className="grid grid-cols-2 rounded-none border-b h-10 shrink-0 bg-background">
-          <TabsTrigger
-            value={ONGLETS.SCHEMAS}
-            className="flex items-center gap-1.5 text-xs font-medium data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
-            <FlaskConical className="w-3.5 h-3.5" />
-            Schémas
-          </TabsTrigger>
-          <TabsTrigger
-            value={ONGLETS.PRODUCTIONS}
-            className="flex items-center gap-1.5 text-xs font-medium data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
-            <ClipboardList className="w-3.5 h-3.5" />
-            Productions
-          </TabsTrigger>
+        value={filtreRecette ?? "all"}
+        onValueChange={(v) => setFiltreRecette(v === "all" ? null : v)}
+        className="flex-1"
+      >
+        <TabsList className="mx-4 w-[calc(100%-2rem)] grid grid-cols-4">
+          {tabs.map((t) => (
+            <TabsTrigger key={t.value} value={t.value} className="text-xs" title={t.title}>
+              {t.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <div className="flex-1 overflow-y-auto">
-          <TabsContent value={ONGLETS.SCHEMAS} className="mt-0">
-            <OngletSchemas hook={hook} />
-          </TabsContent>
-          <TabsContent value={ONGLETS.PRODUCTIONS} className="mt-0">
-            <OngletProductions hook={hook} />
-          </TabsContent>
-        </div>
+        {/* Onglet "Tous" */}
+        <TabsContent value="all" className="mt-0">
+          <div className="px-4 pt-3 pb-2 flex justify-end">
+            <Button size="sm" onClick={() => ouvrirNouveauLot(null)} className="gap-1">
+              <Plus className="w-4 h-4" /> Nouveau lot
+            </Button>
+          </div>
+          <div className="px-4 flex flex-col gap-3">
+            {productionsLoading
+              ? <div className="h-24 rounded-xl bg-muted animate-pulse" />
+              : prodsFiltrées.length === 0
+              ? <p className="text-sm text-muted-foreground text-center py-8">Aucune production enregistrée</p>
+              : prodsFiltrées.map((p) => (
+                  <CarteLot
+                    key={p.id} prod={p}
+                    onEdit={ouvrirEditionLot}
+                    onDelete={(id) => setConfirmDelete({ open: true, id })}
+                  />
+                ))
+            }
+          </div>
+        </TabsContent>
+
+        {/* Onglet par recette */}
+        {RECETTES_IDS.map((id) => {
+          const recette  = recettes.find((r) => r.id === id);
+          const lotsRecette = productions.filter((p) => p.recette_id === id);
+          return (
+            <TabsContent key={id} value={id} className="mt-0">
+              {recette && (
+                <MiniRecetteCard
+                  recette={recette}
+                  dernierLot={lastLots[id]}
+                  onNouveauLot={() => ouvrirNouveauLot(id)}
+                  onConfig={() => ouvrirConfig(id)}
+                />
+              )}
+              <div className="px-4 pt-3 flex flex-col gap-3">
+                {productionsLoading
+                  ? <div className="h-24 rounded-xl bg-muted animate-pulse" />
+                  : lotsRecette.length === 0
+                  ? <p className="text-sm text-muted-foreground text-center py-8">Aucun lot pour cette recette</p>
+                  : lotsRecette.map((p) => (
+                      <CarteLot
+                        key={p.id} prod={p}
+                        onEdit={ouvrirEditionLot}
+                        onDelete={(id) => setConfirmDelete({ open: true, id })}
+                      />
+                    ))
+                }
+              </div>
+            </TabsContent>
+          );
+        })}
       </Tabs>
 
-      {/* Dialog Schéma */}
-      <Dialog open={dialogSchemaOuvert} onOpenChange={setDialogSchemaOuvert}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {schemaEnEdition ? "Modifier le schéma" : "Nouveau schéma de production"}
-            </DialogTitle>
-          </DialogHeader>
-          <SchemaForm
-            schemaInitial={schemaEnEdition}
-            onSubmit={soumettreSchema}
-            submitting={submitting}
-            onAnnuler={() => setDialogSchemaOuvert(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Sheet production */}
+      <Sheet open={dialogProduction.open} onOpenChange={(o) => !o && setDialogProduction({ ...dialogProduction, open: false })}>
+        <SheetContent side="bottom" className="h-[92vh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader className="pb-4">
+            <SheetTitle>
+              {dialogProduction.mode === "create" ? "Enregistrer un lot" : "Modifier le lot"}
+            </SheetTitle>
+          </SheetHeader>
+          {dialogProduction.open && (
+            <ProductionForm
+              recettes={recettes}
+              recetteIdInitiale={dialogProduction.recetteId}
+              productionInitiale={dialogProduction.data}
+              onSubmit={handleSubmit}
+              onCancel={() => setDialogProduction({ ...dialogProduction, open: false })}
+              loading={submitLoading}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
 
-      {/* Dialog Production */}
-      <Dialog open={dialogProductionOuvert} onOpenChange={setDialogProductionOuvert}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {productionEnEdition ? "Modifier la production" : "Enregistrer une production"}
-            </DialogTitle>
-          </DialogHeader>
-          <ProductionForm
-            schemas={schemas}
-            schemaInitial={schemaInitProd}
-            productionInitiale={productionEnEdition}
-            onSubmit={soumettreProduction}
-            submitting={submitting}
-            onAnnuler={() => setDialogProductionOuvert(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Sheet config recette */}
+      <Sheet open={dialogConfig.open} onOpenChange={(o) => !o && setDialogConfig({ ...dialogConfig, open: false })}>
+        <SheetContent side="bottom" className="h-[92vh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader className="pb-4">
+            <SheetTitle>Configurer — {RECETTE_LABELS[dialogConfig.recetteId] ?? ""}</SheetTitle>
+          </SheetHeader>
+          {dialogConfig.open && (
+            <RecetteConfig
+              recette={recetteParId(dialogConfig.recetteId)}
+              onSave={handleSaveConfig}
+              onCancel={() => setDialogConfig({ ...dialogConfig, open: false })}
+              loading={submitLoading}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
 
-      {/* Confirm Archiver */}
-      <AlertDialog
-        open={!!confirmArchiver}
-        onOpenChange={(o) => !o && setConfirmArchiver(null)}>
+      {/* Confirmation suppression */}
+      <AlertDialog open={confirmDelete.open} onOpenChange={(o) => !o && setConfirmDelete({ open: false, id: null })}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Archiver ce schéma ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Le schéma «&nbsp;{confirmArchiver?.nom}&nbsp;» sera désactivé. Il ne
-              sera plus visible dans la liste principale.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Supprimer ce lot ?</AlertDialogTitle>
+            <AlertDialogDescription>Cette action est irréversible.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => archiverSchemaAction(confirmArchiver?.id)}>
-              Archiver
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Confirm Supprimer */}
-      <AlertDialog
-        open={!!confirmSupprimer}
-        onOpenChange={(o) => !o && setConfirmSupprimer(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer définitivement ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Le schéma «&nbsp;{confirmSupprimer?.nom}&nbsp;» sera supprimé. Cette
-              action est irréversible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => supprimerSchemaAction(confirmSupprimer?.id)}>
+            <AlertDialogAction onClick={supprimerProduction} className="bg-destructive text-white hover:bg-destructive/90">
               Supprimer
             </AlertDialogAction>
           </AlertDialogFooter>

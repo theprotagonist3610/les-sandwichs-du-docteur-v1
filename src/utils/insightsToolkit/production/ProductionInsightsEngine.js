@@ -1,231 +1,110 @@
 /**
  * ProductionInsightsEngine.js
- * Moteur de calcul pour les insights production.
- *
- * Réutilise linearRegression, classifyTrend, buildForecast depuis FinanceInsightsEngine.
- *
- * Entrée  : periodes[] { label, count, coutTotal, isCurrent }
- * Sortie  : { periodes, volume, cout, alertes, chartData }
+ * Analyse statistique des productions (3 recettes fixes).
+ * Calcule tendances, alertes et données de graphiques.
  */
 
-import {
-  linearRegression,
-  classifyTrend,
-  buildForecast,
-  TENDANCES,
-  TENDANCE_LABELS,
-} from "../finance/FinanceInsightsEngine.js";
 import { HORIZONS } from "../engine/insightTypes.js";
+import { RECETTES_IDS, RECETTE_LABELS } from "@/utils/productionToolkit.js";
 
-export { TENDANCES, TENDANCE_LABELS };
+// ─── Régression linéaire ──────────────────────────────────────────────────────
 
-// ─── Analyse d'une série ──────────────────────────────────────────────────────
-
-const analyzeSerie = (values, horizon) => {
+function regressionLineaire(values) {
   const n = values.length;
-  if (n === 0) {
-    return { moyenne: 0, total: 0, variation: 0, tendance: TENDANCES.CONSTANTE, r2: 0, predicted: [], forecast: [] };
-  }
+  if (n < 2) return { pente: 0, tendance: "stable" };
+  const xs = values.map((_, i) => i);
+  const mx = xs.reduce((s, x) => s + x, 0) / n;
+  const my = values.reduce((s, y) => s + y, 0) / n;
+  const num = xs.reduce((s, x, i) => s + (x - mx) * (values[i] - my), 0);
+  const den = xs.reduce((s, x) => s + (x - mx) ** 2, 0);
+  const pente = den === 0 ? 0 : num / den;
+  const pct   = my === 0 ? 0 : Math.abs(pente) / Math.abs(my);
+  const tendance = pct < 0.05 ? "stable" : pente > 0 ? "hausse" : "baisse";
+  return { pente, tendance };
+}
 
-  const total   = values.reduce((s, v) => s + v, 0);
-  const moyenne = total / n;
-
-  const { a, predicted, r2 } = linearRegression(values);
-  const tendance = classifyTrend(a, moyenne);
-  const forecast = buildForecast(values, horizon);
-
-  const premier  = values[0] ?? 0;
-  const dernier  = values[n - 1] ?? 0;
-  const variation = premier === 0 ? 0 : (dernier - premier) / premier;
-
-  return { moyenne, total, variation, tendance, r2, predicted, forecast };
-};
-
-// ─── Données graphique ────────────────────────────────────────────────────────
-
-const buildChartData = (periodes, volAnalysis, coutAnalysis, horizon) => {
-  const historique = periodes.map((p, i) => ({
-    label:      p.label,
-    count:      p.count,
-    coutTotal:  p.coutTotal,
-    countPred:  Math.max(0, volAnalysis.predicted[i] ?? 0),
-    coutPred:   Math.max(0, coutAnalysis.predicted[i] ?? 0),
-    isForecast: false,
-    isCurrent:  p.isCurrent ?? false,
-  }));
-
-  const forecastVol  = volAnalysis.forecast;
-  const forecastCout = coutAnalysis.forecast;
-  const nbF = Math.min(forecastVol.length, forecastCout.length);
-
-  const forecasts = Array.from({ length: nbF }, (_, k) => ({
-    label:       forecastVol[k].label,
-    countMin:    forecastVol[k].min,
-    countMoy:    forecastVol[k].moy,
-    countMax:    forecastVol[k].max,
-    coutMin:     forecastCout[k].min,
-    coutMoy:     forecastCout[k].moy,
-    coutMax:     forecastCout[k].max,
-    isForecast:  true,
-    isCurrent:   false,
-  }));
-
-  return [...historique, ...forecasts];
-};
-
-// ─── Alertes ─────────────────────────────────────────────────────────────────
-
-const buildAlertes = (vol, cout, rendementMoyen, schemas, cyclesDashboard, horizon) => {
-  const alertes = [];
-
-  // Volume en baisse
-  if (vol.tendance === TENDANCES.BAISSIERE) {
-    alertes.push({
-      id:      "volume_production_baissier",
-      niveau:  Math.abs(vol.variation) > 0.20 ? "critique" : "haute",
-      message: `Le volume de productions est en baisse de ${Math.round(Math.abs(vol.variation) * 100)} % sur la période. Vérifiez la cadence de production.`,
-    });
-  }
-
-  // Coût en hausse sans volume correspondant
-  if (cout.tendance === TENDANCES.HAUSSIERE && vol.tendance !== TENDANCES.HAUSSIERE) {
-    alertes.push({
-      id:      "cout_hausse_sans_volume",
-      niveau:  "haute",
-      message: "Les coûts de production augmentent alors que le volume est stable. Les prix des matières premières sont en dérive.",
-    });
-  }
-
-  // Rendement moyen faible
-  if (rendementMoyen > 0 && rendementMoyen < 80) {
-    alertes.push({
-      id:      "rendement_faible_global",
-      niveau:  "critique",
-      message: `Rendement moyen global : ${Math.round(rendementMoyen)} %. Des pertes matière significatives sont constatées sur l'ensemble des productions.`,
-    });
-  } else if (rendementMoyen > 0 && rendementMoyen < 92) {
-    alertes.push({
-      id:      "rendement_sous_objectif",
-      niveau:  "haute",
-      message: `Rendement moyen : ${Math.round(rendementMoyen)} %. Objectif : 95 %. Analysez les schémas les moins performants.`,
-    });
-  }
-
-  // Schéma avec rendement très faible
-  const schemasFaibles = schemas.filter((s) => s.rendementMoyen > 0 && s.rendementMoyen < 75);
-  if (schemasFaibles.length > 0) {
-    const noms = schemasFaibles.map((s) => s.nomSchema).join(", ");
-    alertes.push({
-      id:      "schemas_rendement_critique",
-      niveau:  "critique",
-      message: `Rendement critique (< 75 %) détecté sur : ${noms}. Action corrective urgente requise.`,
-    });
-  }
-
-  // Dépassements de coût récurrents
-  const schemasDepassement = schemas.filter((s) => s.ecartCoutTotal > 0 && s.count >= 2);
-  if (schemasDepassement.length > 0) {
-    const pire = schemasDepassement.sort((a, b) => b.ecartCoutTotal - a.ecartCoutTotal)[0];
-    alertes.push({
-      id:      "depassement_cout_schema",
-      niveau:  "haute",
-      message: `Dépassement budgétaire récurrent sur « ${pire.nomSchema} » : +${Math.round(pire.ecartCoutTotal).toLocaleString("fr-FR")} F au-dessus du coût estimé.`,
-    });
-  }
-
-  // ── Alertes cycles ──────────────────────────────────────────────────────────
-
-  if (Array.isArray(cyclesDashboard) && cyclesDashboard.length > 0) {
-    // Schémas par_conservation sans lot actif (rupture de stock)
-    const sansStock = cyclesDashboard.filter(
-      (c) => c.schema?.mode_production === "par_conservation" && !c.etat?.lot
-    );
-    if (sansStock.length > 0) {
-      const noms = sansStock.map((c) => c.schema.nom).join(", ");
-      alertes.push({
-        id:      "conservation_rupture_stock",
-        niveau:  "critique",
-        message: `Rupture de stock conservé : ${noms}. Aucun lot actif en stock — production immédiate requise.`,
-      });
-    }
-
-    // Schémas cycliques sous le seuil de relance
-    const sousSeuilRelance = cyclesDashboard.filter(
-      (c) => c.schema?.mode_production === "cyclique" &&
-             c.etat?.raison?.includes("seuil")
-    );
-    if (sousSeuilRelance.length > 0) {
-      const noms = sousSeuilRelance.map((c) => c.schema.nom).join(", ");
-      alertes.push({
-        id:      "cyclique_seuil_relance",
-        niveau:  "critique",
-        message: `Seuil de relance atteint sur : ${noms}. Relancez la production pour éviter une rupture.`,
-      });
-    }
-
-    // Schémas cycliques dont le cycle est dépassé (mais stock ok)
-    const cycleDepasse = cyclesDashboard.filter(
-      (c) => c.schema?.mode_production === "cyclique" &&
-             c.etat?.raison?.includes("Cycle dépassé")
-    );
-    if (cycleDepasse.length > 0) {
-      const noms = cycleDepasse.map((c) => c.schema.nom).join(", ");
-      alertes.push({
-        id:      "cyclique_cycle_depasse",
-        niveau:  "haute",
-        message: `Cycle de production dépassé sur : ${noms}. Planifiez une nouvelle production pour maintenir la cadence.`,
-      });
-    }
-
-    // Résumé global si plusieurs types de relance
-    if (cyclesDashboard.length > 1) {
-      alertes.push({
-        id:      "cycles_relance_multiple",
-        niveau:  "info",
-        message: `${cyclesDashboard.length} schéma(s) nécessitent une relance de production. Consultez le tableau de bord des cycles ci-dessus.`,
-      });
-    }
-  }
-
-  // Projection
-  const countF = vol.forecast[0];
-  const coutF  = cout.forecast[0];
-  if (countF && coutF) {
-    const label = horizon === HORIZONS.H24 ? "aujourd'hui" : horizon === HORIZONS.J7 ? "cette semaine" : "ce mois";
-    alertes.push({
-      id:      "projection_production",
-      niveau:  "info",
-      message: `Prévision ${label} : ~${Math.round(countF.moy)} production(s), coût estimé ~${Math.round(coutF.moy).toLocaleString("fr-FR")} F.`,
-    });
-  }
-
-  return alertes;
-};
-
-// ─── Point d'entrée ───────────────────────────────────────────────────────────
+// ─── Analyse principale ───────────────────────────────────────────────────────
 
 /**
- * @param {Array<{ label, count, coutTotal, isCurrent }>} periodes
- * @param {Array} schemas — agrégat par schéma (pour les alertes rendement/dépassement)
- * @param {number} rendementMoyen — taux de rendement moyen global
- * @param {Array} cyclesDashboard — schémas cycliques/conservation nécessitant relance
- * @param {string} horizon — HORIZONS.*
+ * @param {Object[]} periodes   — [{ label, viande_count, poisson_count, yaourt_count, coutTotal, margeTotal, prixVenteTotal }]
+ * @param {Object}   parRecette — { viande: { count, coutTotal, margeTotal, prixVenteTotal, rendementMoyen }, ... }
+ * @param {string}   horizon
  */
-export const analyzeProduction = (periodes, schemas, rendementMoyen, cyclesDashboard, horizon) => {
-  const counts = periodes.map((p) => p.count);
-  const couts  = periodes.map((p) => p.coutTotal);
+export function analyzeProduction(periodes, parRecette, horizon) {
+  const n = periodes.length;
 
-  const volAnalysis  = analyzeSerie(counts, horizon);
-  const coutAnalysis = analyzeSerie(couts,  horizon);
+  // ── Tendances globales ────────────────────────────────────────────────────
+  const counts     = periodes.map((p) => p.count ?? 0);
+  const cout       = periodes.map((p) => p.coutTotal ?? 0);
+  const marges     = periodes.map((p) => p.margeTotal ?? 0);
 
-  const alertes   = buildAlertes(volAnalysis, coutAnalysis, rendementMoyen, schemas, cyclesDashboard, horizon);
-  const chartData = buildChartData(periodes, volAnalysis, coutAnalysis, horizon);
+  const tendanceVolume = regressionLineaire(counts);
+  const tendanceCout   = regressionLineaire(cout);
+  const tendanceMarge  = regressionLineaire(marges);
+
+  const totaux = {
+    count:          Object.values(parRecette).reduce((s, r) => s + r.count, 0),
+    coutTotal:      Object.values(parRecette).reduce((s, r) => s + r.coutTotal, 0),
+    margeTotal:     Object.values(parRecette).reduce((s, r) => s + r.margeTotal, 0),
+    prixVenteTotal: Object.values(parRecette).reduce((s, r) => s + r.prixVenteTotal, 0),
+    rendementMoyen: (() => {
+      const withRend = RECETTES_IDS.filter((id) => parRecette[id]?.count > 0 && parRecette[id]?.rendementMoyen > 0);
+      if (!withRend.length) return 0;
+      return withRend.reduce((s, id) => s + parRecette[id].rendementMoyen, 0) / withRend.length;
+    })(),
+  };
+
+  // ── Alertes ───────────────────────────────────────────────────────────────
+  const alertes = [];
+
+  RECETTES_IDS.forEach((id) => {
+    const r = parRecette[id];
+    if (!r || r.count === 0) return;
+
+    if (r.rendementMoyen > 0 && r.rendementMoyen < 70) {
+      alertes.push({
+        recette:  RECETTE_LABELS[id],
+        type:     "rendement_faible",
+        valeur:   r.rendementMoyen,
+        message:  `Rendement moyen de ${r.rendementMoyen.toFixed(1)} % — inférieur au seuil critique de 70 %.`,
+      });
+    }
+
+    if (r.margeTotal < 0) {
+      alertes.push({
+        recette:  RECETTE_LABELS[id],
+        type:     "marge_negative",
+        valeur:   r.margeTotal,
+        message:  `Marge totale négative (${r.margeTotal.toFixed(0)} FCFA) — revoyez le prix de vente ou réduisez les coûts.`,
+      });
+    }
+  });
+
+  // Dérive de coût sur la dernière période vs la moyenne
+  if (n >= 3) {
+    const moyenneCout = cout.slice(0, -1).reduce((s, c) => s + c, 0) / (n - 1);
+    const dernierCout = cout[n - 1];
+    if (moyenneCout > 0 && (dernierCout - moyenneCout) / moyenneCout > 0.2) {
+      alertes.push({
+        recette:  "global",
+        type:     "derive_cout",
+        valeur:   (dernierCout - moyenneCout) / moyenneCout,
+        message:  `Les coûts de la dernière période dépassent la moyenne de +${Math.round(((dernierCout - moyenneCout) / moyenneCout) * 100)} %.`,
+      });
+    }
+  }
+
+  // ── Prévision (dernière période × tendance) ───────────────────────────────
+  const previsionCount = n > 0
+    ? Math.max(0, Math.round((counts[n - 1] ?? 0) + (tendanceVolume.pente ?? 0)))
+    : 0;
 
   return {
-    periodes,
-    volume:  volAnalysis,
-    cout:    coutAnalysis,
+    totaux,
+    tendanceVolume: tendanceVolume.tendance,
+    tendanceCout:   tendanceCout.tendance,
+    tendanceMarge:  tendanceMarge.tendance,
     alertes,
-    chartData,
+    previsionCount,
   };
-};
+}

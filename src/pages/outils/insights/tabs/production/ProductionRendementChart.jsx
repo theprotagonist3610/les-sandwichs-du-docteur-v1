@@ -1,90 +1,56 @@
 /**
  * ProductionRendementChart.jsx
- * Taux de rendement moyen par schéma — barres horizontales.
- *
- * Triés du meilleur au moins bon rendement.
- * Ligne de référence à 100 % (objectif).
- * Couleur : vert ≥ 95 %, amber 80–94 %, rouge < 80 %.
+ * Barres horizontales : rendement moyen par recette
  */
 
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ReferenceLine, ResponsiveContainer, Cell,
-} from "recharts";
+import { RECETTE_COLORS, RECETTE_LABELS, RECETTE_ICONS, formatRendement } from "@/utils/productionToolkit";
+import { cn } from "@/lib/utils";
 
-const getColor = (r) => {
-  if (r >= 95) return "#10b981"; // emerald
-  if (r >= 80) return "#f59e0b"; // amber
-  return "#ef4444";              // red
-};
+const ProductionRendementChart = ({ analysis }) => {
+  const recettes = analysis.charts?.rendements ?? [];
+  const actives  = recettes.filter((r) => r.count > 0);
 
-const CustomTooltip = ({ active, payload }) => {
-  if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload ?? {};
-  return (
-    <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs min-w-[180px]">
-      <p className="font-semibold text-foreground mb-2 truncate">{d.nomSchema}</p>
-      <div className="flex justify-between gap-4">
-        <span className="text-muted-foreground">Rendement moyen</span>
-        <span className="font-medium">{Math.round(d.rendementMoyen)} %</span>
-      </div>
-      <div className="flex justify-between gap-4">
-        <span className="text-muted-foreground">Productions</span>
-        <span className="font-medium">{d.count}</span>
-      </div>
-    </div>
-  );
-};
-
-const ProductionRendementChart = ({ schemas = [], isMobile = false }) => {
-  const data = schemas
-    .filter((s) => s.rendementMoyen > 0)
-    .map((s) => ({ ...s, rendementMoyen: Math.round(s.rendementMoyen * 10) / 10 }))
-    .sort((a, b) => b.rendementMoyen - a.rendementMoyen);
-
-  if (!data.length) return null;
-
-  const h = Math.max(isMobile ? 140 : 180, data.length * 38 + 40);
+  if (!actives.length) return null;
 
   return (
-    <div className="bg-background rounded-xl border border-border p-4">
-      <p className="text-sm font-semibold mb-1">Rendement par schéma</p>
-      <p className="text-xs text-muted-foreground mb-4">
-        Objectif : 100 % · vert ≥ 95 % · amber 80–94 % · rouge &lt; 80 %
+    <div className="rounded-xl border bg-card p-4">
+      <h3 className="text-sm font-semibold mb-1">Rendement moyen par recette</h3>
+      <p className="text-xs text-muted-foreground mb-4">% de la quantité d'ingrédient principal transformé</p>
+
+      <div className="flex flex-col gap-4">
+        {actives.map((r) => {
+          const color  = RECETTE_COLORS[r.recette] ?? "#6b7280";
+          const icon   = RECETTE_ICONS[r.recette] ?? "";
+          const rend   = r.rendementMoyen;
+          const pct    = Math.min(rend, 150); // cap à 150 % pour la barre
+          const colorClass = rend >= 85 ? "text-green-600" : rend >= 70 ? "text-amber-600" : "text-destructive";
+
+          return (
+            <div key={r.recette} className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <span>{icon}</span>
+                  {RECETTE_LABELS[r.recette]}
+                  <span className="text-muted-foreground font-normal">({r.count} lot{r.count > 1 ? "s" : ""})</span>
+                </span>
+                <span className={cn("font-bold", colorClass)}>{formatRendement(rend)}</span>
+              </div>
+              <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${pct}%`, background: color }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-muted-foreground mt-4 flex gap-3">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-600 inline-block" /> ≥ 85 % — Excellent</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> 70-84 % — Correct</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-destructive inline-block" /> &lt; 70 % — À améliorer</span>
       </p>
-      <ResponsiveContainer width="100%" height={h}>
-        <BarChart data={data} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-          <XAxis
-            type="number"
-            domain={[0, Math.max(110, Math.ceil(Math.max(...data.map((d) => d.rendementMoyen)) * 1.05))]}
-            tick={{ fontSize: 11, fill: "#94a3b8" }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(v) => `${v} %`}
-          />
-          <YAxis
-            type="category"
-            dataKey="nomSchema"
-            tick={{ fontSize: 11, fill: "#94a3b8" }}
-            axisLine={false}
-            tickLine={false}
-            width={100}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <ReferenceLine
-            x={100}
-            stroke="#94a3b8"
-            strokeDasharray="4 3"
-            label={{ value: "Objectif", position: "right", fontSize: 10, fill: "#94a3b8" }}
-          />
-          <Bar dataKey="rendementMoyen" radius={[0, 4, 4, 0]} maxBarSize={26} name="rendementMoyen">
-            {data.map((entry) => (
-              <Cell key={entry.nomSchema} fill={getColor(entry.rendementMoyen)} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
     </div>
   );
 };

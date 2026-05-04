@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -f supabase/migrations/009_create_productions_tables.sql supabase/migrations/013_add_production_modes.sql src/hooks/useProductions.jsx src/hooks/useProductionInsights.js src/utils/productionToolkit.jsx \"src/utils/insightsToolkit/production/ProductionInsightsEngine.js\" \"src/utils/insightsToolkit/analyzers/ProductionAnalyzer.js\")",
+      "Bash(rm -f src/components/productions/SchemaForm.jsx src/components/productions/ProductionForm.jsx src/components/productions/MetriquesPanel.jsx)",
+      "Bash(rm -f \"src/pages/outils/Productions.jsx\" \"src/pages/outils/productions/DesktopProductions.jsx\" \"src/pages/outils/productions/MobileProductions.jsx\")",
+      "Bash(rm -f \"src/pages/outils/insights/tabs/ProductionInsightsTab.jsx\" \"src/pages/outils/insights/tabs/production/ProductionInsightsKpi.jsx\" \"src/pages/outils/insights/tabs/production/ProductionVolumeChart.jsx\" \"src/pages/outils/insights/tabs/production/ProductionRendementChart.jsx\" \"src/pages/outils/insights/tabs/production/ProductionCoutsChart.jsx\" \"src/pages/outils/insights/tabs/production/ProductionSchemasChart.jsx\" \"src/pages/outils/insights/tabs/production/ProductionCyclesPanel.jsx\" \"src/pages/outils/insights/tabs/production/ProductionInsightsAlerts.jsx\")",
+      "Bash(npm run *)"
+    ]
+  }
+}

@@ -1,44 +1,22 @@
 /**
  * ProductionInsightsAlerts.jsx
- * Alertes textuelles dérivées de l'analyse production.
+ * Alertes issues du moteur d'analyse : marge négative, rendement faible, dérive de coût
  */
 
 import { AlertTriangle, TrendingDown, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatMontant, formatRendement } from "@/utils/productionToolkit";
 
-const NIVEAU_CONFIG = {
-  critique: {
-    icon:   AlertTriangle,
-    bg:     "bg-red-50 dark:bg-red-950",
-    border: "border-red-200 dark:border-red-800",
-    text:   "text-red-700 dark:text-red-300",
-    iconCn: "text-red-500",
-  },
-  haute: {
-    icon:   TrendingDown,
-    bg:     "bg-orange-50 dark:bg-orange-950",
-    border: "border-orange-200 dark:border-orange-800",
-    text:   "text-orange-700 dark:text-orange-300",
-    iconCn: "text-orange-500",
-  },
-  info: {
-    icon:   Info,
-    bg:     "bg-blue-50 dark:bg-blue-950",
-    border: "border-blue-200 dark:border-blue-800",
-    text:   "text-blue-700 dark:text-blue-300",
-    iconCn: "text-blue-400",
-  },
+const ICONS = {
+  rendement_faible: TrendingDown,
+  marge_negative:   AlertTriangle,
+  derive_cout:      AlertTriangle,
 };
 
-const AlerteCard = ({ alerte }) => {
-  const config = NIVEAU_CONFIG[alerte.niveau] ?? NIVEAU_CONFIG.info;
-  const Icon   = config.icon;
-  return (
-    <div className={cn("rounded-xl border px-4 py-3 flex gap-3 items-start", config.bg, config.border)}>
-      <Icon className={cn("w-4 h-4 mt-0.5 shrink-0", config.iconCn)} />
-      <p className={cn("text-sm leading-relaxed", config.text)}>{alerte.message}</p>
-    </div>
-  );
+const COLORS = {
+  rendement_faible: "text-amber-600 bg-amber-50 border-amber-200",
+  marge_negative:   "text-destructive bg-destructive/5 border-destructive/20",
+  derive_cout:      "text-orange-600 bg-orange-50 border-orange-200",
 };
 
 const ProductionInsightsAlerts = ({ analysis }) => {
@@ -46,13 +24,25 @@ const ProductionInsightsAlerts = ({ analysis }) => {
   if (!alertes.length) return null;
 
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-        Recommandations
-      </p>
-      {alertes.map((a) => (
-        <AlerteCard key={a.id} alerte={a} />
-      ))}
+    <div className="rounded-xl border bg-card p-4 flex flex-col gap-3">
+      <h3 className="text-sm font-semibold">Alertes de production</h3>
+      <div className="flex flex-col gap-2">
+        {alertes.map((alerte, i) => {
+          const Icon      = ICONS[alerte.type] ?? Info;
+          const colorClass = COLORS[alerte.type] ?? "text-muted-foreground bg-muted border-border";
+          return (
+            <div key={i} className={cn("flex items-start gap-3 rounded-lg border px-3 py-2.5 text-xs", colorClass)}>
+              <Icon className="w-4 h-4 mt-0.5 shrink-0" />
+              <div className="flex flex-col gap-0.5">
+                {alerte.recette !== "global" && (
+                  <span className="font-semibold">{alerte.recette}</span>
+                )}
+                <span>{alerte.message}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

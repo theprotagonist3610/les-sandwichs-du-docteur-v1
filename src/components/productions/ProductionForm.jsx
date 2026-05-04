@@ -1,570 +1,299 @@
 /**
  * ProductionForm.jsx
- * Formulaire de création / modification d'une instance de production
+ * Formulaire de saisie d'un lot de production.
+ * Calcule en temps réel : coût total, rendement, prix de vente, marge.
  */
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useState, useEffect, useMemo } from "react";
+import { Button }   from "@/components/ui/button";
+import { Input }    from "@/components/ui/input";
+import { Label }    from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge }    from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  STATUTS_PRODUCTION,
-  STATUTS_LABELS,
-  UNITES,
-  UNITES_LABELS,
-  initProductionFromSchema,
-  calculerCoutTotal,
+  calculerCoutTotal, calculerRendement, calculerPrixVente, calculerMarge,
+  formatMontant, formatRendement, RECETTE_LABELS, RECETTE_COLORS, RECETTES_IDS,
+  initIngredientsPrincipaux, initIngredientsSecondaires,
 } from "@/utils/productionToolkit";
-import { Plus, Trash2, PackageCheck } from "lucide-react";
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ─── Champ numérique ──────────────────────────────────────────────────────────
 
-const today = () => new Date().toISOString().split("T")[0];
+const NumInput = ({ label, value, onChange, unite, placeholder = "0", className }) => (
+  <div className={cn("flex flex-col gap-1", className)}>
+    <Label className="text-xs text-muted-foreground">{label}</Label>
+    <div className="relative">
+      <Input
+        type="number"
+        min={0}
+        step="any"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="pr-10 text-sm h-9"
+      />
+      {unite && (
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+          {unite}
+        </span>
+      )}
+    </div>
+  </div>
+);
 
-const RESULTAT_VIDE = { nom: "", quantite: "" };
+// ─── Ligne ingrédient ─────────────────────────────────────────────────────────
 
-const buildFormVide = (schema) => {
-  const snapshot = schema ? initProductionFromSchema(schema) : null;
-  return {
-    schema_id: schema?.id || "",
-    nom: schema ? `${schema.nom} — ${today()}` : "",
-    statut: STATUTS_PRODUCTION.TERMINEE,
-    date_production: today(),
-    production: snapshot || {
-      ingredient_principal: { nom: "", unite: "", quantite: "", cout_unitaire: "", cout_total: "" },
-      ingredients_secondaires: [],
-    },
-    rendement_reel: { quantite: "", unite: schema?.rendement_estime?.unite || "" },
-    resultats: schema ? [{ nom: schema.nom, quantite: "" }] : [{ ...RESULTAT_VIDE }],
-    duree_reelle_minutes: "",
-    notes: "",
-  };
-};
+const LigneIngredient = ({ label, ing, onChange }) => {
+  const coutTotal = useMemo(
+    () => Math.round(Number(ing.qte_utilisee || 0) * Number(ing.cout_unitaire_reel || 0) * 100) / 100,
+    [ing.qte_utilisee, ing.cout_unitaire_reel],
+  );
 
-const productionVersForm = (prod) => ({
-  schema_id: prod.schema_id || "",
-  nom: prod.nom || "",
-  statut: prod.statut || STATUTS_PRODUCTION.TERMINEE,
-  date_production: prod.date_production || today(),
-  production: prod.production || {
-    ingredient_principal: { nom: "", unite: "", quantite: "", cout_unitaire: "", cout_total: "" },
-    ingredients_secondaires: [],
-  },
-  rendement_reel: {
-    quantite: prod.rendement_reel?.quantite?.toString() || "",
-    unite: prod.rendement_reel?.unite || "",
-  },
-  resultats: (prod.resultats || []).length > 0
-    ? prod.resultats.map((r) => ({ nom: r.nom || "", quantite: r.quantite?.toString() || "" }))
-    : [{ ...RESULTAT_VIDE }],
-  duree_reelle_minutes: prod.duree_reelle_minutes?.toString() || "",
-  notes: prod.notes || "",
-});
-
-// ── Champ coût ingrédient ──────────────────────────────────────────────────────
-
-const LigneIngredient = ({ label, value, onChange, readOnly = false }) => {
-  const coutTotal =
-    (parseFloat(value.quantite) || 0) * (parseFloat(value.cout_unitaire) || 0);
-
-  const handleCoutUnitaire = (v) => {
-    const cu = parseFloat(v) || 0;
-    const qt = parseFloat(value.quantite) || 0;
-    onChange({ ...value, cout_unitaire: v, cout_total: (qt * cu).toFixed(2) });
-  };
+  useEffect(() => {
+    if (coutTotal !== ing.cout_total) onChange({ ...ing, cout_total: coutTotal });
+  }, [coutTotal]); // eslint-disable-line
 
   return (
-    <div className="flex flex-col gap-1 p-2.5 bg-muted/30 rounded-lg border border-border">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <div className="flex gap-2 flex-wrap">
-        <div className="flex items-center gap-1 text-xs text-foreground min-w-[120px]">
-          <span className="font-medium">{value.nom || "—"}</span>
-          <span className="text-muted-foreground">
-            {value.quantite} {value.unite}
-          </span>
+    <div className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-2">
+      <span className="text-xs font-medium">{label} <span className="text-muted-foreground">({ing.unite})</span></span>
+      <div className="grid grid-cols-3 gap-2">
+        <NumInput
+          label="Quantité utilisée"
+          value={ing.qte_utilisee}
+          unite={ing.unite}
+          onChange={(v) => onChange({ ...ing, qte_utilisee: v })}
+        />
+        <NumInput
+          label="Coût unitaire réel"
+          value={ing.cout_unitaire_reel}
+          unite="FCFA"
+          onChange={(v) => onChange({ ...ing, cout_unitaire_reel: v })}
+        />
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs text-muted-foreground">Coût total</Label>
+          <div className="h-9 flex items-center px-3 rounded-md bg-background border text-sm font-medium">
+            {formatMontant(coutTotal)}
+          </div>
         </div>
-        {!readOnly && (
-          <>
-            <div className="flex flex-col gap-0.5 flex-1 min-w-[100px]">
-              <Label className="text-xs text-muted-foreground">Coût unitaire (F)</Label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={value.cout_unitaire}
-                onChange={(e) => handleCoutUnitaire(e.target.value)}
-                min="0"
-                step="1"
-                className="h-7 text-sm"
-              />
-            </div>
-            <div className="flex flex-col gap-0.5 w-24">
-              <Label className="text-xs text-muted-foreground">Coût total</Label>
-              <div className="h-7 flex items-center px-2 bg-muted/50 rounded text-sm font-medium text-foreground border border-border">
-                {coutTotal.toLocaleString("fr-FR")} F
-              </div>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );
 };
 
-// ── ProductionForm ─────────────────────────────────────────────────────────────
+// ─── Composant principal ──────────────────────────────────────────────────────
 
-const ProductionForm = ({
-  schemas,
-  schemaInitial,
-  productionInitiale,
-  onSubmit,
-  submitting,
-  onAnnuler,
-}) => {
-  const [form, setForm] = useState(() =>
-    productionInitiale
-      ? productionVersForm(productionInitiale)
-      : buildFormVide(schemaInitial)
+const ProductionForm = ({ recettes, recetteIdInitiale, productionInitiale, onSubmit, onCancel, loading }) => {
+  const isEdit = !!productionInitiale;
+
+  const [recetteId, setRecetteId]   = useState(recetteIdInitiale ?? productionInitiale?.recette_id ?? "viande");
+  const [date, setDate]             = useState(productionInitiale?.date_production ?? new Date().toISOString().slice(0, 10));
+  const [ingPrincipal, setIngP]     = useState(() =>
+    isEdit
+      ? (productionInitiale.ingredient_principal ?? {})
+      : initIngredientsPrincipaux(recettes?.find((r) => r.id === (recetteIdInitiale ?? "viande"))),
   );
+  const [ingsSecondaires, setIngsS] = useState(() => {
+    const recette = recettes?.find((r) => r.id === (recetteIdInitiale ?? productionInitiale?.recette_id ?? "viande"));
+    return isEdit
+      ? (productionInitiale.ingredients_secondaires ?? [])
+      : initIngredientsSecondaires(recette);
+  });
+  const [qteProduite, setQteProduite] = useState(productionInitiale?.qte_produite_reelle ?? "");
+  const [notes, setNotes]             = useState(productionInitiale?.notes ?? "");
 
-  // Option intégration stock
-  const [integrerStock, setIntegrerStock] = useState(true);
+  const recette = recettes?.find((r) => r.id === recetteId);
 
-  // Confirmation avant intégration
-  const [pendingPayload, setPendingPayload] = useState(null);
-
-  const schemaActuel = schemas?.find((s) => s.id === form.schema_id) || schemaInitial;
-
-  const isTerminee = form.statut === STATUTS_PRODUCTION.TERMINEE;
-
+  // Recalcul automatique des ingrédients secondaires quand on change de recette
   useEffect(() => {
-    if (productionInitiale) {
-      setForm(productionVersForm(productionInitiale));
-    } else if (schemaInitial) {
-      setForm(buildFormVide(schemaInitial));
+    if (!isEdit) {
+      setIngP(initIngredientsPrincipaux(recette));
+      setIngsS(initIngredientsSecondaires(recette));
     }
-  }, [productionInitiale, schemaInitial]);
+  }, [recetteId]); // eslint-disable-line
 
-  const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  // ── Calculs dérivés ────────────────────────────────────────────────────────
+  const coutTotal      = useMemo(() => calculerCoutTotal(ingPrincipal, ingsSecondaires), [ingPrincipal, ingsSecondaires]);
+  const rendement      = useMemo(() => calculerRendement(qteProduite, ingPrincipal?.qte_utilisee), [qteProduite, ingPrincipal?.qte_utilisee]);
+  const prixVente      = useMemo(() => calculerPrixVente(qteProduite, recette?.prix_vente_par_unite_produite ?? 0), [qteProduite, recette]);
+  const marge          = useMemo(() => calculerMarge(prixVente, coutTotal), [prixVente, coutTotal]);
+  const margePositive  = marge >= 0;
 
-  const handleSchemaChange = (schemaId) => {
-    const schema = schemas?.find((s) => s.id === schemaId);
-    if (schema) {
-      const snapshot = initProductionFromSchema(schema);
-      setForm({
-        ...form,
-        schema_id: schemaId,
-        nom: `${schema.nom} — ${today()}`,
-        production: snapshot,
-        rendement_reel: { quantite: "", unite: schema.rendement_estime?.unite || "" },
-        resultats: [{ nom: schema.nom, quantite: "" }],
-      });
-    } else {
-      set("schema_id", schemaId);
-    }
+  // ── Mise à jour ingrédient principal ──────────────────────────────────────
+  const updateIngP = (field, value) => {
+    const updated = { ...ingPrincipal, [field]: value };
+    updated.cout_total = Math.round(Number(updated.qte_utilisee || 0) * Number(updated.cout_unitaire_reel || 0) * 100) / 100;
+    setIngP(updated);
   };
 
-  const setIngPrincipal = (value) =>
-    set("production", { ...form.production, ingredient_principal: value });
-
-  const setIngSecondaire = (index, value) => {
-    const arr = [...form.production.ingredients_secondaires];
-    arr[index] = value;
-    set("production", { ...form.production, ingredients_secondaires: arr });
+  const updateIngS = (i, updated) => {
+    setIngsS((prev) => prev.map((ing, idx) => idx === i ? updated : ing));
   };
 
-  // ── Résultats ──────────────────────────────────────────────────────────────
-
-  const ajouterResultat = () =>
-    set("resultats", [...form.resultats, { ...RESULTAT_VIDE }]);
-
-  const modifierResultat = (i, field, val) => {
-    const arr = [...form.resultats];
-    arr[i] = { ...arr[i], [field]: val };
-    set("resultats", arr);
-  };
-
-  const supprimerResultat = (i) =>
-    set("resultats", form.resultats.filter((_, idx) => idx !== i));
-
-  // ── Submit ─────────────────────────────────────────────────────────────────
-
-  const coutTotalCalc = calculerCoutTotal(form.production);
-
-  const buildPayload = () => {
-    const ip = form.production.ingredient_principal;
-    const ingPrincipal = {
-      ...ip,
-      quantite: parseFloat(ip.quantite) || 0,
-      cout_unitaire: parseFloat(ip.cout_unitaire) || 0,
-      cout_total: (parseFloat(ip.quantite) || 0) * (parseFloat(ip.cout_unitaire) || 0),
-    };
-
-    const ingsSecondaires = (form.production.ingredients_secondaires || []).map((ing) => ({
-      ...ing,
-      quantite: parseFloat(ing.quantite) || 0,
-      cout_unitaire: parseFloat(ing.cout_unitaire) || 0,
-      cout_total: (parseFloat(ing.quantite) || 0) * (parseFloat(ing.cout_unitaire) || 0),
-    }));
-
-    return {
-      schema_id: form.schema_id,
-      nom: form.nom,
-      statut: form.statut,
-      date_production: form.date_production,
-      production: {
-        ingredient_principal: ingPrincipal,
-        ingredients_secondaires: ingsSecondaires,
-      },
-      rendement_reel:
-        form.rendement_reel.quantite
-          ? { quantite: parseFloat(form.rendement_reel.quantite), unite: form.rendement_reel.unite }
-          : null,
-      resultats: isTerminee
-        ? form.resultats
-            .filter((r) => r.nom.trim() && parseFloat(r.quantite) > 0)
-            .map((r) => ({ nom: r.nom.trim(), quantite: parseFloat(r.quantite) }))
-        : [],
-      duree_reelle_minutes: form.duree_reelle_minutes ? parseInt(form.duree_reelle_minutes) : null,
-      notes: form.notes || null,
-    };
-  };
-
+  // ── Soumission ─────────────────────────────────────────────────────────────
   const handleSubmit = (e) => {
     e.preventDefault();
-    const payload = buildPayload();
-
-    // Si terminée avec checkbox intégration cochée → demander confirmation
-    if (isTerminee && integrerStock && !productionInitiale) {
-      setPendingPayload(payload);
-      return;
-    }
-
-    onSubmit(payload);
+    if (!recetteId || !date || !qteProduite) return;
+    onSubmit({
+      recette_id:              recetteId,
+      date_production:         date,
+      ingredient_principal:    ingPrincipal,
+      ingredients_secondaires: ingsSecondaires,
+      qte_produite_reelle:     Number(qteProduite),
+      notes,
+    });
   };
 
-  const confirmerAvecIntegration = () => {
-    onSubmit({ ...pendingPayload, integrer_au_stock: true });
-    setPendingPayload(null);
-  };
-
-  const confirmerSansIntegration = () => {
-    onSubmit(pendingPayload);
-    setPendingPayload(null);
-  };
+  const color = RECETTE_COLORS[recetteId] ?? "#6b7280";
 
   return (
-    <>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {/* Schéma */}
-        {!schemaInitial && !productionInitiale && (
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm">
-              Schéma de production <span className="text-destructive">*</span>
-            </Label>
-            <Select value={form.schema_id} onValueChange={handleSchemaChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choisir un schéma" />
-              </SelectTrigger>
-              <SelectContent>
-                {(schemas || []).map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.nom}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-        {/* Nom + Date */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="prod-nom" className="text-sm">
-              Nom de la production <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="prod-nom"
-              value={form.nom}
-              onChange={(e) => set("nom", e.target.value)}
-              required
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="prod-date" className="text-sm">
-              Date de production <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="prod-date"
-              type="date"
-              value={form.date_production}
-              onChange={(e) => set("date_production", e.target.value)}
-              required
-            />
-          </div>
-        </div>
-
-        {/* Statut */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-sm">Statut</Label>
-          <Select value={form.statut} onValueChange={(v) => set("statut", v)}>
-            <SelectTrigger className="w-44">
+      {/* Recette + Date */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs text-muted-foreground">Recette</Label>
+          <Select value={recetteId} onValueChange={setRecetteId} disabled={isEdit}>
+            <SelectTrigger className="h-9 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(STATUTS_PRODUCTION).map(([, val]) => (
-                <SelectItem key={val} value={val}>
-                  {STATUTS_LABELS[val]}
+              {RECETTES_IDS.map((id) => (
+                <SelectItem key={id} value={id}>
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full" style={{ background: RECETTE_COLORS[id] }} />
+                    {RECETTE_LABELS[id]}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-
-        {/* Coûts des ingrédients */}
-        {form.schema_id && (
-          <div className="flex flex-col gap-2">
-            <Label className="text-sm">Coûts des ingrédients</Label>
-            <LigneIngredient
-              label="Principal"
-              value={form.production.ingredient_principal}
-              onChange={setIngPrincipal}
-            />
-            {(form.production.ingredients_secondaires || []).map((ing, i) => (
-              <LigneIngredient
-                key={i}
-                label={`Secondaire #${i + 1}`}
-                value={ing}
-                onChange={(v) => setIngSecondaire(i, v)}
-              />
-            ))}
-            <div className="flex items-center justify-between px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
-              <span className="text-sm font-medium">Coût total calculé</span>
-              <span className="text-sm font-bold text-primary">
-                {coutTotalCalc.toLocaleString("fr-FR")} F
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Rendement réel */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-sm">Rendement réel</Label>
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              placeholder="Quantité obtenue"
-              value={form.rendement_reel.quantite}
-              onChange={(e) =>
-                set("rendement_reel", { ...form.rendement_reel, quantite: e.target.value })
-              }
-              min="0"
-              step="0.01"
-              className="flex-1"
-            />
-            <Select
-              value={form.rendement_reel.unite}
-              onValueChange={(v) =>
-                set("rendement_reel", { ...form.rendement_reel, unite: v })
-              }>
-              <SelectTrigger className="w-36">
-                <SelectValue placeholder="Unité" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(UNITES).map(([, val]) => (
-                  <SelectItem key={val} value={val}>
-                    {UNITES_LABELS[val]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {schemaActuel?.rendement_estime && (
-            <p className="text-xs text-muted-foreground">
-              Rendement estimé : {schemaActuel.rendement_estime.quantite}{" "}
-              {schemaActuel.rendement_estime.unite}
-            </p>
-          )}
-        </div>
-
-        {/* Résultats de production — visibles uniquement si terminée */}
-        {isTerminee && (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">
-                Résultats produits
-                <span className="text-destructive ml-1">*</span>
-              </Label>
-              <button
-                type="button"
-                onClick={ajouterResultat}
-                className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
-                <Plus className="w-3.5 h-3.5" />
-                Ajouter
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground -mt-1">
-              Les items produits qui seront convertis en lots de stock.
-            </p>
-            {form.resultats.map((r, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Input
-                  placeholder="Nom de l'item produit"
-                  value={r.nom}
-                  onChange={(e) => modifierResultat(i, "nom", e.target.value)}
-                  className="flex-1 h-8 text-sm"
-                />
-                <Input
-                  type="number"
-                  placeholder="Qté"
-                  value={r.quantite}
-                  onChange={(e) => modifierResultat(i, "quantite", e.target.value)}
-                  min="0.01"
-                  step="0.01"
-                  className="w-24 h-8 text-sm"
-                />
-                {form.resultats.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => supprimerResultat(i)}
-                    className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Durée réelle */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="prod-duree" className="text-sm">
-            Durée réelle (minutes)
-          </Label>
-          <div className="flex items-center gap-2">
-            <Input
-              id="prod-duree"
-              type="number"
-              placeholder="ex. 45"
-              value={form.duree_reelle_minutes}
-              onChange={(e) => set("duree_reelle_minutes", e.target.value)}
-              min="1"
-              className="max-w-[160px]"
-            />
-            {schemaActuel?.duree_preparation_minutes && (
-              <span className="text-xs text-muted-foreground">
-                Estimé : {schemaActuel.duree_preparation_minutes} min
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Notes */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="prod-notes" className="text-sm">Notes</Label>
-          <Textarea
-            id="prod-notes"
-            placeholder="Observations, problèmes rencontrés..."
-            value={form.notes}
-            onChange={(e) => set("notes", e.target.value)}
-            rows={2}
-            className="resize-none"
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs text-muted-foreground">Date de production</Label>
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-9 text-sm"
+            required
           />
         </div>
+      </div>
 
-        {/* Option intégration stock — uniquement si terminée et nouvelle production */}
-        {isTerminee && !productionInitiale && (
-          <label className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg cursor-pointer hover:bg-green-100/50 dark:hover:bg-green-950/50 transition-colors">
-            <input
-              type="checkbox"
-              checked={integrerStock}
-              onChange={(e) => setIntegrerStock(e.target.checked)}
-              className="mt-0.5 w-4 h-4 accent-green-600 cursor-pointer shrink-0"
+      {/* Ingrédient principal */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+          Ingrédient principal — {recette?.ingredient_principal?.nom ?? ""}
+        </p>
+        <div className="rounded-lg border-2 p-3 flex flex-col gap-2" style={{ borderColor: color + "40" }}>
+          <div className="grid grid-cols-3 gap-2">
+            <NumInput
+              label={`Quantité (${recette?.ingredient_principal?.unite ?? "kg"})`}
+              value={ingPrincipal.qte_utilisee}
+              unite={recette?.ingredient_principal?.unite}
+              onChange={(v) => updateIngP("qte_utilisee", v)}
             />
-            <div className="flex-1">
-              <div className="flex items-center gap-1.5">
-                <PackageCheck className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
-                <span className="text-sm font-medium text-green-800 dark:text-green-300">
-                  Intégrer au stock
-                </span>
+            <NumInput
+              label="Coût unitaire réel (FCFA)"
+              value={ingPrincipal.cout_unitaire_reel}
+              unite="FCFA"
+              onChange={(v) => updateIngP("cout_unitaire_reel", v)}
+            />
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">Coût total</Label>
+              <div className="h-9 flex items-center px-3 rounded-md bg-background border text-sm font-semibold" style={{ color }}>
+                {formatMontant(ingPrincipal.cout_total)}
               </div>
-              <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
-                Les résultats seront automatiquement convertis en lots de stock.
-              </p>
             </div>
-          </label>
-        )}
-
-        {/* Actions */}
-        <div className="flex gap-2 justify-end pt-2 border-t border-border">
-          <Button type="button" variant="ghost" onClick={onAnnuler}>
-            Annuler
-          </Button>
-          <Button type="submit" disabled={submitting || !form.schema_id}>
-            {submitting
-              ? "Enregistrement..."
-              : productionInitiale
-                ? "Mettre à jour"
-                : "Enregistrer la production"}
-          </Button>
+          </div>
         </div>
-      </form>
+      </div>
 
-      {/* AlertDialog confirmation intégration */}
-      <AlertDialog open={!!pendingPayload} onOpenChange={(o) => !o && setPendingPayload(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <PackageCheck className="w-5 h-5 text-green-600" />
-              Intégrer au stock ?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              La production sera enregistrée avec le statut{" "}
-              <span className="font-medium text-foreground">Terminée</span>.
-              {pendingPayload?.resultats?.length > 0 && (
-                <>
-                  {" "}Les {pendingPayload.resultats.length} résultat(s) saisi(s) seront
-                  convertis en lots de stock.
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <Button
-              variant="outline"
-              onClick={confirmerSansIntegration}
-              disabled={submitting}>
-              Enregistrer uniquement
-            </Button>
-            <AlertDialogAction
-              onClick={confirmerAvecIntegration}
-              disabled={submitting}
-              className="bg-green-600 hover:bg-green-700 text-white">
-              <PackageCheck className="w-4 h-4 mr-1.5" />
-              Enregistrer et intégrer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+      {/* Ingrédients secondaires */}
+      {ingsSecondaires.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+            Ingrédients secondaires
+          </p>
+          <div className="flex flex-col gap-2">
+            {ingsSecondaires.map((ing, i) => (
+              <LigneIngredient
+                key={i}
+                label={ing.nom}
+                ing={ing}
+                onChange={(updated) => updateIngS(i, updated)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quantité produite */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+          Résultat de production
+        </p>
+        <div className="rounded-lg border p-3">
+          <NumInput
+            label={`Quantité produite réelle (${recette?.ingredient_principal?.unite ?? "kg"})`}
+            value={qteProduite}
+            unite={recette?.ingredient_principal?.unite}
+            onChange={setQteProduite}
+            className="max-w-xs"
+          />
+        </div>
+      </div>
+
+      {/* Récapitulatif calculé */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-xl border bg-muted/30 p-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs text-muted-foreground">Coût total matières</span>
+          <span className="text-sm font-semibold">{formatMontant(coutTotal)}</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs text-muted-foreground">Rendement</span>
+          <span className={cn("text-sm font-semibold", rendement < 70 ? "text-destructive" : rendement < 85 ? "text-amber-600" : "text-green-600")}>
+            {formatRendement(rendement)}
+          </span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs text-muted-foreground">Prix vente estimé</span>
+          <span className="text-sm font-semibold">{formatMontant(prixVente)}</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs text-muted-foreground">Marge estimée</span>
+          <span className={cn("text-sm font-bold", margePositive ? "text-green-600" : "text-destructive")}>
+            {margePositive ? "+" : ""}{formatMontant(marge)}
+          </span>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">Notes (optionnel)</Label>
+        <Textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Observations sur ce lot…"
+          rows={2}
+          className="text-sm resize-none"
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="ghost" onClick={onCancel}>Annuler</Button>
+        <Button
+          type="submit"
+          disabled={loading || !recetteId || !date || !qteProduite}
+          style={{ background: color }}
+          className="text-white"
+        >
+          {loading ? "Enregistrement…" : isEdit ? "Mettre à jour" : "Enregistrer le lot"}
+        </Button>
+      </div>
+    </form>
   );
 };
 

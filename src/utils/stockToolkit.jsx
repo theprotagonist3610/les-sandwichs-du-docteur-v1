@@ -102,10 +102,7 @@ export const canAjusterStock = (userRole) => userRole === ROLES.ADMIN;
 const SELECT_LOT_WITH_RELATIONS = `
   *,
   production:productions!production_id(
-    id, nom, date_production, cout_total, cout_unitaire, rendement_reel
-  ),
-  schema:production_schemas!schema_id(
-    id, nom, categorie
+    id, recette_id, date_production, cout_total_reel, rendement_reel_pct, qte_produite_reelle
   ),
   created_by_info:users!created_by(id, nom, prenoms)
 `;
@@ -236,127 +233,9 @@ export const verifierIntegration = async (productionId) => {
  * @param {string} userRole
  * @returns {Promise<{ success: boolean, lots?: Array, error?: string }>}
  */
-export const integrerProductionAuStock = async (productionId, userRole) => {
-  if (!canManageStock(userRole)) {
-    return { success: false, error: "Permission refusée." };
-  }
-
-  try {
-    // 1. Récupérer la production avec son schéma
-    const { data: production, error: prodError } = await supabase
-      .from("productions")
-      .select(`
-        *,
-        schema:production_schemas!schema_id(
-          id, nom, categorie, duree_conservation_jours
-        )
-      `)
-      .eq("id", productionId)
-      .single();
-
-    if (prodError || !production) {
-      return { success: false, error: prodError?.message || "Production introuvable." };
-    }
-
-    if (production.statut !== "terminee") {
-      return { success: false, error: "Seules les productions terminées peuvent être intégrées au stock." };
-    }
-
-    // 2. Vérifier si déjà intégré
-    const check = await verifierIntegration(productionId);
-    if (check.deja_integre) {
-      return { success: false, error: `Cette production a déjà été intégrée (${check.nb_lots} lot(s) existants).` };
-    }
-
-    // 3. Récupérer l'utilisateur authentifié
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return { success: false, error: "Utilisateur non authentifié." };
-
-    // 4. Calculer la quantité totale pour la répartition des coûts
-    const resultats = production.resultats || [];
-    if (resultats.length === 0) {
-      return { success: false, error: "Cette production n'a aucun résultat à intégrer. Renseignez les résultats d'abord." };
-    }
-
-    const quantiteTotale = resultats.reduce(
-      (sum, r) => sum + parseFloat(r.quantite || 0), 0
-    );
-
-    const coutTotalProduction = parseFloat(production.cout_total || 0);
-    const categorie            = production.schema?.categorie || "autre";
-    const dureeConservation    = production.schema?.duree_conservation_jours || null;
-
-    // 5. Créer un lot par item dans resultats
-    const lotsPayload = resultats
-      .filter((r) => r.nom && parseFloat(r.quantite || 0) > 0)
-      .map((r) => {
-        const qtItem      = parseFloat(r.quantite);
-        const coutUnitaire = calculerCoutUnitaireLot(coutTotalProduction, qtItem, quantiteTotale);
-        const coutTotal    = Math.round(coutUnitaire * qtItem * 100) / 100;
-        const dateProd     = production.date_production;
-        const datePeremption = calculerDatePeremption(dateProd, dureeConservation);
-
-        return {
-          nom:                       r.nom.trim(),
-          categorie,
-          production_id:             productionId,
-          schema_id:                 production.schema_id,
-          quantite_initiale:         qtItem,
-          quantite_disponible:       qtItem,
-          quantite_vendue:           0,
-          quantite_perdue:           0,
-          cout_unitaire:             coutUnitaire,
-          cout_total:                coutTotal,
-          cout_vendu:                0,
-          cout_perdu:                0,
-          date_production:           dateProd,
-          duree_conservation_jours:  dureeConservation,
-          date_peremption:           datePeremption,
-          statut:                    "disponible",
-          notes:                     `Intégré depuis : ${production.nom}`,
-          created_by:                user.id,
-        };
-      });
-
-    if (lotsPayload.length === 0) {
-      return { success: false, error: "Aucun résultat valide à intégrer (nom ou quantité manquant)." };
-    }
-
-    const { data: lots, error: insertError } = await supabase
-      .from("stock_lots")
-      .insert(lotsPayload)
-      .select(SELECT_LOT_WITH_RELATIONS);
-
-    if (insertError) {
-      console.error("Erreur intégration stock_lots:", insertError);
-      return { success: false, error: insertError.message };
-    }
-
-    // 6. Créer les mouvements d'entrée
-    const mouvementsPayload = lots.map((lot) => ({
-      lot_id:          lot.id,
-      type:            TYPES_MOUVEMENT.ENTREE,
-      quantite:        lot.quantite_initiale,
-      cout:            lot.cout_total,
-      motif:           `Production : ${production.nom} (${production.date_production})`,
-      date_mouvement:  production.date_production,
-      created_by:      user.id,
-    }));
-
-    const { error: mouvError } = await supabase
-      .from("stock_mouvements")
-      .insert(mouvementsPayload);
-
-    if (mouvError) {
-      console.error("Erreur création mouvements d'entrée:", mouvError);
-      // Non bloquant : les lots sont créés, on log l'erreur
-    }
-
-    return { success: true, lots, nb_lots: lots.length };
-  } catch (err) {
-    console.error("Exception integrerProductionAuStock:", err);
-    return { success: false, error: err.message };
-  }
+export const integrerProductionAuStock = async (_productionId, _userRole) => {
+  // Fonctionnalité non disponible dans le nouveau système de production simplifié.
+  return { success: false, error: "L'intégration automatique au stock n'est pas disponible dans cette version." };
 };
 
 // ============================================================================

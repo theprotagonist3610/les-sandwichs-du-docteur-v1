@@ -1,24 +1,21 @@
 /**
  * ProductionInsightsTab.jsx
- * Onglet Production — assemble KPI + graphiques + alertes
+ * Onglet Production — KPI + graphiques + tableau + alertes
  *
  * Props :
  *  - horizon    {string}  — HORIZONS.*
  *  - refreshKey {number}  — incrémenté pour forcer un re-fetch
  */
 
-import { useState } from "react";
+import { AlertTriangle, Factory } from "lucide-react";
 import useProductionInsights    from "@/hooks/useProductionInsights";
 import useBreakpoint            from "@/hooks/useBreakpoint";
 import ProductionInsightsKpi    from "./production/ProductionInsightsKpi";
 import ProductionVolumeChart    from "./production/ProductionVolumeChart";
-import ProductionSchemasChart   from "./production/ProductionSchemasChart";
+import ProductionMargeChart     from "./production/ProductionMargeChart";
 import ProductionRendementChart from "./production/ProductionRendementChart";
-import ProductionCoutsChart     from "./production/ProductionCoutsChart";
-import ProductionCyclesPanel    from "./production/ProductionCyclesPanel";
+import ProductionRecetteTable   from "./production/ProductionRecetteTable";
 import ProductionInsightsAlerts from "./production/ProductionInsightsAlerts";
-import { AlertTriangle, Factory, GitCompare } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { HORIZON_LABELS } from "@/utils/insightsToolkit/engine/insightTypes";
 
 // ─── Squelettes ───────────────────────────────────────────────────────────────
@@ -29,15 +26,13 @@ const Skeleton = ({ h = "h-24" }) => (
 
 const LoadingSkeleton = () => (
   <div className="flex flex-col gap-4">
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <Skeleton h="h-28" /><Skeleton h="h-28" /><Skeleton h="h-28" /><Skeleton h="h-28" />
     </div>
     <Skeleton h="h-52" />
+    <Skeleton h="h-52" />
     <Skeleton h="h-40" />
-    <Skeleton h="h-64" />
     <Skeleton h="h-48" />
-    <Skeleton h="h-64" />
-    <Skeleton h="h-16" />
   </div>
 );
 
@@ -50,7 +45,7 @@ const EtatVide = ({ horizon }) => (
       Aucune donnée de production disponible pour « {HORIZON_LABELS[horizon]} ».
     </p>
     <p className="text-xs text-muted-foreground max-w-xs">
-      Enregistrez des productions pour générer une analyse prévisionnelle.
+      Enregistrez des lots de production pour générer une analyse.
     </p>
   </div>
 );
@@ -58,9 +53,8 @@ const EtatVide = ({ horizon }) => (
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 const ProductionInsightsTab = ({ horizon, refreshKey }) => {
-  const { isMobile } = useBreakpoint();
-  const [compareWithPrev, setCompareWithPrev] = useState(false);
-  const { analysis, loading, error } = useProductionInsights(horizon, refreshKey, compareWithPrev);
+  const { isMobile }             = useBreakpoint();
+  const { analysis, loading, error } = useProductionInsights(horizon, refreshKey);
 
   if (loading) return <LoadingSkeleton />;
 
@@ -73,45 +67,26 @@ const ProductionInsightsTab = ({ horizon, refreshKey }) => {
     );
   }
 
-  const hasData = analysis?.periodes?.length >= 2;
+  const hasData = analysis?.periodes?.length >= 1 && analysis?.totaux?.count > 0;
   if (!hasData) return <EtatVide horizon={horizon} />;
 
   return (
     <div className="flex flex-col gap-5">
 
-      {/* Toggle comparaison */}
-      <div className="flex justify-end">
-        <Button
-          variant={compareWithPrev ? "default" : "outline"}
-          size="sm"
-          onClick={() => setCompareWithPrev((v) => !v)}
-          className="gap-2">
-          <GitCompare className="w-4 h-4" />
-          Comparer période précédente
-        </Button>
-      </div>
-
       {/* KPI */}
       <ProductionInsightsKpi analysis={analysis} horizon={horizon} />
 
-      {/* Graphique 1 : Volume & Coût */}
+      {/* Volume par recette */}
       <ProductionVolumeChart analysis={analysis} isMobile={isMobile} />
 
-      {/* Panel cycles temps réel */}
-      <ProductionCyclesPanel cyclesDashboard={analysis.cyclesDashboard ?? []} />
+      {/* Évolution des marges */}
+      <ProductionMargeChart analysis={analysis} isMobile={isMobile} />
 
-      {/* Graphique 2 : Ranking schémas */}
-      <ProductionSchemasChart schemas={analysis.schemas} />
+      {/* Rendement par recette */}
+      <ProductionRendementChart analysis={analysis} />
 
-      {/* Graphique 3 : Rendement par schéma */}
-      <ProductionRendementChart schemas={analysis.schemas} isMobile={isMobile} />
-
-      {/* Graphique 4 : Tendance coûts par schéma */}
-      <ProductionCoutsChart
-        schemas={analysis.schemas}
-        coutsChart={analysis.coutsChart}
-        isMobile={isMobile}
-      />
+      {/* Tableau récapitulatif */}
+      <ProductionRecetteTable analysis={analysis} />
 
       {/* Alertes */}
       <ProductionInsightsAlerts analysis={analysis} />

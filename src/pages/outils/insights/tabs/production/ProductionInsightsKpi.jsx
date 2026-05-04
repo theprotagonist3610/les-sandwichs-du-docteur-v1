@@ -1,203 +1,83 @@
 /**
  * ProductionInsightsKpi.jsx
- * 3 cartes KPI : Productions / Coût total / Rendement moyen
- *
- * Système deux couches :
- *  - Identité fixe : sky (volume) / red (coût) / emerald (rendement)
- *  - Badge sémantique : vert/bleu/rouge selon tendance + sens
+ * 4 cartes KPI : productions, coût, revenu estimé, marge
  */
 
-import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
-import { TENDANCES, TENDANCE_LABELS } from "@/utils/insightsToolkit/production/ProductionInsightsEngine";
-import { HORIZONS } from "@/utils/insightsToolkit/engine/insightTypes";
+import { TrendingUp, TrendingDown, Minus, Factory, Wallet, ShoppingBag, TrendingUp as Profit } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatMontant, formatRendement } from "@/utils/productionToolkit";
+import { HORIZON_LABELS } from "@/utils/insightsToolkit/engine/insightTypes";
 
-// ─── Identités ────────────────────────────────────────────────────────────────
-
-const IDENTITY = {
-  volume: {
-    bg:         "bg-sky-50 dark:bg-sky-950",
-    border:     "border-l-4 border-l-sky-500 border-t border-r border-b border-border",
-    valueColor: "text-sky-700 dark:text-sky-300",
-    label:      "Productions",
-    unit:       "prod.",
-  },
-  cout: {
-    bg:         "bg-red-50 dark:bg-red-950",
-    border:     "border-l-4 border-l-red-500 border-t border-r border-b border-border",
-    valueColor: "text-red-700 dark:text-red-300",
-    label:      "Coût total",
-    unit:       "F",
-  },
-  rendement: {
-    bg:         "bg-emerald-50 dark:bg-emerald-950",
-    border:     "border-l-4 border-l-emerald-500 border-t border-r border-b border-border",
-    valueColor: "text-emerald-700 dark:text-emerald-300",
-    label:      "Rendement moyen",
-    unit:       "%",
-  },
+const PERIODE = {
+  h24:  "/ jour",
+  j7:   "/ semaine",
+  mois: "/ mois",
 };
 
-// ─── Badge sémantique ─────────────────────────────────────────────────────────
-
-const getBadge = (tendance, hausseBonne) => {
-  const signal = hausseBonne ? tendance : (
-    tendance === TENDANCES.HAUSSIERE ? TENDANCES.BAISSIERE :
-    tendance === TENDANCES.BAISSIERE ? TENDANCES.HAUSSIERE :
-    TENDANCES.CONSTANTE
-  );
-  const MAP = {
-    [TENDANCES.HAUSSIERE]: { icon: TrendingUp,   cls: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" },
-    [TENDANCES.CONSTANTE]: { icon: Minus,         cls: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"    },
-    [TENDANCES.BAISSIERE]: { icon: TrendingDown,  cls: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"        },
-  };
-  return MAP[signal] ?? MAP[TENDANCES.CONSTANTE];
+const TendanceBadge = ({ tendance }) => {
+  if (tendance === "hausse")
+    return <span className="flex items-center gap-0.5 text-xs text-green-600 font-medium"><TrendingUp className="w-3 h-3" /> Hausse</span>;
+  if (tendance === "baisse")
+    return <span className="flex items-center gap-0.5 text-xs text-destructive font-medium"><TrendingDown className="w-3 h-3" /> Baisse</span>;
+  return <span className="flex items-center gap-0.5 text-xs text-muted-foreground font-medium"><Minus className="w-3 h-3" /> Stable</span>;
 };
 
-const PERIODE_LABEL = {
-  [HORIZONS.H24]:  "/ jour",
-  [HORIZONS.J7]:   "/ semaine",
-  [HORIZONS.MOIS]: "/ mois",
-};
-
-// ─── Carte ───────────────────────────────────────────────────────────────────
-
-const KpiCard = ({ widgetKey, serie, horizon, hausseBonne, overrideValue, overrideLabel }) => {
-  const identity = IDENTITY[widgetKey];
-  const tendance = serie?.tendance ?? TENDANCES.CONSTANTE;
-  const badge    = getBadge(tendance, hausseBonne);
-  const Icon     = badge.icon;
-
-  const valeur  = overrideValue != null
-    ? Math.round(overrideValue)
-    : Math.round(serie?.moyenne ?? 0);
-
-  const varPct  = serie ? Math.round(Math.abs(serie.variation) * 100) : 0;
-  const varSign = (serie?.variation ?? 0) >= 0 ? "+" : "−";
-  const forecast = serie?.forecast?.[0];
-
-  const isF    = identity.unit === "F";
-  const valStr = isF ? valeur.toLocaleString("fr-FR") : valeur.toLocaleString("fr-FR");
-
-  return (
-    <div className={cn("rounded-xl p-4 flex flex-col gap-3", identity.bg, identity.border)}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          {identity.label}
-        </span>
-        <span className={cn("inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full", badge.cls)}>
-          <Icon className="w-3 h-3" />
-          {TENDANCE_LABELS[tendance]}
-        </span>
-      </div>
-
-      <div>
-        <p className={cn("text-2xl font-bold tracking-tight", identity.valueColor)}>
-          {valStr}
-          <span className="text-sm font-normal ml-1">{identity.unit}</span>
-        </p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {overrideLabel ?? `Moyenne ${PERIODE_LABEL[horizon]}`}
-        </p>
-      </div>
-
-      <div className="flex items-center justify-between gap-2 pt-1 border-t border-black/5 dark:border-white/10">
-        <div className="text-xs text-muted-foreground">
-          <span className={cn("font-semibold", identity.valueColor)}>
-            {varSign}{varPct} %
-          </span>
-          {" "}vs début de période
+const KpiCard = ({ icon: Icon, label, value, sub, tendance, color }) => (
+  <div className="rounded-xl border bg-card p-4 flex flex-col gap-2">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <div className="p-1.5 rounded-lg" style={{ background: color + "20" }}>
+          <Icon className="w-4 h-4" style={{ color }} />
         </div>
-        {forecast && (
-          <div className="text-right text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">
-              ~{Math.round(forecast.moy).toLocaleString("fr-FR")} {identity.unit}
-            </span>
-            <br />
-            <span className="text-xs">{forecast.label}</span>
-          </div>
-        )}
+        <span className="text-xs text-muted-foreground">{label}</span>
       </div>
+      {tendance && <TendanceBadge tendance={tendance} />}
     </div>
-  );
-};
-
-// ─── Carte cycles (spéciale, pas de série temporelle) ─────────────────────────
-
-const CyclesKpiCard = ({ nbCyclesAlerte, nbCyclesTotal }) => {
-  const aucune   = nbCyclesAlerte === 0;
-  const bg       = aucune ? "bg-muted/40" : "bg-amber-50 dark:bg-amber-950";
-  const border   = aucune
-    ? "border-l-4 border-l-muted border-t border-r border-b border-border"
-    : "border-l-4 border-l-amber-500 border-t border-r border-b border-border";
-  const valColor = aucune ? "text-muted-foreground" : "text-amber-700 dark:text-amber-300";
-  const badgeCls = aucune
-    ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-    : "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300";
-
-  return (
-    <div className={cn("rounded-xl p-4 flex flex-col gap-3", bg, border)}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Cycles à surveiller
-        </span>
-        <span className={cn("inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full", badgeCls)}>
-          <RefreshCw className="w-3 h-3" />
-          {aucune ? "Tout OK" : "Relance requise"}
-        </span>
-      </div>
-
-      <div>
-        <p className={cn("text-2xl font-bold tracking-tight", valColor)}>
-          {nbCyclesAlerte}
-          <span className="text-sm font-normal ml-1">schéma{nbCyclesAlerte > 1 ? "s" : ""}</span>
-        </p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {nbCyclesTotal > 0
-            ? `sur ${nbCyclesTotal} schéma${nbCyclesTotal > 1 ? "s" : ""} conservation/cyclique`
-            : "Aucun schéma cyclique configuré"}
-        </p>
-      </div>
-
-      <div className="pt-1 border-t border-black/5 dark:border-white/10">
-        <p className="text-xs text-muted-foreground">
-          {aucune
-            ? "Tous les lots actifs sont suffisants."
-            : "Consultez le tableau de bord des cycles."}
-        </p>
-      </div>
+    <div>
+      <p className="text-2xl font-bold">{value}</p>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
     </div>
-  );
-};
-
-// ─── Composant principal ──────────────────────────────────────────────────────
+  </div>
+);
 
 const ProductionInsightsKpi = ({ analysis, horizon }) => {
-  if (!analysis) return null;
-
-  const nbCyclesTotal = (analysis.schemas ?? []).filter(
-    (s) => s.mode_production === "par_conservation" || s.mode_production === "cyclique"
-  ).length;
-  const hasCycles = nbCyclesTotal > 0 || (analysis.nbCyclesAlerte ?? 0) > 0;
+  const { totaux, tendanceVolume, tendanceCout, tendanceMarge } = analysis;
+  const periode = PERIODE[horizon] ?? "";
+  const margePositive = totaux.margeTotal >= 0;
 
   return (
-    <div className={cn("grid gap-3", hasCycles ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-3")}>
-      <KpiCard widgetKey="volume"    serie={analysis.volume} horizon={horizon} hausseBonne={true}  />
-      <KpiCard widgetKey="cout"      serie={analysis.cout}   horizon={horizon} hausseBonne={false} />
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <KpiCard
-        widgetKey="rendement"
-        serie={analysis.volume}
-        horizon={horizon}
-        hausseBonne={true}
-        overrideValue={analysis.rendementMoyen}
-        overrideLabel="Rendement global période"
+        icon={Factory}
+        label="Productions"
+        value={totaux.count}
+        sub={`lots ${periode}`}
+        tendance={tendanceVolume}
+        color="#6366f1"
       />
-      {hasCycles && (
-        <CyclesKpiCard
-          nbCyclesAlerte={analysis.nbCyclesAlerte ?? 0}
-          nbCyclesTotal={nbCyclesTotal}
-        />
-      )}
+      <KpiCard
+        icon={Wallet}
+        label="Coût matières"
+        value={formatMontant(totaux.coutTotal)}
+        sub={`${periode}`}
+        tendance={tendanceCout}
+        color="#f59e0b"
+      />
+      <KpiCard
+        icon={ShoppingBag}
+        label="Revenu estimé"
+        value={formatMontant(totaux.prixVenteTotal)}
+        sub={`${periode}`}
+        color="#0ea5e9"
+      />
+      <KpiCard
+        icon={Profit}
+        label="Marge estimée"
+        value={formatMontant(totaux.margeTotal)}
+        sub={formatRendement(totaux.rendementMoyen) + " rendement moy."}
+        tendance={tendanceMarge}
+        color={margePositive ? "#16a34a" : "#dc2626"}
+      />
     </div>
   );
 };
