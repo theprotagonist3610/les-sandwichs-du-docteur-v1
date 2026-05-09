@@ -35,10 +35,10 @@ const useDistributionMap = () => {
     const debut = debutPeriode(periode);
 
     const [baseRes, zonesRes, tourneesRes] = await Promise.all([
-      // 1. Emplacement de base
+      // 1. Emplacement de base — coordonnées dans adresse.localisation.lat/lng
       supabase
         .from("emplacements")
-        .select("lat, lng, nom")
+        .select("nom, adresse")
         .eq("type", "base")
         .limit(1)
         .maybeSingle(),
@@ -102,7 +102,12 @@ const useDistributionMap = () => {
       stats: stats[z.id] ?? STATS_VIDE,
     }));
 
-    setBase(baseRes.data ?? null);
+    const baseRaw = baseRes.data;
+    const baseLat = baseRaw?.adresse?.localisation?.lat;
+    const baseLng = baseRaw?.adresse?.localisation?.lng;
+    setBase(baseLat != null && baseLng != null
+      ? { lat: +baseLat, lng: +baseLng, nom: baseRaw.nom }
+      : null);
     setZones(zonesEnrichies);
     setLoading(false);
   }, [periode]);

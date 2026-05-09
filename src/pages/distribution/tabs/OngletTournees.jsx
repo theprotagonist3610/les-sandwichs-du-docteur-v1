@@ -8,29 +8,22 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import useTournees from "@/hooks/useTournees";
 import {
-  PRODUITS, PRODUIT_LABELS, PRODUIT_ICONS,
+  getProduitIcon, getProduitLabel,
   STATUT_PAIEMENT_LABELS, STATUT_PAIEMENT_COLORS,
   formatMontant, formatDate,
 } from "@/utils/distributionToolkit";
 
 // ─── Constantes formulaire ────────────────────────────────────────────────────
 
-const LIGNE_INIT = { quantite_recue: "", quantite_recuperee: "", prix_unitaire_applique: "" };
+const LIGNE_INIT = { _actif: false, quantite_recue: "", quantite_recuperee: "", prix_unitaire_applique: "" };
 
-const FORM_INIT = {
-  id_distributeur: "",
-  date_tournee: new Date().toISOString().slice(0, 10),
-  yaourt: { ...LIGNE_INIT },
-  gateau: { ...LIGNE_INIT },
-  feedback: "",
-};
-
-const buildLignes = (form) =>
-  PRODUITS
-    .filter(p => Number(form[p]?.quantite_recue) > 0)
+const buildLignes = (form, produits) =>
+  produits
+    .filter(p => form[p]?._actif && Number(form[p]?.quantite_recue) > 0)
     .map(p => ({
       type_produit:           p,
       quantite_recue:         Number(form[p].quantite_recue),
@@ -58,6 +51,7 @@ const AperçuRistourne = ({ preview }) => {
 // ─── Formulaire tournée ───────────────────────────────────────────────────────
 
 const FormTournee = ({ form, onChange, distributeurs, prix, preview }) => {
+  const produits = Object.keys(prix);
   const onLigne = (produit, field, value) =>
     onChange(produit, { ...form[produit], [field]: value });
 
@@ -84,34 +78,54 @@ const FormTournee = ({ form, onChange, distributeurs, prix, preview }) => {
         </div>
       </div>
 
-      {PRODUITS.map(produit => (
-        <div key={produit} className="rounded-lg border border-border p-3 flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <span>{PRODUIT_ICONS[produit]}</span>
-            <span className="text-sm font-medium">{PRODUIT_LABELS[produit]}</span>
-            {prix[produit] && (
-              <span className="text-xs text-muted-foreground ml-auto">
-                Réf : {formatMontant(prix[produit].prix_unitaire)} / unité
+      {produits.map(produit => {
+        const actif = form[produit]?._actif ?? false;
+        return (
+          <div key={produit} className={cn(
+            "rounded-lg border p-3 flex flex-col gap-3 transition-colors",
+            actif ? "border-border" : "border-border/50 bg-muted/20"
+          )}>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={actif}
+                onCheckedChange={v => {
+                  const updated = { ...form[produit], _actif: v };
+                  if (v && !updated.prix_unitaire_applique)
+                    updated.prix_unitaire_applique = String(prix[produit]?.prix_unitaire ?? "");
+                  onChange(produit, updated);
+                }}
+              />
+              <span>{getProduitIcon(produit)}</span>
+              <span className={cn("text-sm font-medium", !actif && "text-muted-foreground")}>
+                {getProduitLabel(produit, prix)}
               </span>
+              {prix[produit] && (
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {formatMontant(prix[produit].prix_unitaire)} / u.
+                </span>
+              )}
+            </div>
+
+            {actif && (
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { key: "prix_unitaire_applique", label: "Prix unitaire", placeholder: String(prix[produit]?.prix_unitaire ?? 0) },
+                  { key: "quantite_recue",         label: "Qté remise",    placeholder: "0" },
+                  { key: "quantite_recuperee",     label: "Qté récupérée", placeholder: "0" },
+                ].map(({ key, label, placeholder }) => (
+                  <div key={key} className="grid gap-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Input type="number" min="0" className="h-8 text-xs"
+                      placeholder={placeholder}
+                      value={form[produit][key]}
+                      onChange={e => onLigne(produit, key, e.target.value)} />
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { key: "prix_unitaire_applique", label: "Prix unitaire", placeholder: String(prix[produit]?.prix_unitaire ?? 0) },
-              { key: "quantite_recue",         label: "Qté remise",    placeholder: "0" },
-              { key: "quantite_recuperee",     label: "Qté récupérée", placeholder: "0" },
-            ].map(({ key, label, placeholder }) => (
-              <div key={key} className="grid gap-1">
-                <Label className="text-xs">{label}</Label>
-                <Input type="number" min="0" className="h-8 text-xs"
-                  placeholder={placeholder}
-                  value={form[produit][key]}
-                  onChange={e => onLigne(produit, key, e.target.value)} />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
       <AperçuRistourne preview={preview} />
 
@@ -127,9 +141,31 @@ const FormTournee = ({ form, onChange, distributeurs, prix, preview }) => {
 
 // ─── Carte tournée ────────────────────────────────────────────────────────────
 
-const TourneeCard = ({ tournee: t, onEdit, onDelete }) => {
-  const yaourt = t.lignes?.find(l => l.type_produit === "yaourt");
-  const gateau = t.lignes?.find(l => l.type_produit === "gateau");
+const _CARD_COLORS = [
+  "bg-amber-50 dark:bg-amber-950/30",
+  "bg-orange-50 dark:bg-orange-950/30",
+  "bg-purple-50 dark:bg-purple-950/30",
+  "bg-blue-50 dark:bg-blue-950/30",
+  "bg-green-50 dark:bg-green-950/30",
+  "bg-pink-50 dark:bg-pink-950/30",
+];
+
+const _hi = (str, len) => {
+  let h = 0;
+  for (const c of str) h = (h * 31 + c.charCodeAt(0)) & 0x7fffffff;
+  return h % len;
+};
+
+const getCardColor = (p) => _CARD_COLORS[_hi(p, _CARD_COLORS.length)];
+
+const TourneeCard = ({ tournee: t, prix, onEdit, onDelete }) => {
+  const lignesAffichees = (t.lignes ?? []).map(l => ({
+    icon:  getProduitIcon(l.type_produit),
+    label: getProduitLabel(l.type_produit, prix),
+    l,
+    color: getCardColor(l.type_produit),
+  }));
+
   return (
     <div className="rounded-xl border bg-card p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
@@ -143,10 +179,7 @@ const TourneeCard = ({ tournee: t, onEdit, onDelete }) => {
       </div>
 
       <div className="flex gap-2">
-        {[
-          yaourt && { icon: "🥛", label: "Yaourt", l: yaourt, color: "bg-amber-50 dark:bg-amber-950/30" },
-          gateau && { icon: "🎂", label: "Gâteau", l: gateau, color: "bg-purple-50 dark:bg-purple-950/30" },
-        ].filter(Boolean).map(({ icon, label, l, color }) => {
+        {lignesAffichees.map(({ icon, label, l, color }) => {
           const vendu = l.quantite_recue - l.quantite_recuperee;
           return (
             <div key={label} className={cn("flex-1 rounded-lg p-2 text-center", color)}>
@@ -181,40 +214,44 @@ const TourneeCard = ({ tournee: t, onEdit, onDelete }) => {
 
 const OngletTournees = () => {
   const hook = useTournees();
-  const [form, setForm] = useState(FORM_INIT);
+  const [form, setForm] = useState({
+    id_distributeur: "",
+    date_tournee: new Date().toISOString().slice(0, 10),
+    feedback: "",
+  });
   const [submitting, setSubmitting] = useState(false);
 
+  const produits = useMemo(() => Object.keys(hook.prix), [hook.prix]);
   const prixDefault = (p) => String(hook.prix[p]?.prix_unitaire ?? "");
 
   useEffect(() => {
-    if (!hook.dialog.open) return;
+    if (!hook.dialog.open || produits.length === 0) return;
     if (hook.dialog.mode === "edit" && hook.dialog.data) {
       const t = hook.dialog.data;
       const toLigne = (p) => {
         const l = t.lignes?.find(l => l.type_produit === p);
         return l
-          ? { quantite_recue: String(l.quantite_recue), quantite_recuperee: String(l.quantite_recuperee), prix_unitaire_applique: String(l.prix_unitaire_applique) }
+          ? { _actif: true, quantite_recue: String(l.quantite_recue), quantite_recuperee: String(l.quantite_recuperee), prix_unitaire_applique: String(l.prix_unitaire_applique) }
           : { ...LIGNE_INIT, prix_unitaire_applique: prixDefault(p) };
       };
       setForm({
         id_distributeur: t.id_distributeur ?? "",
         date_tournee:    t.date_tournee    ?? new Date().toISOString().slice(0, 10),
-        yaourt:          toLigne("yaourt"),
-        gateau:          toLigne("gateau"),
-        feedback:        t.feedback ?? "",
+        ...Object.fromEntries(produits.map(p => [p, toLigne(p)])),
+        feedback: t.feedback ?? "",
       });
     } else {
       setForm({
-        ...FORM_INIT,
         id_distributeur: hook.dialog.data?.id_distributeur ?? "",
-        yaourt: { ...LIGNE_INIT, prix_unitaire_applique: prixDefault("yaourt") },
-        gateau: { ...LIGNE_INIT, prix_unitaire_applique: prixDefault("gateau") },
+        date_tournee: new Date().toISOString().slice(0, 10),
+        ...Object.fromEntries(produits.map(p => [p, { ...LIGNE_INIT, prix_unitaire_applique: prixDefault(p) }])),
+        feedback: "",
       });
     }
   }, [hook.dialog.open, hook.dialog.mode, hook.dialog.data, hook.prix]);
 
   const onChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
-  const lignes   = useMemo(() => buildLignes(form), [form]);
+  const lignes   = useMemo(() => buildLignes(form, produits), [form, produits]);
   const preview  = useMemo(() => hook.previewTournee(lignes, form.id_distributeur), [lignes, form.id_distributeur, hook.previewTournee]);
 
   const handleSubmit = async () => {
@@ -271,7 +308,7 @@ const OngletTournees = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {hook.tournees.map(t => (
-            <TourneeCard key={t.id} tournee={t} onEdit={hook.ouvrirEdition} onDelete={hook.ouvrirSuppression} />
+            <TourneeCard key={t.id} tournee={t} prix={hook.prix} onEdit={hook.ouvrirEdition} onDelete={hook.ouvrirSuppression} />
           ))}
         </div>
       )}

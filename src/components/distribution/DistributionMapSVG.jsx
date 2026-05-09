@@ -253,15 +253,24 @@ const DistributionMapSVG = () => {
           {/* ── Marker base ── */}
           {base && (() => {
             const { x, y } = getPos(+base.lat, +base.lng, bounds, DIM);
-            const r = isMobile ? 10 : 13;
+            const r      = isMobile ? 10 : 13;
+            const rBase  = Math.max(getRadiusPx(0.5, bounds, DIM), r + 6);
             return (
               <g>
+                {/* Cercle 0.5 km */}
+                <circle
+                  cx={x} cy={y} r={rBase}
+                  fill="#a41624" fillOpacity={0.07}
+                  stroke="#a41624" strokeWidth={1.5}
+                  strokeDasharray="5 3"
+                />
+                {/* Icône bâtiment */}
                 <circle cx={x} cy={y} r={r} fill="#a41624" />
                 <text
                   x={x} y={y + 1.5}
                   textAnchor="middle" dominantBaseline="middle"
-                  fill="white" fontSize={isMobile ? 12 : 15}>
-                  ★
+                  fill="white" fontSize={isMobile ? 11 : 13}>
+                  🏢
                 </text>
                 <text
                   x={x} y={y + r + (isMobile ? 9 : 11)}
@@ -298,7 +307,8 @@ const DistributionMapSVG = () => {
             <g transform={`translate(4, ${4 + PALETTE.length * LEGEND_ROW + 2})`}>
               <rect x={0} y={0} width={isMobile ? 72 : 94} height={1} fill="#e5e7eb" />
               <circle cx={5} cy={10} r={5} fill="#a41624" />
-              <text x={14} y={14} fontSize={isMobile ? 8 : 9} fill="#6b7280">Base</text>
+              <text x={5} y={11} textAnchor="middle" dominantBaseline="middle" fontSize={isMobile ? 6 : 7}>🏢</text>
+              <text x={14} y={14} fontSize={isMobile ? 8 : 9} fill="#6b7280">Base (0.5 km)</text>
             </g>
           </g>
         </svg>

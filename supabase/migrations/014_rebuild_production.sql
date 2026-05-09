@@ -76,29 +76,53 @@ ALTER TABLE recettes    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productions ENABLE ROW LEVEL SECURITY;
 
 -- Recettes : lecture libre, écriture admin/superviseur
-CREATE POLICY "recettes_select" ON recettes
-  FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "recettes_select" ON recettes;
+DROP POLICY IF EXISTS "recettes_modify" ON recettes;
 
-CREATE POLICY "recettes_modify" ON recettes
-  FOR ALL TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+CREATE POLICY "recettes_select"
+ON recettes
+FOR SELECT
+TO authenticated
+USING (true);
+
+CREATE POLICY "recettes_modify"
+ON recettes
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);
 
 -- Productions : lecture et écriture pour tous les authentifiés
-CREATE POLICY "productions_select" ON productions
-  FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "productions_select" ON productions;
+DROP POLICY IF EXISTS "productions_insert" ON productions;
+DROP POLICY IF EXISTS "productions_update" ON productions;
+DROP POLICY IF EXISTS "productions_delete" ON productions;
 
-CREATE POLICY "productions_insert" ON productions
-  FOR INSERT TO authenticated;
+CREATE POLICY "productions_select"
+ON productions
+FOR SELECT
+TO authenticated
+USING (true);
 
-CREATE POLICY "productions_update" ON productions
-  FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "productions_insert"
+ON productions
+FOR INSERT
+TO authenticated;
 
-CREATE POLICY "productions_delete" ON productions
-  FOR DELETE TO authenticated USING (true);
+CREATE POLICY "productions_update"
+ON productions
+FOR UPDATE
+TO authenticated
+USING (true);
+
+CREATE POLICY "productions_delete"
+ON productions
+FOR DELETE
+TO authenticated
+USING (true);

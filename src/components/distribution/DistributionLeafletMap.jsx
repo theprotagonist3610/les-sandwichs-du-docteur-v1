@@ -46,15 +46,15 @@ const couleurZone = (ca, maxCa) => {
   return PALETTE[3].color;
 };
 
-// ─── Marker étoile pour la base ───────────────────────────────────────────────
+// ─── Marker bâtiment pour la base ────────────────────────────────────────────
 
 const baseIcon = L.divIcon({
   html: `
     <div style="
       width:36px;height:36px;display:flex;align-items:center;justify-content:center;
       background:#a41624;border-radius:50%;border:3px solid white;
-      box-shadow:0 2px 8px rgba(0,0,0,0.35);font-size:17px;line-height:1;
-    ">★</div>`,
+      box-shadow:0 2px 8px rgba(0,0,0,0.35);font-size:18px;line-height:1;
+    ">🏢</div>`,
   className: "",
   iconSize:   [36, 36],
   iconAnchor: [18, 18],
@@ -81,10 +81,10 @@ const Legende = () => (
       <div style={{
         width:14, height:14, borderRadius:"50%", background:"#a41624",
         display:"flex", alignItems:"center", justifyContent:"center",
-        color:"white", fontSize:9, fontWeight:"bold", lineHeight:1,
+        fontSize:8, lineHeight:1,
         border:"2px solid white", boxShadow:"0 1px 3px rgba(0,0,0,0.3)",
-      }}>★</div>
-      <span className="text-[11px] text-foreground">Base</span>
+      }}>🏢</div>
+      <span className="text-[11px] text-foreground">Base (0.5 km)</span>
     </div>
   </div>
 );
@@ -192,15 +192,28 @@ const DistributionLeafletMap = () => {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            {/* Marker base */}
+            {/* Marker base + cercle 0.5 km */}
             {base && (
-              <Marker position={center} icon={baseIcon}>
-                <Popup>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>
-                    ★ {base.nom ?? "Base"}
-                  </div>
-                </Popup>
-              </Marker>
+              <>
+                <Circle
+                  center={center}
+                  radius={500}
+                  pathOptions={{
+                    color: "#a41624",
+                    fillColor: "#a41624",
+                    fillOpacity: 0.07,
+                    weight: 1.5,
+                    dashArray: "6 4",
+                  }}
+                />
+                <Marker position={center} icon={baseIcon}>
+                  <Popup>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>
+                      🏢 {base.nom ?? "Base"}
+                    </div>
+                  </Popup>
+                </Marker>
+              </>
             )}
 
             {/* Cercles de zones */}

@@ -38,16 +38,24 @@ CREATE INDEX idx_distributeurs_id_zone ON distributeurs_eligibles (id_zone);
 ALTER TABLE zones_distribution ENABLE ROW LEVEL SECURITY;
 
 -- Lecture pour tous les authentifiés, écriture admin/superviseur
-CREATE POLICY "zones_select" ON zones_distribution
-  FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "zones_select" ON zones_distribution;
+DROP POLICY IF EXISTS "zones_modify" ON zones_distribution;
 
-CREATE POLICY "zones_modify" ON zones_distribution
-  FOR ALL TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+CREATE POLICY "zones_select"
+ON zones_distribution
+FOR SELECT
+TO authenticated
+USING (true);
+
+CREATE POLICY "zones_modify"
+ON zones_distribution
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);

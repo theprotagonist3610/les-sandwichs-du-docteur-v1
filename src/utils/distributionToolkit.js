@@ -1,18 +1,36 @@
 /**
  * distributionToolkit.js
  * CRUD Supabase + utilitaires de calcul pour le suivi de distribution.
- * Produits : yaourt | gateau
+ * Les produits sont dynamiques : définis dans config_prix_produits (TEXT + FK).
  */
 
 import { supabase } from "@/config/supabase";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-export const PRODUITS = ["yaourt", "gateau"];
+const _COLOR_PALETTE = ["#f59e0b", "#f97316", "#a855f7", "#3b82f6", "#10b981", "#ec4899"];
+const _ICON_MAP = { yaourt_50: "🥛", yaourt_100: "🥛", gateau: "🎂" };
 
-export const PRODUIT_LABELS = { yaourt: "Yaourt", gateau: "Gâteau" };
-export const PRODUIT_COLORS = { yaourt: "#f59e0b", gateau: "#a855f7" };
-export const PRODUIT_ICONS  = { yaourt: "🥛",      gateau: "🎂"     };
+const _hashIndex = (str, len) => {
+  let h = 0;
+  for (const c of str) h = (h * 31 + c.charCodeAt(0)) & 0x7fffffff;
+  return h % len;
+};
+
+/** Couleur hex stable pour un produit (dérivée du nom, cycle sur la palette). */
+export const getProduitColor = (produit) =>
+  _COLOR_PALETTE[_hashIndex(String(produit), _COLOR_PALETTE.length)];
+
+/** Icône emoji pour un produit connu, 📦 sinon. */
+export const getProduitIcon = (produit) => _ICON_MAP[produit] ?? "📦";
+
+/**
+ * Libellé d'un produit : nom issu de config_prix_produits si disponible,
+ * sinon la clé produit brute.
+ * @param {string} produit — clé ex. "yaourt_50"
+ * @param {Object} prix — objet { [produit]: row } retourné par getPrixProduits
+ */
+export const getProduitLabel = (produit, prix) => prix?.[produit]?.nom ?? produit;
 
 export const JOURS_SEMAINE = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 export const JOURS_LABELS  = {
@@ -126,14 +144,11 @@ export const calculerSoldeDistributeur = (tournees = [], paiements = []) => {
  * Agrège les volumes et ventes par produit sur un ensemble de tournées.
  */
 export const agregerParProduit = (tournees = []) => {
-  const result = {
-    yaourt: { qte_recue: 0, qte_vendue: 0, qte_recuperee: 0, vente: 0 },
-    gateau: { qte_recue: 0, qte_vendue: 0, qte_recuperee: 0, vente: 0 },
-  };
+  const result = {};
   for (const t of tournees) {
     for (const l of t.lignes ?? []) {
       const p = l.type_produit;
-      if (!result[p]) continue;
+      if (!result[p]) result[p] = { qte_recue: 0, qte_vendue: 0, qte_recuperee: 0, vente: 0 };
       const { qte_vendue, vente } = calculerLigne(l, 0);
       result[p].qte_recue     += l.quantite_recue     ?? 0;
       result[p].qte_recuperee += l.quantite_recuperee ?? 0;
@@ -141,7 +156,7 @@ export const agregerParProduit = (tournees = []) => {
       result[p].vente         += vente;
     }
   }
-  for (const p of PRODUITS) result[p].vente = Math.round(result[p].vente * 100) / 100;
+  for (const p of Object.keys(result)) result[p].vente = Math.round(result[p].vente * 100) / 100;
   return result;
 };
 

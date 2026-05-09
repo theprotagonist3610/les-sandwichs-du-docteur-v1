@@ -4,7 +4,8 @@
 
 -- ─── ENUMs ───────────────────────────────────────────────────────────────────
 
-CREATE TYPE type_produit_distrib      AS ENUM ('yaourt', 'gateau');
+-- type_produit_distrib intentionally omitted: produits are TEXT + FK vers config_prix_produits
+-- pour permettre l'ajout de nouveaux produits sans modifier le schéma.
 CREATE TYPE type_distributeur_enum    AS ENUM ('ambulant', 'statique');
 CREATE TYPE periodicite_paiement_enum AS ENUM ('journalier', 'hebdomadaire', 'mensuel');
 CREATE TYPE statut_paiement_enum      AS ENUM ('non_paye', 'partiel', 'paye');
@@ -26,15 +27,17 @@ $$;
 
 CREATE TABLE config_prix_produits (
   id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  produit       type_produit_distrib NOT NULL UNIQUE,
+  produit       TEXT        NOT NULL UNIQUE,
+  nom           TEXT        NOT NULL,
   prix_unitaire NUMERIC     NOT NULL DEFAULT 0 CHECK (prix_unitaire >= 0),
   actif         BOOLEAN     NOT NULL DEFAULT true,
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO config_prix_produits (produit, prix_unitaire) VALUES
-  ('yaourt', 0),
-  ('gateau', 0);
+INSERT INTO config_prix_produits (produit, nom, prix_unitaire) VALUES
+  ('yaourt_50',  'Yaourt 50',  50),
+  ('yaourt_100', 'Yaourt 100', 100),
+  ('gateau',     'Gâteau',     100);
 
 -- ─── 2. distributeurs_eligibles ──────────────────────────────────────────────
 
@@ -105,7 +108,7 @@ CREATE TABLE lignes_tournee (
   id                     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   id_tournee             UUID        NOT NULL
                            REFERENCES tournees_distribution(id) ON DELETE CASCADE,
-  type_produit           type_produit_distrib NOT NULL,
+  type_produit           TEXT        NOT NULL REFERENCES config_prix_produits(produit),
   prix_unitaire_applique NUMERIC     NOT NULL DEFAULT 0,
   quantite_recue         INTEGER     NOT NULL DEFAULT 0 CHECK (quantite_recue >= 0),
   quantite_recuperee     INTEGER     NOT NULL DEFAULT 0 CHECK (quantite_recuperee >= 0),
@@ -146,119 +149,177 @@ ALTER TABLE tournees_distribution   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lignes_tournee          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE paiements_ristourne     ENABLE ROW LEVEL SECURITY;
 
--- config_prix_produits : lecture tous les authentifiés, écriture admin/superviseur
-CREATE POLICY "config_prix_select" ON config_prix_produits
-  FOR SELECT TO authenticated USING (true);
+-- config_prix_produits
+DROP POLICY IF EXISTS "config_prix_select" ON config_prix_produits;
+DROP POLICY IF EXISTS "config_prix_modify" ON config_prix_produits;
 
-CREATE POLICY "config_prix_modify" ON config_prix_produits
-  FOR ALL TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+CREATE POLICY "config_prix_select"
+ON config_prix_produits
+FOR SELECT
+TO authenticated
+USING (true);
 
--- distributeurs_eligibles : lecture tous, écriture admin/superviseur
-CREATE POLICY "distributeurs_select" ON distributeurs_eligibles
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "config_prix_modify"
+ON config_prix_produits
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);
 
-CREATE POLICY "distributeurs_modify" ON distributeurs_eligibles
-  FOR ALL TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+-- distributeurs_eligibles
+DROP POLICY IF EXISTS "distributeurs_select" ON distributeurs_eligibles;
+DROP POLICY IF EXISTS "distributeurs_modify" ON distributeurs_eligibles;
 
--- tournees_distribution : lecture tous, écriture admin/superviseur
-CREATE POLICY "tournees_select" ON tournees_distribution
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "distributeurs_select"
+ON distributeurs_eligibles
+FOR SELECT
+TO authenticated
+USING (true);
 
-CREATE POLICY "tournees_insert" ON tournees_distribution
-  FOR INSERT TO authenticated;
+CREATE POLICY "distributeurs_modify"
+ON distributeurs_eligibles
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);
 
-CREATE POLICY "tournees_update" ON tournees_distribution
-  FOR UPDATE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+-- tournees_distribution
+DROP POLICY IF EXISTS "tournees_select" ON tournees_distribution;
+DROP POLICY IF EXISTS "tournees_insert" ON tournees_distribution;
+DROP POLICY IF EXISTS "tournees_update" ON tournees_distribution;
+DROP POLICY IF EXISTS "tournees_delete" ON tournees_distribution;
 
-CREATE POLICY "tournees_delete" ON tournees_distribution
-  FOR DELETE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+CREATE POLICY "tournees_select"
+ON tournees_distribution
+FOR SELECT
+TO authenticated
+USING (true);
 
--- lignes_tournee : lecture tous, écriture admin/superviseur
-CREATE POLICY "lignes_select" ON lignes_tournee
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "tournees_insert"
+ON tournees_distribution
+FOR INSERT
+TO authenticated;
 
-CREATE POLICY "lignes_insert" ON lignes_tournee
-  FOR INSERT TO authenticated;
+CREATE POLICY "tournees_update"
+ON tournees_distribution
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);
 
-CREATE POLICY "lignes_update" ON lignes_tournee
-  FOR UPDATE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+CREATE POLICY "tournees_delete"
+ON tournees_distribution
+FOR DELETE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);
 
-CREATE POLICY "lignes_delete" ON lignes_tournee
-  FOR DELETE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+-- lignes_tournee
+DROP POLICY IF EXISTS "lignes_select" ON lignes_tournee;
+DROP POLICY IF EXISTS "lignes_insert" ON lignes_tournee;
+DROP POLICY IF EXISTS "lignes_update" ON lignes_tournee;
+DROP POLICY IF EXISTS "lignes_delete" ON lignes_tournee;
 
--- paiements_ristourne : lecture tous, écriture admin/superviseur
-CREATE POLICY "paiements_select" ON paiements_ristourne
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "lignes_select"
+ON lignes_tournee
+FOR SELECT
+TO authenticated
+USING (true);
 
-CREATE POLICY "paiements_insert" ON paiements_ristourne
-  FOR INSERT TO authenticated;
+CREATE POLICY "lignes_insert"
+ON lignes_tournee
+FOR INSERT
+TO authenticated;
 
-CREATE POLICY "paiements_update" ON paiements_ristourne
-  FOR UPDATE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+CREATE POLICY "lignes_update"
+ON lignes_tournee
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);
 
-CREATE POLICY "paiements_delete" ON paiements_ristourne
-  FOR DELETE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('admin', 'superviseur')
-      AND users.is_active = true
-    )
-  );
+CREATE POLICY "lignes_delete"
+ON lignes_tournee
+FOR DELETE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);
+
+-- paiements_ristourne
+DROP POLICY IF EXISTS "paiements_select" ON paiements_ristourne;
+DROP POLICY IF EXISTS "paiements_insert" ON paiements_ristourne;
+DROP POLICY IF EXISTS "paiements_update" ON paiements_ristourne;
+DROP POLICY IF EXISTS "paiements_delete" ON paiements_ristourne;
+
+CREATE POLICY "paiements_select"
+ON paiements_ristourne
+FOR SELECT
+TO authenticated
+USING (true);
+
+CREATE POLICY "paiements_insert"
+ON paiements_ristourne
+FOR INSERT
+TO authenticated;
+
+CREATE POLICY "paiements_update"
+ON paiements_ristourne
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);
+
+CREATE POLICY "paiements_delete"
+ON paiements_ristourne
+FOR DELETE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users
+    WHERE users.id = auth.uid()
+    AND users.role IN ('admin', 'superviseur')
+    AND users.is_active = true
+  )
+);
