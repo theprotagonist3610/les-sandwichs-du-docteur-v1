@@ -81,18 +81,24 @@ CREATE POLICY "recettes_select" ON recettes
 
 CREATE POLICY "recettes_modify" ON recettes
   FOR ALL TO authenticated
-  USING      ((auth.jwt() ->> 'role') IN ('admin', 'superviseur'))
-  WITH CHECK ((auth.jwt() ->> 'role') IN ('admin', 'superviseur'));
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE users.id = auth.uid()
+      AND users.role IN ('admin', 'superviseur')
+      AND users.is_active = true
+    )
+  );
 
 -- Productions : lecture et écriture pour tous les authentifiés
 CREATE POLICY "productions_select" ON productions
   FOR SELECT TO authenticated USING (true);
 
 CREATE POLICY "productions_insert" ON productions
-  FOR INSERT TO authenticated WITH CHECK (true);
+  FOR INSERT TO authenticated;
 
 CREATE POLICY "productions_update" ON productions
-  FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+  FOR UPDATE TO authenticated USING (true);
 
 CREATE POLICY "productions_delete" ON productions
   FOR DELETE TO authenticated USING (true);

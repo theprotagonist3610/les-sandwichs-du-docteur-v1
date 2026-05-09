@@ -14,9 +14,10 @@ import { renderInsights, groupByCategorie, groupByPriorite, filterUrgents } from
 import FinanceAnalyzer    from "./analyzers/FinanceAnalyzer.js";
 import CommandeAnalyzer   from "./analyzers/CommandeAnalyzer.js";
 import StockAnalyzer      from "./analyzers/StockAnalyzer.js";
-import ProductionAnalyzer from "./analyzers/ProductionAnalyzer.js";
-import RapportAnalyzer    from "./analyzers/RapportAnalyzer.js";
-import ClotureAnalyzer    from "./analyzers/ClotureAnalyzer.js";
+import ProductionAnalyzer     from "./analyzers/ProductionAnalyzer.js";
+import RapportAnalyzer         from "./analyzers/RapportAnalyzer.js";
+import ClotureAnalyzer         from "./analyzers/ClotureAnalyzer.js";
+import DistributionAnalyzer    from "./analyzers/DistributionAnalyzer.js";
 
 // ─── Enregistrement des plugins ───────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ engine.register(StockAnalyzer);
 engine.register(ProductionAnalyzer);
 engine.register(RapportAnalyzer);
 engine.register(ClotureAnalyzer);
+engine.register(DistributionAnalyzer);
 
 // ─── API publique ─────────────────────────────────────────────────────────────
 

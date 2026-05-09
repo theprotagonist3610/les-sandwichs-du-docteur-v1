@@ -83,8 +83,8 @@ const DesktopNavbar = () => {
       options: [],
     },
     {
-      path: "/insights",
-      label: "Insights",
+      path: "/distribution",
+      label: "Distribution",
       options: [],
     },
   ];

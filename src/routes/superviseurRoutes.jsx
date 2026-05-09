@@ -34,6 +34,7 @@ import Revenu from "../pages/comptabilite/Revenu";
 import Cloture from "../pages/comptabilite/Cloture";
 import BackDay from "@/pages/BackDay";
 import Insights from "@/pages/outils/Insights";
+import Distribution from "@/pages/Distribution";
 /**
  * Routes accessibles par les superviseurs et admins
  * Accès: Toutes les sections (Dashboard, Commandes, Stock, Statistiques, Comptabilite, Parametres, Utilisateurs)
@@ -136,6 +137,7 @@ export const superviseurRoutes = {
     { path: "menu", element: <Menu /> },
     { path: "back-day", element: <BackDay /> },
     { path: "insights", element: <Insights /> },
+    { path: "distribution", element: <Distribution /> },
     {
       path: "profil",
       element: <Profil />,

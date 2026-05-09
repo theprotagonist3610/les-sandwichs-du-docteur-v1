@@ -57,7 +57,7 @@ const LigneIngredient = ({ label, ing, onChange }) => {
   return (
     <div className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-2">
       <span className="text-xs font-medium">{label} <span className="text-muted-foreground">({ing.unite})</span></span>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <NumInput
           label="Quantité utilisée"
           value={ing.qte_utilisee}
@@ -71,8 +71,8 @@ const LigneIngredient = ({ label, ing, onChange }) => {
           onChange={(v) => onChange({ ...ing, cout_unitaire_reel: v })}
         />
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">Coût total</Label>
-          <div className="h-9 flex items-center px-3 rounded-md bg-background border text-sm font-medium">
+          <Label className="text-xs text-muted-foreground">Coût total calculé</Label>
+          <div className="h-9 flex items-center px-3 rounded-md bg-muted border text-sm font-semibold">
             {formatMontant(coutTotal)}
           </div>
         </div>
@@ -187,7 +187,7 @@ const ProductionForm = ({ recettes, recetteIdInitiale, productionInitiale, onSub
           Ingrédient principal — {recette?.ingredient_principal?.nom ?? ""}
         </p>
         <div className="rounded-lg border-2 p-3 flex flex-col gap-2" style={{ borderColor: color + "40" }}>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <NumInput
               label={`Quantité (${recette?.ingredient_principal?.unite ?? "kg"})`}
               value={ingPrincipal.qte_utilisee}
@@ -201,8 +201,8 @@ const ProductionForm = ({ recettes, recetteIdInitiale, productionInitiale, onSub
               onChange={(v) => updateIngP("cout_unitaire_reel", v)}
             />
             <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">Coût total</Label>
-              <div className="h-9 flex items-center px-3 rounded-md bg-background border text-sm font-semibold" style={{ color }}>
+              <Label className="text-xs text-muted-foreground">Coût total calculé</Label>
+              <div className="h-9 flex items-center px-3 rounded-md bg-muted border text-sm font-semibold" style={{ color }}>
                 {formatMontant(ingPrincipal.cout_total)}
               </div>
             </div>

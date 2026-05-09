@@ -104,9 +104,10 @@ const RecetteConfig = ({ recette, onSave, onCancel, loading }) => {
 
         <div className="flex flex-col gap-2">
           {ingsSecondaires.map((ing, i) => (
-            <div key={i} className="rounded-lg border bg-muted/30 p-3">
-              <div className="grid grid-cols-[1fr_80px_100px_110px_32px] gap-2 items-end">
-                <div className="flex flex-col gap-1">
+            <div key={i} className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-2">
+              {/* Ligne 1 : Nom + Unité + bouton supprimer */}
+              <div className="flex gap-2 items-end">
+                <div className="flex-1 flex flex-col gap-1 min-w-0">
                   <Label className="text-xs text-muted-foreground">Nom</Label>
                   <Input
                     value={ing.nom}
@@ -115,10 +116,20 @@ const RecetteConfig = ({ recette, onSave, onCancel, loading }) => {
                     className="h-8 text-sm"
                   />
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 shrink-0">
                   <Label className="text-xs text-muted-foreground">Unité</Label>
                   <SelectUnite value={ing.unite} onChange={(v) => updateIng(i, "unite", v)} />
                 </div>
+                <Button
+                  type="button" variant="ghost" size="icon"
+                  className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                  onClick={() => supprimerIngredient(i)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              {/* Ligne 2 : Qté par kg + Coût estimé */}
+              <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs text-muted-foreground">Qté / kg principal</Label>
                   <Input
@@ -139,13 +150,6 @@ const RecetteConfig = ({ recette, onSave, onCancel, loading }) => {
                     className="h-8 text-sm"
                   />
                 </div>
-                <Button
-                  type="button" variant="ghost" size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
-                  onClick={() => supprimerIngredient(i)}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
               </div>
             </div>
           ))}

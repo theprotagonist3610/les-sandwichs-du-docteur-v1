@@ -11,6 +11,7 @@ import StatsWidget from "@/components/dashboard/StatsWidget";
 import ComptaWidget from "@/components/dashboard/ComptaWidget";
 import StockWidget from "@/components/dashboard/StockWidget";
 import UsersWidget from "@/components/dashboard/UsersWidget";
+import DistributionWidget from "@/components/dashboard/DistributionWidget";
 import DashboardCarousel from "@/components/dashboard/DashboardCarousel";
 
 const MobileVueData = () => {
@@ -39,7 +40,8 @@ const MobileVueData = () => {
     if (isSupervisorOrAdmin) {
       baseWidgets.push(
         // <StatsWidget key="stats" isMobile={true} />,
-        // <ComptaWidget key="compta" isMobile={true} />,
+        <ComptaWidget key="compta" isMobile={true} />,
+        <DistributionWidget key="distribution" isMobile={true} />,
         // <StockWidget key="stock" isMobile={true} />,
         <UsersWidget key="users" isMobile={true} />,
       );

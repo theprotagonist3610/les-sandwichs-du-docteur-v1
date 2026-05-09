@@ -7,7 +7,6 @@ import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Badge }  from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Plus, Settings2, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,15 +24,19 @@ const MiniRecetteCard = ({ recette, dernierLot, onNouveauLot, onConfig }) => {
   const marge = dernierLot?.marge_estimee;
 
   return (
-    <div className="rounded-xl border-2 bg-card mx-4 mt-3 p-4" style={{ borderColor: color + "30" }}>
+    <div className="rounded-xl border-2 bg-card p-4" style={{ borderColor: color + "30" }}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs text-muted-foreground">Rendement estimé</span>
           <span className="text-sm font-semibold">{recette.rendement_estime_pct} %</span>
         </div>
         <div className="flex flex-col items-end gap-0.5">
-          <span className="text-xs text-muted-foreground">Prix / {recette.ingredient_principal?.unite}</span>
-          <span className="text-sm font-semibold">{formatMontant(recette.prix_vente_par_unite_produite)}</span>
+          <span className="text-xs text-muted-foreground">
+            Prix / {recette.ingredient_principal?.unite}
+          </span>
+          <span className="text-sm font-semibold">
+            {formatMontant(recette.prix_vente_par_unite_produite)}
+          </span>
         </div>
       </div>
 
@@ -44,7 +47,9 @@ const MiniRecetteCard = ({ recette, dernierLot, onNouveauLot, onConfig }) => {
             <span>{formatDate(dernierLot.date_production)}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="font-medium">{formatQte(dernierLot.qte_produite_reelle, dernierLot.recette?.ingredient_principal?.unite)}</span>
+            <span className="font-medium">
+              {formatQte(dernierLot.qte_produite_reelle, dernierLot.recette?.ingredient_principal?.unite)}
+            </span>
             <span className={cn("font-semibold", marge >= 0 ? "text-green-600" : "text-destructive")}>
               {marge >= 0 ? "+" : ""}{formatMontant(marge)}
             </span>
@@ -71,7 +76,7 @@ const MiniRecetteCard = ({ recette, dernierLot, onNouveauLot, onConfig }) => {
   );
 };
 
-// ─── Carte lot dans la liste ──────────────────────────────────────────────────
+// ─── Carte lot ────────────────────────────────────────────────────────────────
 
 const CarteLot = ({ prod, onEdit, onDelete }) => {
   const color     = RECETTE_COLORS[prod.recette_id] ?? "#6b7280";
@@ -79,18 +84,20 @@ const CarteLot = ({ prod, onEdit, onDelete }) => {
   const rendement = prod.rendement_reel_pct;
   const recEstime = prod.recette?.rendement_estime_pct ?? 85;
   const rendColor = rendement == null ? "text-muted-foreground"
-    : rendement >= recEstime       ? "text-green-600"
-    : rendement >= recEstime * 0.8 ? "text-amber-600"
+    : rendement >= recEstime        ? "text-green-600"
+    : rendement >= recEstime * 0.8  ? "text-amber-600"
     : "text-destructive";
 
   return (
     <div className="rounded-xl border bg-card p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-base">{RECETTE_ICONS[prod.recette_id]}</span>
-          <span className="text-sm font-medium">{RECETTE_LABELS[prod.recette_id]}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-base shrink-0">{RECETTE_ICONS[prod.recette_id]}</span>
+          <span className="text-sm font-medium truncate">{RECETTE_LABELS[prod.recette_id]}</span>
         </div>
-        <span className="text-xs text-muted-foreground">{formatDate(prod.date_production)}</span>
+        <span className="text-xs text-muted-foreground shrink-0 ml-2">
+          {formatDate(prod.date_production)}
+        </span>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs">
@@ -121,11 +128,15 @@ const CarteLot = ({ prod, onEdit, onDelete }) => {
             {marge >= 0 ? "+" : ""}{formatMontant(marge)}
           </span>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 shrink-0">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(prod)}>
             <Pencil className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(prod.id)}>
+          <Button
+            variant="ghost" size="icon"
+            className="h-8 w-8 text-destructive"
+            onClick={() => onDelete(prod.id)}
+          >
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -164,21 +175,20 @@ const MobileProductions = ({ hook }) => {
     setSubmitLoading(false);
   };
 
-  const tabs = [{ value: "all", label: "Tous" }, ...RECETTES_IDS.map((id) => ({
-    value: id,
-    label: RECETTE_ICONS[id],
-    title: RECETTE_LABELS[id],
-  }))];
+  const tabs = [
+    { value: "all",     label: "Tous" },
+    ...RECETTES_IDS.map((id) => ({ value: id, label: RECETTE_ICONS[id], title: RECETTE_LABELS[id] })),
+  ];
 
   const prodsFiltrées = filtreRecette
     ? productions.filter((p) => p.recette_id === filtreRecette)
     : productions;
 
   return (
-    <div className="flex flex-col min-h-full pb-24">
+    <div className="flex flex-col min-h-full w-full overflow-x-hidden pb-24">
 
       {/* Titre */}
-      <div className="px-4 pt-4 pb-2">
+      <div className="px-4 pt-4 pb-3">
         <h1 className="text-lg font-bold">Productions</h1>
         <p className="text-xs text-muted-foreground">Suivi des lots par recette</p>
       </div>
@@ -189,13 +199,16 @@ const MobileProductions = ({ hook }) => {
         onValueChange={(v) => setFiltreRecette(v === "all" ? null : v)}
         className="flex-1"
       >
-        <TabsList className="mx-4 w-[calc(100%-2rem)] grid grid-cols-4">
-          {tabs.map((t) => (
-            <TabsTrigger key={t.value} value={t.value} className="text-xs" title={t.title}>
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        {/* Barre d'onglets */}
+        <div className="px-4 pb-1">
+          <TabsList className="w-full grid grid-cols-4">
+            {tabs.map((t) => (
+              <TabsTrigger key={t.value} value={t.value} className="text-xs" title={t.title}>
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         {/* Onglet "Tous" */}
         <TabsContent value="all" className="mt-0">
@@ -205,57 +218,66 @@ const MobileProductions = ({ hook }) => {
             </Button>
           </div>
           <div className="px-4 flex flex-col gap-3">
-            {productionsLoading
-              ? <div className="h-24 rounded-xl bg-muted animate-pulse" />
-              : prodsFiltrées.length === 0
-              ? <p className="text-sm text-muted-foreground text-center py-8">Aucune production enregistrée</p>
-              : prodsFiltrées.map((p) => (
-                  <CarteLot
-                    key={p.id} prod={p}
-                    onEdit={ouvrirEditionLot}
-                    onDelete={(id) => setConfirmDelete({ open: true, id })}
-                  />
-                ))
-            }
+            {productionsLoading ? (
+              <div className="h-24 rounded-xl bg-muted animate-pulse" />
+            ) : prodsFiltrées.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10">
+                Aucune production enregistrée
+              </p>
+            ) : prodsFiltrées.map((p) => (
+              <CarteLot
+                key={p.id}
+                prod={p}
+                onEdit={ouvrirEditionLot}
+                onDelete={(id) => setConfirmDelete({ open: true, id })}
+              />
+            ))}
           </div>
         </TabsContent>
 
-        {/* Onglet par recette */}
+        {/* Onglets par recette */}
         {RECETTES_IDS.map((id) => {
-          const recette  = recettes.find((r) => r.id === id);
+          const recette     = recettes.find((r) => r.id === id);
           const lotsRecette = productions.filter((p) => p.recette_id === id);
           return (
             <TabsContent key={id} value={id} className="mt-0">
               {recette && (
-                <MiniRecetteCard
-                  recette={recette}
-                  dernierLot={lastLots[id]}
-                  onNouveauLot={() => ouvrirNouveauLot(id)}
-                  onConfig={() => ouvrirConfig(id)}
-                />
+                <div className="px-4 pt-3">
+                  <MiniRecetteCard
+                    recette={recette}
+                    dernierLot={lastLots[id]}
+                    onNouveauLot={() => ouvrirNouveauLot(id)}
+                    onConfig={() => ouvrirConfig(id)}
+                  />
+                </div>
               )}
               <div className="px-4 pt-3 flex flex-col gap-3">
-                {productionsLoading
-                  ? <div className="h-24 rounded-xl bg-muted animate-pulse" />
-                  : lotsRecette.length === 0
-                  ? <p className="text-sm text-muted-foreground text-center py-8">Aucun lot pour cette recette</p>
-                  : lotsRecette.map((p) => (
-                      <CarteLot
-                        key={p.id} prod={p}
-                        onEdit={ouvrirEditionLot}
-                        onDelete={(id) => setConfirmDelete({ open: true, id })}
-                      />
-                    ))
-                }
+                {productionsLoading ? (
+                  <div className="h-24 rounded-xl bg-muted animate-pulse" />
+                ) : lotsRecette.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-10">
+                    Aucun lot pour cette recette
+                  </p>
+                ) : lotsRecette.map((p) => (
+                  <CarteLot
+                    key={p.id}
+                    prod={p}
+                    onEdit={ouvrirEditionLot}
+                    onDelete={(id) => setConfirmDelete({ open: true, id })}
+                  />
+                ))}
               </div>
             </TabsContent>
           );
         })}
       </Tabs>
 
-      {/* Sheet production */}
-      <Sheet open={dialogProduction.open} onOpenChange={(o) => !o && setDialogProduction({ ...dialogProduction, open: false })}>
-        <SheetContent side="bottom" className="h-[92vh] overflow-y-auto rounded-t-2xl">
+      {/* Sheet — saisie d'un lot */}
+      <Sheet
+        open={dialogProduction.open}
+        onOpenChange={(o) => !o && setDialogProduction({ ...dialogProduction, open: false })}
+      >
+        <SheetContent side="bottom" className="h-[92dvh] overflow-y-auto overflow-x-hidden rounded-t-2xl px-5 pt-2 pb-10">
           <SheetHeader className="pb-4">
             <SheetTitle>
               {dialogProduction.mode === "create" ? "Enregistrer un lot" : "Modifier le lot"}
@@ -274,9 +296,12 @@ const MobileProductions = ({ hook }) => {
         </SheetContent>
       </Sheet>
 
-      {/* Sheet config recette */}
-      <Sheet open={dialogConfig.open} onOpenChange={(o) => !o && setDialogConfig({ ...dialogConfig, open: false })}>
-        <SheetContent side="bottom" className="h-[92vh] overflow-y-auto rounded-t-2xl">
+      {/* Sheet — config recette */}
+      <Sheet
+        open={dialogConfig.open}
+        onOpenChange={(o) => !o && setDialogConfig({ ...dialogConfig, open: false })}
+      >
+        <SheetContent side="bottom" className="h-[92dvh] overflow-y-auto overflow-x-hidden rounded-t-2xl px-5 pt-2 pb-10">
           <SheetHeader className="pb-4">
             <SheetTitle>Configurer — {RECETTE_LABELS[dialogConfig.recetteId] ?? ""}</SheetTitle>
           </SheetHeader>
@@ -292,15 +317,21 @@ const MobileProductions = ({ hook }) => {
       </Sheet>
 
       {/* Confirmation suppression */}
-      <AlertDialog open={confirmDelete.open} onOpenChange={(o) => !o && setConfirmDelete({ open: false, id: null })}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={confirmDelete.open}
+        onOpenChange={(o) => !o && setConfirmDelete({ open: false, id: null })}
+      >
+        <AlertDialogContent className="mx-4 w-[calc(100%-2rem)]">
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer ce lot ?</AlertDialogTitle>
             <AlertDialogDescription>Cette action est irréversible.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={supprimerProduction} className="bg-destructive text-white hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={supprimerProduction}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
               Supprimer
             </AlertDialogAction>
           </AlertDialogFooter>

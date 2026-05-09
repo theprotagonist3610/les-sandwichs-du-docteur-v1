@@ -36,21 +36,23 @@ export const PRIORITE_LABELS = {
 // ─── Catégories métier ────────────────────────────────────────────────────────
 
 export const CATEGORIES = {
-  FINANCE:    "finance",
-  COMMANDES:  "commandes",
-  STOCK:      "stock",
-  PRODUCTION: "production",
-  RAPPORTS:   "rapports",
-  CLOTURE:    "cloture",
+  FINANCE:      "finance",
+  COMMANDES:    "commandes",
+  STOCK:        "stock",
+  PRODUCTION:   "production",
+  RAPPORTS:     "rapports",
+  CLOTURE:      "cloture",
+  DISTRIBUTION: "distribution",
 };
 
 export const CATEGORIE_LABELS = {
-  [CATEGORIES.FINANCE]:    "Finance",
-  [CATEGORIES.COMMANDES]:  "Commandes",
-  [CATEGORIES.STOCK]:      "Stock",
-  [CATEGORIES.PRODUCTION]: "Production",
-  [CATEGORIES.RAPPORTS]:   "Rapports",
-  [CATEGORIES.CLOTURE]:    "Clôture",
+  [CATEGORIES.FINANCE]:      "Finance",
+  [CATEGORIES.COMMANDES]:    "Commandes",
+  [CATEGORIES.STOCK]:        "Stock",
+  [CATEGORIES.PRODUCTION]:   "Production",
+  [CATEGORIES.RAPPORTS]:     "Rapports",
+  [CATEGORIES.CLOTURE]:      "Clôture",
+  [CATEGORIES.DISTRIBUTION]: "Distribution",
 };
 
 // ─── Type canonique Insight ───────────────────────────────────────────────────
