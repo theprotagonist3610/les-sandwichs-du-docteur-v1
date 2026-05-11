@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/config/supabase";
+import { calculerTournee } from "@/utils/distributionToolkit";
 
 // ─── Helpers période ──────────────────────────────────────────────────────────
 
@@ -48,12 +49,13 @@ const useDistributionMap = () => {
         .from("zones_distribution")
         .select("id, nom, description, departement, arrondissement, commune, quartiers, centre, rayon"),
 
-      // 3. Tournées de la période avec lignes + zone du distributeur
+      // 3. Tournées de la période — LEFT JOIN (sans !inner) pour inclure tous
+      //    les distributeurs quelle que soit leur zone
       supabase
         .from("tournees_distribution")
         .select(`
           id_distributeur,
-          distributeur:distributeurs_eligibles!inner(id_zone, taux_ristourne),
+          distributeur:distributeurs_eligibles(id_zone, taux_ristourne),
           lignes:lignes_tournee(quantite_recue, quantite_recuperee, prix_unitaire_applique)
         `)
         .gte("date_tournee", debut)
@@ -63,7 +65,7 @@ const useDistributionMap = () => {
     // ── Agrégation des stats par id_zone ──────────────────────────────────────
     const statsMap = {};
 
-    for (const t of tourneesRes.data ?? []) {
+    for (const t of (tourneesRes.data ?? [])) {
       const idZone = t.distributeur?.id_zone;
       if (!idZone) continue;
 
@@ -73,10 +75,11 @@ const useDistributionMap = () => {
 
       statsMap[idZone].distributeurs.add(t.id_distributeur);
 
+      const { vente_totale } = calculerTournee(t.lignes ?? [], t.distributeur?.taux_ristourne ?? 0);
+      statsMap[idZone].ca += vente_totale;
+
       for (const l of t.lignes ?? []) {
-        const qte_vendue = (l.quantite_recue ?? 0) - (l.quantite_recuperee ?? 0);
-        statsMap[idZone].ca           += qte_vendue * (l.prix_unitaire_applique ?? 0);
-        statsMap[idZone].qte_recue    += l.quantite_recue    ?? 0;
+        statsMap[idZone].qte_recue     += l.quantite_recue     ?? 0;
         statsMap[idZone].qte_recuperee += l.quantite_recuperee ?? 0;
       }
     }

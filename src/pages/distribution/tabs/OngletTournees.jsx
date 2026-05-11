@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Truck, Edit2, Trash2 } from "lucide-react";
+import { Plus, Truck, Edit2, Trash2, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import useTournees from "@/hooks/useTournees";
 import {
   getProduitIcon, getProduitLabel,
   STATUT_PAIEMENT_LABELS, STATUT_PAIEMENT_COLORS,
+  calculerTournee,
   formatMontant, formatDate,
 } from "@/utils/distributionToolkit";
 
@@ -30,6 +31,15 @@ const buildLignes = (form, produits) =>
       quantite_recuperee:     Number(form[p].quantite_recuperee) || 0,
       prix_unitaire_applique: Number(form[p].prix_unitaire_applique) || 0,
     }));
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+const KpiCard = ({ label, value, colorClass = "" }) => (
+  <div className="rounded-xl border bg-card p-3 flex flex-col gap-0.5">
+    <p className="text-xs text-muted-foreground">{label}</p>
+    <p className={cn("text-sm font-bold truncate", colorClass)}>{value}</p>
+  </div>
+);
 
 // ─── Aperçu ristourne ─────────────────────────────────────────────────────────
 
@@ -139,7 +149,7 @@ const FormTournee = ({ form, onChange, distributeurs, prix, preview }) => {
   );
 };
 
-// ─── Carte tournée ────────────────────────────────────────────────────────────
+// ─── Vue grille ───────────────────────────────────────────────────────────────
 
 const _CARD_COLORS = [
   "bg-amber-50 dark:bg-amber-950/30",
@@ -165,6 +175,7 @@ const TourneeCard = ({ tournee: t, prix, onEdit, onDelete }) => {
     l,
     color: getCardColor(l.type_produit),
   }));
+  const { vente_totale } = calculerTournee(t.lignes ?? [], t.distributeur?.taux_ristourne ?? 0);
 
   return (
     <div className="rounded-xl border bg-card p-4 flex flex-col gap-3">
@@ -193,10 +204,16 @@ const TourneeCard = ({ tournee: t, prix, onEdit, onDelete }) => {
       </div>
 
       <div className="flex items-center justify-between pt-1 border-t border-border">
-        <p className="text-xs">
-          <span className="text-muted-foreground">Ristourne : </span>
-          <span className="font-semibold text-primary">{formatMontant(t.ristourne_due)}</span>
-        </p>
+        <div className="flex flex-col gap-0.5">
+          <p className="text-xs">
+            <span className="text-muted-foreground">CA : </span>
+            <span className="font-semibold">{formatMontant(vente_totale)}</span>
+          </p>
+          <p className="text-xs">
+            <span className="text-muted-foreground">Ristourne : </span>
+            <span className="font-semibold text-primary">{formatMontant(t.ristourne_due)}</span>
+          </p>
+        </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(t)}>
             <Edit2 className="w-3.5 h-3.5" />
@@ -205,6 +222,64 @@ const TourneeCard = ({ tournee: t, prix, onEdit, onDelete }) => {
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Vue liste ────────────────────────────────────────────────────────────────
+
+const TourneeRow = ({ tournee: t, prix, onEdit, onDelete }) => {
+  const { vente_totale } = calculerTournee(t.lignes ?? [], t.distributeur?.taux_ristourne ?? 0);
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5">
+      {/* Date */}
+      <p className="text-xs text-muted-foreground w-24 shrink-0 hidden sm:block">
+        {formatDate(t.date_tournee)}
+      </p>
+
+      {/* Distributeur + zone */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{t.distributeur?.nom ?? "—"}</p>
+        <p className="text-xs text-muted-foreground sm:hidden">{formatDate(t.date_tournee)}</p>
+        {t.distributeur?.zone && (
+          <p className="text-xs text-muted-foreground truncate hidden sm:block">
+            {t.distributeur.zone.nom}
+          </p>
+        )}
+      </div>
+
+      {/* Produits résumés */}
+      <div className="hidden md:flex items-center gap-3 shrink-0">
+        {(t.lignes ?? []).map(l => {
+          const vendu = l.quantite_recue - l.quantite_recuperee;
+          return (
+            <span key={l.type_produit} className="text-xs text-muted-foreground whitespace-nowrap">
+              {getProduitIcon(l.type_produit)}&nbsp;
+              <span className="font-medium text-foreground">{vendu}</span>
+              <span>/{l.quantite_recue}</span>
+            </span>
+          );
+        })}
+      </div>
+
+      {/* CA */}
+      <p className="text-sm font-semibold shrink-0">{formatMontant(vente_totale)}</p>
+
+      {/* Statut */}
+      <Badge className={cn("text-[10px] border-0 px-1.5 shrink-0", STATUT_PAIEMENT_COLORS[t.statut_paiement])}>
+        {STATUT_PAIEMENT_LABELS[t.statut_paiement] ?? t.statut_paiement}
+      </Badge>
+
+      {/* Actions */}
+      <div className="flex items-center gap-0.5 shrink-0">
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(t)}>
+          <Edit2 className="w-3.5 h-3.5" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onDelete(t.id)}>
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
       </div>
     </div>
   );
@@ -220,9 +295,28 @@ const OngletTournees = () => {
     feedback: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [vue, setVue] = useState(() => localStorage.getItem("tournees_vue") ?? "grille");
+
+  useEffect(() => { localStorage.setItem("tournees_vue", vue); }, [vue]);
 
   const produits = useMemo(() => Object.keys(hook.prix), [hook.prix]);
   const prixDefault = (p) => String(hook.prix[p]?.prix_unitaire ?? "");
+
+  // KPIs calculés sur les tournées filtrées
+  const kpis = useMemo(() => {
+    let ca = 0, verse = 0, restant = 0;
+    for (const t of hook.tournees) {
+      const { vente_totale } = calculerTournee(t.lignes ?? [], t.distributeur?.taux_ristourne ?? 0);
+      ca      += vente_totale;
+      verse   += Number(t.montant_paye  ?? 0);
+      restant += Math.max(0, Number(t.ristourne_due ?? 0) - Number(t.montant_paye ?? 0));
+    }
+    return {
+      ca:      Math.round(ca),
+      verse:   Math.round(verse),
+      restant: Math.round(restant),
+    };
+  }, [hook.tournees]);
 
   useEffect(() => {
     if (!hook.dialog.open || produits.length === 0) return;
@@ -264,7 +358,27 @@ const OngletTournees = () => {
   return (
     <div className="flex flex-col gap-4">
 
-      {/* ── Filtres ── */}
+      {/* ── KPIs ── */}
+      <div className="grid grid-cols-3 gap-3">
+        <KpiCard
+          label="CA généré"
+          value={formatMontant(kpis.ca)}
+        />
+        <KpiCard
+          label="Versé"
+          value={formatMontant(kpis.verse)}
+          colorClass="text-green-600 dark:text-green-400"
+        />
+        <KpiCard
+          label="Restant"
+          value={formatMontant(kpis.restant)}
+          colorClass={kpis.restant > 0
+            ? "text-orange-600 dark:text-orange-400"
+            : "text-green-600 dark:text-green-400"}
+        />
+      </div>
+
+      {/* ── Filtres + toggle vue ── */}
       <div className="flex items-center gap-2 flex-wrap">
         <Select value={hook.filtreIdDistributeur ?? "tous"}
           onValueChange={v => hook.setFiltreIdDistributeur(v === "tous" ? null : v)}>
@@ -287,15 +401,44 @@ const OngletTournees = () => {
         </Select>
 
         <div className="flex-1" />
+
+        {/* Toggle grille / liste */}
+        <div className="flex items-center rounded-lg border overflow-hidden h-8">
+          <button
+            onClick={() => setVue("grille")}
+            className={cn(
+              "px-2 h-full flex items-center transition-colors",
+              vue === "grille"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
+            )}>
+            <LayoutGrid className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setVue("liste")}
+            className={cn(
+              "px-2 h-full flex items-center transition-colors",
+              vue === "liste"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
+            )}>
+            <List className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         <Button size="sm" className="h-8 gap-1.5" onClick={() => hook.ouvrirCreation()}>
           <Plus className="w-3.5 h-3.5" />Nouvelle tournée
         </Button>
       </div>
 
-      {/* ── Liste ── */}
+      {/* ── Contenu ── */}
       {hook.loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-44 rounded-xl bg-muted animate-pulse" />)}
+        <div className={vue === "grille"
+          ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3"
+          : "flex flex-col gap-1.5"}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className={cn("rounded-xl bg-muted animate-pulse", vue === "grille" ? "h-44" : "h-12")} />
+          ))}
         </div>
       ) : hook.tournees.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
@@ -303,17 +446,25 @@ const OngletTournees = () => {
             <Truck className="w-6 h-6 text-muted-foreground" />
           </div>
           <p className="text-sm text-muted-foreground">Aucune tournée enregistrée</p>
-          <Button size="sm" variant="outline" onClick={() => hook.ouvrirCreation()}>Enregistrer une tournée</Button>
+          <Button size="sm" variant="outline" onClick={() => hook.ouvrirCreation()}>
+            Enregistrer une tournée
+          </Button>
         </div>
-      ) : (
+      ) : vue === "grille" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {hook.tournees.map(t => (
             <TourneeCard key={t.id} tournee={t} prix={hook.prix} onEdit={hook.ouvrirEdition} onDelete={hook.ouvrirSuppression} />
           ))}
         </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {hook.tournees.map(t => (
+            <TourneeRow key={t.id} tournee={t} prix={hook.prix} onEdit={hook.ouvrirEdition} onDelete={hook.ouvrirSuppression} />
+          ))}
+        </div>
       )}
 
-      {/* ── Dialog ── */}
+      {/* ── Dialog création / édition ── */}
       <Dialog open={hook.dialog.open} onOpenChange={o => !o && hook.setDialog({ open: false, mode: "create", data: null })}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>

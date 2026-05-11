@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Truck, Package, RotateCcw, MapPin, Loader2 } from "lucide-react";
-import { supabase } from "@/config/supabase";
+import { getTournees, calculerTournee } from "@/utils/distributionToolkit";
 import NumberTicker from "@/components/ui/number-ticker";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -27,63 +27,42 @@ const DistributionWidget = ({ isMobile = false }) => {
   const load = async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
+      const { success, tournees } = await getTournees({ startDate: today, endDate: today, limit: 500 });
+      if (!success) return;
 
-      const [tourneesRes, zonesRes] = await Promise.all([
-        supabase
-          .from("tournees_distribution")
-          .select(`
-            id_distributeur,
-            distributeur:distributeurs_eligibles!inner(id_zone),
-            lignes:lignes_tournee(quantite_recue, quantite_recuperee, prix_unitaire_applique)
-          `)
-          .eq("date_tournee", today),
-
-        supabase
-          .from("zones_distribution")
-          .select("id, nom"),
-      ]);
-
-      const tournees = tourneesRes.data ?? [];
-      const zones = zonesRes.data ?? [];
-      const zoneNom = Object.fromEntries(zones.map((z) => [z.id, z.nom]));
-
-      let ca = 0;
-      let qteRecue = 0;
-      let qteRecuperee = 0;
-      const distributeurs = new Set();
+      let ca = 0, qteRecue = 0, qteRecuperee = 0;
+      const distributeursSet = new Set();
       const caParZone = {};
 
       for (const t of tournees) {
-        distributeurs.add(t.id_distributeur);
-        const idZone = t.distributeur?.id_zone;
+        distributeursSet.add(t.id_distributeur);
+        const { vente_totale } = calculerTournee(t.lignes ?? [], t.distributeur?.taux_ristourne ?? 0);
+        ca += vente_totale;
+
+        const zone = t.distributeur?.zone;
+        if (zone?.id) {
+          if (!caParZone[zone.id]) caParZone[zone.id] = { nom: zone.nom, montant: 0 };
+          caParZone[zone.id].montant += vente_totale;
+        }
 
         for (const l of t.lignes ?? []) {
-          const vendue = (l.quantite_recue ?? 0) - (l.quantite_recuperee ?? 0);
-          const montant = vendue * (l.prix_unitaire_applique ?? 0);
-          ca += montant;
-          qteRecue += l.quantite_recue ?? 0;
+          qteRecue     += l.quantite_recue     ?? 0;
           qteRecuperee += l.quantite_recuperee ?? 0;
-
-          if (idZone) {
-            caParZone[idZone] = (caParZone[idZone] ?? 0) + montant;
-          }
         }
       }
 
-      const topZones = Object.entries(caParZone)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 3)
-        .map(([id, montant]) => ({ nom: zoneNom[id] ?? "Zone", montant }));
-
+      const topZones = Object.values(caParZone)
+        .sort((a, b) => b.montant - a.montant)
+        .slice(0, 3);
       const maxCa = topZones[0]?.montant ?? 0;
 
       setStats({
-        ca: Math.round(ca),
-        nbDistributeurs: distributeurs.size,
+        ca:               Math.round(ca),
+        nbDistributeurs:  distributeursSet.size,
         qteRecue,
         qteRecuperee,
         tauxRecouvrement: qteRecue > 0 ? Math.round((qteRecuperee / qteRecue) * 100) : 0,
-        topZones: topZones.map((z) => ({ ...z, pct: maxCa > 0 ? Math.round((z.montant / maxCa) * 100) : 0 })),
+        topZones:         topZones.map(z => ({ ...z, pct: maxCa > 0 ? Math.round((z.montant / maxCa) * 100) : 0 })),
       });
     } catch (err) {
       console.error("DistributionWidget:", err);
