@@ -1,0 +1,1247 @@
+﻿/**
+ * dayClosureToolkit.jsx
+ * Utilitaires pour la gestion des clôtures journalières
+ * Architecture MVC - Couche Model/Data Access
+ */
+
+import { supabase } from "@/lib/supabase";
+import {
+  calculerCAPrevuJournalier,
+  calculerPlafondDepensesMensuel,
+  REGLES_PREVISIONS,
+  getOperations,
+  TYPES_OPERATION,
+} from "@/features/comptabilite/utils/comptabiliteToolkit";
+import {
+  createRapport,
+  getRapportByDate,
+  updateRapport,
+  calculerEcartPourcentage,
+} from "@/features/comptabilite/utils/rapportToolkit";
+
+// =====================================================
+// RÉCUPÉRATION DES DONNÉES
+// =====================================================
+
+/**
+ * Récupère toutes les commandes d'une journée donnée
+ * @param {string} date - Date au format YYYY-MM-DD
+ * @returns {Promise<Array>} Commandes du jour
+ */
+export const getCommandesByDate = async (date) => {
+  try {
+    const startOfDay = `${date}T00:00:00`;
+    const endOfDay = `${date}T23:59:59`;
+
+    const { data, error} = await supabase
+      .from("commandes")
+      .select(`
+        *,
+        vendeur_info:users!vendeur(id, nom, prenoms),
+        point_de_vente_info:emplacements!point_de_vente(id, nom)
+      `)
+      .gte("created_at", startOfDay)
+      .lte("created_at", endOfDay)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Erreur getCommandesByDate:", error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error("Erreur getCommandesByDate:", error);
+    throw error;
+  }
+};
+
+/**
+ * Récupère les détails de menus pour calculer les produits les plus vendus
+ * @param {Array} commandes - Liste des commandes
+ * @returns {Promise<Map>} Map des produits avec leurs informations
+ */
+export const getMenusInfo = async (commandesAvecDetails) => {
+  try {
+    // Extraire tous les menu_id uniques
+    const menuIds = new Set();
+    commandesAvecDetails.forEach((commande) => {
+      if (commande.details_commandes && Array.isArray(commande.details_commandes)) {
+        commande.details_commandes.forEach((detail) => {
+          if (detail.menu_id) {
+            menuIds.add(detail.menu_id);
+          }
+        });
+      }
+    });
+
+    if (menuIds.size === 0) return new Map();
+
+    // Récupérer les infos des menus
+    const { data, error } = await supabase
+      .from("menus")
+      .select("id, nom")
+      .in("id", Array.from(menuIds));
+
+    if (error) throw error;
+
+    // Créer une Map pour accès rapide
+    const menusMap = new Map();
+    data?.forEach((menu) => {
+      menusMap.set(menu.id, menu);
+    });
+
+    return menusMap;
+  } catch (error) {
+    console.error("Erreur getMenusInfo:", error);
+    return new Map();
+  }
+};
+
+/**
+ * Récupère la clôture d'une journée si elle existe
+ * @param {string} date - Date au format YYYY-MM-DD
+ * @returns {Promise<Object|null>} Données de clôture ou null
+ */
+export const getDayClosureByDate = async (date) => {
+  try {
+    const { data, error } = await supabase
+      .from("days")
+      .select(`
+        *,
+        cloture_par_info:users!days_cloture_par_fkey (id, nom, prenoms),
+        meilleur_point_vente_info:emplacements!days_meilleur_point_vente_id_fkey (id, nom),
+        meilleur_vendeur_info:users!days_meilleur_vendeur_id_fkey (id, nom, prenoms),
+        meilleur_produit_info:menus!days_meilleur_produit_id_fkey (id, nom)
+      `)
+      .eq("jour", date)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("Erreur getDayClosureByDate:", error);
+    throw error;
+  }
+};
+
+/**
+ * Récupère toutes les clôtures avec pagination
+ * @param {number} limit - Nombre de résultats
+ * @param {number} offset - Décalage
+ * @returns {Promise<Array>} Liste des clôtures
+ */
+export const getAllDayClosures = async (limit = 30, offset = 0) => {
+  try {
+    const { data, error } = await supabase
+      .from("days")
+      .select(`
+        *,
+        cloture_par_info:users!days_cloture_par_fkey (id, nom, prenoms)
+      `)
+      .order("jour", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error("Erreur getAllDayClosures:", error);
+    throw error;
+  }
+};
+
+// =====================================================
+// CALCULS DES MÉTRIQUES
+// =====================================================
+
+/**
+ * Calcule toutes les métriques d'une journée
+ * @param {Array} commandes - Commandes du jour
+ * @returns {Promise<Object>} Objet contenant toutes les métriques
+ */
+export const calculateDayMetrics = async (commandes) => {
+  if (!commandes || commandes.length === 0) {
+    return getEmptyMetrics();
+  }
+
+  // Récupérer les infos des menus pour le calcul du meilleur produit
+  const menusMap = await getMenusInfo(commandes);
+
+  // Métriques de base
+  const nombreVentesTotal = commandes.length;
+
+  // Temporalité
+  const timestamps = commandes.map((c) => new Date(c.created_at));
+  const ouverture = new Date(Math.min(...timestamps));
+  const fermeture = new Date(Math.max(...timestamps));
+  const dureeOuvertureMinutes = Math.round((fermeture - ouverture) / (1000 * 60));
+
+  // Métriques par type de commande
+  const nombreVentesSurPlace = commandes.filter((c) => c.type === "sur-place").length;
+  const nombreVentesLivraison = commandes.filter((c) => c.type === "livraison").length;
+  const nombreVentesEmporter = commandes.filter((c) => c.type === "emporter" || c.type === "à emporter").length;
+
+  // Métriques de paiement
+  const paiementStats = calculatePaiementMetrics(commandes);
+
+  // Chiffre d'affaires (calculé depuis details_paiement)
+  const chiffreAffaires = commandes.reduce((sum, c) => {
+    const paiements = c.details_paiement || {};
+    const total = (paiements.momo || 0) + (paiements.cash || 0) + (paiements.autre || 0);
+    return sum + total;
+  }, 0);
+
+  // Panier moyen et ticket moyen
+  const panierMoyen = nombreVentesTotal > 0 ? chiffreAffaires / nombreVentesTotal : 0;
+  const ticketMoyen = panierMoyen; // Même chose dans ce contexte
+
+  // Cadence de vente (ventes par heure depuis 6h du matin)
+  // Cohérent avec VentesWidget pour comparaison en temps réel
+  const dateJour = ouverture;
+  const startOfDay = new Date(dateJour);
+  startOfDay.setHours(6, 0, 0, 0); // Ouverture à 6h
+  const endOfDay = fermeture;
+  const hoursElapsed = Math.max(1, (endOfDay - startOfDay) / (1000 * 60 * 60));
+  const cadenceVente = nombreVentesTotal / hoursElapsed;
+
+  // Taux de livraison
+  const tauxLivraison =
+    nombreVentesTotal > 0 ? (nombreVentesLivraison / nombreVentesTotal) * 100 : 0;
+
+  // Meilleur produit
+  const meilleurProduit = findBestProduct(commandes, menusMap);
+
+  // Variété de produits
+  const produitsDistincts = countDistinctProducts(commandes);
+
+  // Promotions
+  const promotionStats = calculatePromotionMetrics(commandes);
+
+  // Points de vente
+  const pointsVenteStats = calculatePointsVenteMetrics(commandes);
+
+  // Vendeurs
+  const vendeursStats = calculateVendeursMetrics(commandes);
+
+  // Clients
+  const clientsStats = calculateClientsMetrics(commandes);
+
+  // Heure de pointe
+  const heurePointeStats = calculatePeakHours(commandes);
+
+  // Statuts des commandes
+  const statutsStats = calculateStatutsMetrics(commandes);
+
+  // Temps moyens
+  const tempsStats = calculateTempsMetrics(commandes);
+
+  return {
+    // Temporalité
+    jour: commandes[0]?.created_at?.split("T")[0] || new Date().toISOString().split("T")[0],
+    ouverture: formatTime(ouverture),
+    fermeture: formatTime(fermeture),
+    duree_ouverture_minutes: dureeOuvertureMinutes,
+
+    // Ventes globales
+    nombre_ventes_total: nombreVentesTotal,
+    nombre_ventes_sur_place: nombreVentesSurPlace,
+    nombre_ventes_livraison: nombreVentesLivraison,
+    nombre_ventes_emporter: nombreVentesEmporter,
+
+    // Paiements
+    ...paiementStats,
+
+    // Performance
+    chiffre_affaires: Math.round(chiffreAffaires * 100) / 100,
+    panier_moyen: Math.round(panierMoyen * 100) / 100,
+    ticket_moyen: Math.round(ticketMoyen * 100) / 100,
+    cadence_vente: Math.round(cadenceVente * 100) / 100,
+    taux_livraison: Math.round(tauxLivraison * 100) / 100,
+
+    // Produits
+    meilleur_produit_id: meilleurProduit?.id || null,
+    meilleur_produit_nom: meilleurProduit?.nom || null,
+    meilleur_produit_quantite: meilleurProduit?.quantite || 0,
+    nombre_produits_distincts: produitsDistincts,
+
+    // Promotions
+    ...promotionStats,
+
+    // Points de vente
+    ...pointsVenteStats,
+
+    // Vendeurs
+    ...vendeursStats,
+
+    // Clients
+    ...clientsStats,
+
+    // Heure de pointe
+    ...heurePointeStats,
+
+    // Statuts
+    ...statutsStats,
+
+    // Temps
+    ...tempsStats,
+  };
+};
+
+/**
+ * Calcule les métriques de paiement
+ */
+const calculatePaiementMetrics = (commandes) => {
+  let nombrePaiementsMomo = 0;
+  let nombrePaiementsCash = 0;
+  let nombrePaiementsAutre = 0;
+  let nombrePaiementsMixtes = 0;
+  let montantPercuMomo = 0;
+  let montantPercuCash = 0;
+  let montantPercuAutre = 0;
+
+  commandes.forEach((commande) => {
+    const paiements = commande.details_paiement || {};
+    const modesActifs = Object.keys(paiements).filter((mode) => paiements[mode] > 0);
+
+    // Paiements mixtes (plusieurs modes)
+    if (modesActifs.length > 1) {
+      nombrePaiementsMixtes++;
+    }
+
+    // Compter chaque mode
+    if (paiements.momo > 0) {
+      nombrePaiementsMomo++;
+      montantPercuMomo += paiements.momo;
+    }
+    if (paiements.cash > 0) {
+      nombrePaiementsCash++;
+      montantPercuCash += paiements.cash;
+    }
+    if (paiements.autre > 0) {
+      nombrePaiementsAutre++;
+      montantPercuAutre += paiements.autre;
+    }
+  });
+
+  return {
+    nombre_paiements_momo: nombrePaiementsMomo,
+    nombre_paiements_cash: nombrePaiementsCash,
+    nombre_paiements_autre: nombrePaiementsAutre,
+    nombre_paiements_mixtes: nombrePaiementsMixtes,
+    montant_percu_momo: Math.round(montantPercuMomo * 100) / 100,
+    montant_percu_cash: Math.round(montantPercuCash * 100) / 100,
+    montant_percu_autre: Math.round(montantPercuAutre * 100) / 100,
+  };
+};
+
+/**
+ * Trouve le produit le plus vendu
+ * @param {Array} commandes - Liste des commandes
+ * @param {Map} menusMap - Map des menus avec leurs infos
+ */
+const findBestProduct = (commandes, menusMap) => {
+  const productCounts = {};
+
+  commandes.forEach((commande) => {
+    const details = commande.details_commandes;
+    if (!details || !Array.isArray(details)) return;
+
+    details.forEach((detail) => {
+      const menuId = detail.menu_id;
+      if (!menuId) return;
+
+      if (!productCounts[menuId]) {
+        const menuInfo = menusMap.get(menuId);
+        productCounts[menuId] = {
+          id: menuId,
+          nom: menuInfo?.nom || detail.item || "Produit inconnu",
+          quantite: 0,
+        };
+      }
+      productCounts[menuId].quantite += detail.quantite || 1;
+    });
+  });
+
+  const products = Object.values(productCounts);
+  if (products.length === 0) return null;
+
+  return products.reduce((best, current) =>
+    current.quantite > best.quantite ? current : best
+  );
+};
+
+/**
+ * Compte le nombre de produits distincts vendus
+ */
+const countDistinctProducts = (commandes) => {
+  const uniqueProducts = new Set();
+
+  commandes.forEach((commande) => {
+    const details = commande.details_commandes;
+    if (!details || !Array.isArray(details)) return;
+
+    details.forEach((detail) => {
+      if (detail.menu_id) {
+        uniqueProducts.add(detail.menu_id);
+      }
+    });
+  });
+
+  return uniqueProducts.size;
+};
+
+/**
+ * Calcule les métriques de promotions
+ */
+const calculatePromotionMetrics = (commandes) => {
+  let commandesAvecPromo = 0;
+  let montantTotalRemises = 0;
+
+  commandes.forEach((c) => {
+    const promotion = c.promotion;
+    if (promotion && typeof promotion === "object") {
+      commandesAvecPromo++;
+
+      // Calculer le montant de la remise
+      const paiements = c.details_paiement || {};
+      const total = (paiements.momo || 0) + (paiements.cash || 0) + (paiements.autre || 0);
+
+      if (promotion.type === "pourcentage" && promotion.valeur) {
+        montantTotalRemises += (total * promotion.valeur) / 100;
+      } else if (promotion.type === "fixe" && promotion.valeur) {
+        montantTotalRemises += promotion.valeur;
+      }
+    }
+  });
+
+  return {
+    nombre_promotions_utilisees: commandesAvecPromo,
+    montant_total_remises: Math.round(montantTotalRemises * 100) / 100,
+  };
+};
+
+/**
+ * Calcule les métriques des points de vente
+ */
+const calculatePointsVenteMetrics = (commandes) => {
+  const pointsVenteStats = {};
+
+  commandes.forEach((commande) => {
+    const pdvId = commande.point_de_vente;
+    if (!pdvId) return;
+
+    if (!pointsVenteStats[pdvId]) {
+      pointsVenteStats[pdvId] = {
+        id: pdvId,
+        nom: commande.point_de_vente_info?.nom || "PDV inconnu",
+        ca: 0,
+        ventes: 0,
+      };
+    }
+
+    const paiements = commande.details_paiement || {};
+    const total = (paiements.momo || 0) + (paiements.cash || 0) + (paiements.autre || 0);
+    pointsVenteStats[pdvId].ca += total;
+    pointsVenteStats[pdvId].ventes++;
+  });
+
+  const pointsVenteArray = Object.values(pointsVenteStats);
+  const meilleurPdv =
+    pointsVenteArray.length > 0
+      ? pointsVenteArray.reduce((best, current) => (current.ca > best.ca ? current : best))
+      : null;
+
+  return {
+    nombre_points_vente_actifs: pointsVenteArray.length,
+    meilleur_point_vente_id: meilleurPdv?.id || null,
+    meilleur_point_vente_nom: meilleurPdv?.nom || null,
+    meilleur_point_vente_ca: meilleurPdv ? Math.round(meilleurPdv.ca * 100) / 100 : 0,
+  };
+};
+
+/**
+ * Calcule les métriques des vendeurs
+ */
+const calculateVendeursMetrics = (commandes) => {
+  const vendeursStats = {};
+
+  commandes.forEach((commande) => {
+    const vendeurId = commande.vendeur;
+    if (!vendeurId) return;
+
+    if (!vendeursStats[vendeurId]) {
+      const vendeurInfo = commande.vendeur_info;
+      vendeursStats[vendeurId] = {
+        id: vendeurId,
+        nom: vendeurInfo
+          ? `${vendeurInfo.prenoms || ""} ${vendeurInfo.nom || ""}`.trim()
+          : "Vendeur inconnu",
+        ventes: 0,
+      };
+    }
+    vendeursStats[vendeurId].ventes++;
+  });
+
+  const vendeursArray = Object.values(vendeursStats);
+  const meilleurVendeur =
+    vendeursArray.length > 0
+      ? vendeursArray.reduce((best, current) => (current.ventes > best.ventes ? current : best))
+      : null;
+
+  return {
+    nombre_vendeurs_actifs: vendeursArray.length,
+    meilleur_vendeur_id: meilleurVendeur?.id || null,
+    meilleur_vendeur_nom: meilleurVendeur?.nom || null,
+    meilleur_vendeur_ventes: meilleurVendeur?.ventes || 0,
+  };
+};
+
+/**
+ * Calcule les métriques clients
+ */
+const calculateClientsMetrics = (commandes) => {
+  const clientCounts = {};
+
+  commandes.forEach((commande) => {
+    const clientId = commande.client || "anonyme";
+    clientCounts[clientId] = (clientCounts[clientId] || 0) + 1;
+  });
+
+  const clientsUniques = Object.keys(clientCounts).length;
+  const clientsReguliers = Object.values(clientCounts).filter((count) => count > 1).length;
+  const tauxClientsReguliers =
+    clientsUniques > 0 ? (clientsReguliers / clientsUniques) * 100 : 0;
+
+  return {
+    nombre_clients_uniques: clientsUniques,
+    taux_clients_reguliers: Math.round(tauxClientsReguliers * 100) / 100,
+  };
+};
+
+/**
+ * Calcule l'heure de pointe
+ */
+const calculatePeakHours = (commandes) => {
+  const hourCounts = {};
+
+  commandes.forEach((commande) => {
+    const hour = new Date(commande.created_at).getHours();
+    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+  });
+
+  if (Object.keys(hourCounts).length === 0) {
+    return {
+      heure_pointe_debut: null,
+      heure_pointe_fin: null,
+      ventes_heure_pointe: 0,
+    };
+  }
+
+  const peakHour = Object.entries(hourCounts).reduce(
+    (max, [hour, count]) => (count > max.count ? { hour: parseInt(hour), count } : max),
+    { hour: 0, count: 0 }
+  );
+
+  return {
+    heure_pointe_debut: `${peakHour.hour.toString().padStart(2, "0")}:00:00`,
+    heure_pointe_fin: `${peakHour.hour.toString().padStart(2, "0")}:59:59`,
+    ventes_heure_pointe: peakHour.count,
+  };
+};
+
+/**
+ * Calcule les métriques de statuts
+ */
+const calculateStatutsMetrics = (commandes) => {
+  const statuts = {
+    annulees: 0,
+    en_cours: 0,
+    livrees: 0,
+    terminees: 0,
+  };
+
+  commandes.forEach((commande) => {
+    const statutCommande = commande.statut_commande?.toLowerCase();
+    const statutLivraison = commande.statut_livraison?.toLowerCase();
+
+    // Statut de commande
+    if (statutCommande === "annulee") statuts.annulees++;
+    else if (statutCommande === "en_cours") statuts.en_cours++;
+    else if (statutCommande === "terminee") statuts.terminees++;
+
+    // Statut de livraison pour les commandes livrées
+    if (statutLivraison === "livree") statuts.livrees++;
+  });
+
+  const commandesCompletees = statuts.terminees + statuts.livrees;
+  const tauxCompletion =
+    commandes.length > 0 ? (commandesCompletees / commandes.length) * 100 : 0;
+
+  return {
+    nombre_commandes_annulees: statuts.annulees,
+    nombre_commandes_en_preparation: statuts.en_cours,
+    nombre_commandes_livrees: statuts.livrees,
+    nombre_commandes_retirees: statuts.terminees - statuts.livrees, // Terminées mais pas livrées
+    taux_completion: Math.round(tauxCompletion * 100) / 100,
+  };
+};
+
+/**
+ * Calcule les temps moyens
+ */
+const calculateTempsMetrics = (commandes) => {
+  let totalTempsPreparation = 0;
+  let nombreCommandesAvecTempsPrep = 0;
+  let totalTempsLivraison = 0;
+  let nombreCommandesAvecTempsLivr = 0;
+
+  commandes.forEach((commande) => {
+    // Temps de préparation
+    if (commande.created_at && commande.updated_at) {
+      const debut = new Date(commande.created_at);
+      const fin = new Date(commande.updated_at);
+      const tempsMinutes = (fin - debut) / (1000 * 60);
+      if (tempsMinutes > 0 && tempsMinutes < 1440) {
+        // Max 24h
+        totalTempsPreparation += tempsMinutes;
+        nombreCommandesAvecTempsPrep++;
+      }
+    }
+
+    // Temps de livraison
+    if (commande.heure_livraison && commande.heure_reelle_livraison) {
+      const prevue = new Date(`1970-01-01T${commande.heure_livraison}`);
+      const reelle = new Date(`1970-01-01T${commande.heure_reelle_livraison}`);
+      const tempsMinutes = (reelle - prevue) / (1000 * 60);
+      if (tempsMinutes > 0 && tempsMinutes < 1440) {
+        totalTempsLivraison += tempsMinutes;
+        nombreCommandesAvecTempsLivr++;
+      }
+    }
+  });
+
+  return {
+    temps_moyen_preparation_minutes:
+      nombreCommandesAvecTempsPrep > 0
+        ? Math.round((totalTempsPreparation / nombreCommandesAvecTempsPrep) * 100) / 100
+        : 0,
+    temps_moyen_livraison_minutes:
+      nombreCommandesAvecTempsLivr > 0
+        ? Math.round((totalTempsLivraison / nombreCommandesAvecTempsLivr) * 100) / 100
+        : 0,
+  };
+};
+
+/**
+ * Formate une date en HH:MM:SS
+ */
+const formatTime = (date) => {
+  return date.toTimeString().split(" ")[0]; // HH:MM:SS
+};
+
+/**
+ * Retourne des métriques vides
+ */
+const getEmptyMetrics = () => ({
+  jour: new Date().toISOString().split("T")[0],
+  ouverture: null,
+  fermeture: null,
+  duree_ouverture_minutes: 0,
+  nombre_ventes_total: 0,
+  nombre_ventes_sur_place: 0,
+  nombre_ventes_livraison: 0,
+  nombre_ventes_emporter: 0,
+  nombre_paiements_momo: 0,
+  nombre_paiements_cash: 0,
+  nombre_paiements_autre: 0,
+  nombre_paiements_mixtes: 0,
+  montant_percu_momo: 0,
+  montant_percu_cash: 0,
+  montant_percu_autre: 0,
+  chiffre_affaires: 0,
+  panier_moyen: 0,
+  ticket_moyen: 0,
+  cadence_vente: 0,
+  taux_livraison: 0,
+  meilleur_produit_id: null,
+  meilleur_produit_nom: null,
+  meilleur_produit_quantite: 0,
+  nombre_produits_distincts: 0,
+  nombre_promotions_utilisees: 0,
+  montant_total_remises: 0,
+  nombre_points_vente_actifs: 0,
+  meilleur_point_vente_id: null,
+  meilleur_point_vente_nom: null,
+  meilleur_point_vente_ca: 0,
+  nombre_vendeurs_actifs: 0,
+  meilleur_vendeur_id: null,
+  meilleur_vendeur_nom: null,
+  meilleur_vendeur_ventes: 0,
+  nombre_clients_uniques: 0,
+  taux_clients_reguliers: 0,
+  heure_pointe_debut: null,
+  heure_pointe_fin: null,
+  ventes_heure_pointe: 0,
+  nombre_commandes_annulees: 0,
+  nombre_commandes_en_preparation: 0,
+  nombre_commandes_livrees: 0,
+  nombre_commandes_retirees: 0,
+  taux_completion: 0,
+  temps_moyen_preparation_minutes: 0,
+  temps_moyen_livraison_minutes: 0,
+});
+
+// =====================================================
+// CALCUL DES PRÉVISIONS
+// =====================================================
+
+/**
+ * Récupère les clôtures historiques des N derniers jours
+ * @param {number} daysBack - Nombre de jours à récupérer (défaut: 30)
+ * @returns {Promise<Array>} Tableau des clôtures historiques
+ */
+export const getHistoricalClosures = async (daysBack = 30) => {
+  try {
+    // Calculer la date de début (daysBack jours avant aujourd'hui)
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() - 1); // Exclure aujourd'hui
+
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const startDateStr = startDate.toISOString().split("T")[0];
+    const endDateStr = endDate.toISOString().split("T")[0];
+
+    const { data, error } = await supabase
+      .from("days")
+      .select("*")
+      .gte("jour", startDateStr)
+      .lte("jour", endDateStr)
+      .order("jour", { ascending: false });
+
+    if (error) {
+      console.error("Erreur getHistoricalClosures:", error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error("Erreur getHistoricalClosures:", error);
+    return [];
+  }
+};
+
+/**
+ * Calcule les moyennes pondérées des métriques historiques
+ * Pondération: 50% derniers 7j, 30% derniers 15j, 20% derniers 30j
+ * @param {Array} historicalData - Données historiques des clôtures
+ * @returns {Object} Moyennes pondérées de toutes les métriques
+ */
+const calculateWeightedAverages = (historicalData) => {
+  if (!historicalData || historicalData.length === 0) {
+    return getEmptyMetrics();
+  }
+
+  // Séparer les données par période
+  const last7Days = historicalData.slice(0, 7);
+  const last15Days = historicalData.slice(0, 15);
+  const last30Days = historicalData.slice(0, 30);
+
+  // Métriques numériques à calculer
+  const numericFields = [
+    "nombre_ventes_total",
+    "nombre_ventes_sur_place",
+    "nombre_ventes_livraison",
+    "nombre_ventes_emporter",
+    "nombre_paiements_momo",
+    "nombre_paiements_cash",
+    "nombre_paiements_autre",
+    "nombre_paiements_mixtes",
+    "montant_percu_momo",
+    "montant_percu_cash",
+    "montant_percu_autre",
+    "chiffre_affaires",
+    "panier_moyen",
+    "ticket_moyen",
+    "cadence_vente",
+    "taux_livraison",
+    "meilleur_produit_quantite",
+    "nombre_produits_distincts",
+    "nombre_promotions_utilisees",
+    "montant_total_remises",
+    "nombre_points_vente_actifs",
+    "meilleur_point_vente_ca",
+    "nombre_vendeurs_actifs",
+    "meilleur_vendeur_ventes",
+    "nombre_clients_uniques",
+    "taux_clients_reguliers",
+    "ventes_heure_pointe",
+    "nombre_commandes_annulees",
+    "nombre_commandes_en_preparation",
+    "nombre_commandes_livrees",
+    "nombre_commandes_retirees",
+    "taux_completion",
+    "temps_moyen_preparation_minutes",
+    "temps_moyen_livraison_minutes",
+    "duree_ouverture_minutes",
+  ];
+
+  // Calculer les moyennes pour chaque période
+  const calcAverage = (data, field) => {
+    if (data.length === 0) return 0;
+    const sum = data.reduce((acc, day) => acc + (parseFloat(day[field]) || 0), 0);
+    return sum / data.length;
+  };
+
+  // Calcul pondéré
+  const weightedAverages = {};
+  numericFields.forEach((field) => {
+    const avg7 = calcAverage(last7Days, field);
+    const avg15 = calcAverage(last15Days, field);
+    const avg30 = calcAverage(last30Days, field);
+
+    // Pondération adaptative selon le nombre de jours disponibles
+    let weighted = 0;
+    if (last7Days.length >= 7) {
+      weighted = avg7 * 0.5 + avg15 * 0.3 + avg30 * 0.2;
+    } else if (last15Days.length >= 7) {
+      weighted = avg7 * 0.6 + avg15 * 0.4;
+    } else {
+      weighted = avg7; // Utiliser uniquement les données disponibles
+    }
+
+    weightedAverages[field] = Math.round(weighted * 100) / 100;
+  });
+
+  return weightedAverages;
+};
+
+/**
+ * Calcule le score de confiance basé sur la variance historique
+ * Plus la variance est faible, plus le score de confiance est élevé
+ * @param {Array} historicalData - Données historiques
+ * @returns {number} Score de confiance entre 0 et 1
+ */
+const calculateConfidenceScore = (historicalData) => {
+  if (!historicalData || historicalData.length < 3) {
+    return 0; // Pas assez de données
+  }
+
+  // Calculer la variance sur le chiffre d'affaires (métrique clé)
+  const values = historicalData.map((d) => parseFloat(d.chiffre_affaires) || 0);
+  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+
+  if (mean === 0) return 0;
+
+  const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+  const stdDev = Math.sqrt(variance);
+  const coefficientOfVariation = stdDev / mean;
+
+  // Convertir le coefficient de variation en score de confiance
+  // CV faible = confiance élevée, CV élevé = confiance faible
+  // CV < 0.2 (20%) = très stable = confiance ~1.0
+  // CV > 0.5 (50%) = très volatile = confiance ~0.5
+  let confidence = Math.max(0, Math.min(1, 1 - coefficientOfVariation));
+
+  // Bonus pour le nombre de jours de données
+  const dataBonus = Math.min(historicalData.length / 30, 1) * 0.1;
+  confidence = Math.min(1, confidence + dataBonus);
+
+  return Math.round(confidence * 100) / 100;
+};
+
+/**
+ * Génère les prévisions pour une journée
+ * Basé sur les moyennes pondérées des 7, 15 et 30 derniers jours
+ * @returns {Promise<Object>} Objet avec previsions, metadata et confiance
+ */
+export const generateDayForecast = async () => {
+  try {
+    // 1. Récupérer les données historiques (30 derniers jours)
+    const historicalData = await getHistoricalClosures(30);
+
+    // 2. Récupérer le CA prévu journalier depuis comptabiliteToolkit
+    // (basé sur l'historique des encaissements avec minimum 15 000 XOF)
+    const caResult = await calculerCAPrevuJournalier();
+    const caMinimumJournalier = caResult.success
+      ? caResult.ca_prevu
+      : REGLES_PREVISIONS.CA_MINIMUM_JOUR;
+
+    // 3. Récupérer le plafond de dépenses mensuel (40% du CA)
+    const now = new Date();
+    const plafondResult = await calculerPlafondDepensesMensuel(
+      now.getMonth() + 1,
+      now.getFullYear()
+    );
+
+    // 4. Si pas de données historiques de clôtures, utiliser les prévisions comptables
+    if (historicalData.length === 0) {
+      const emptyMetrics = getEmptyMetrics();
+
+      // Appliquer le CA minimum comme objectif
+      emptyMetrics.chiffre_affaires = caMinimumJournalier;
+
+      // Estimer le nombre de ventes (panier moyen estimé à 2000 XOF)
+      const panierMoyenEstime = 2000;
+      emptyMetrics.nombre_ventes_total = Math.ceil(caMinimumJournalier / panierMoyenEstime);
+      emptyMetrics.panier_moyen = panierMoyenEstime;
+      emptyMetrics.ticket_moyen = panierMoyenEstime;
+
+      return {
+        previsions: {
+          ...emptyMetrics,
+          _metadata: {
+            algorithme: "comptabilite_minimum",
+            ca_minimum_jour: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+            ratio_depenses_max: REGLES_PREVISIONS.RATIO_DEPENSES_MAX,
+            base: "minimum_comptable",
+            generee_le: new Date().toISOString(),
+          },
+        },
+        previsions_generees_le: new Date().toISOString(),
+        previsions_base_sur_jours: 0,
+        previsions_confiance: 30, // Confiance faible car basé sur minimum
+        regles_comptables: {
+          ca_minimum_jour: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+          ca_prevu_jour: caMinimumJournalier,
+          plafond_depenses_mensuel: plafondResult.success ? plafondResult.plafond_depenses : null,
+          ratio_depenses_max: REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100 + "%",
+        },
+      };
+    }
+
+    // 5. Calculer les moyennes pondérées basées sur l'historique des clôtures
+    const weightedAverages = calculateWeightedAverages(historicalData);
+
+    // 6. Appliquer le CA minimum si le CA calculé est inférieur
+    if (weightedAverages.chiffre_affaires < caMinimumJournalier) {
+      // Ajuster le CA au minimum
+      weightedAverages.chiffre_affaires = caMinimumJournalier;
+
+      // Ajuster proportionnellement le nombre de ventes si le panier moyen reste constant
+      if (weightedAverages.panier_moyen > 0) {
+        weightedAverages.nombre_ventes_total = Math.ceil(
+          caMinimumJournalier / weightedAverages.panier_moyen
+        );
+      }
+    }
+
+    // 7. Calculer le score de confiance
+    const confidenceScore = calculateConfidenceScore(historicalData);
+
+    // 8. Construire l'objet de prévisions avec métadonnées enrichies
+    const previsions = {
+      ...weightedAverages,
+      _metadata: {
+        algorithme: "weighted_average_with_comptabilite_rules",
+        ponderation: {
+          last_7_days: REGLES_PREVISIONS.POIDS_RECENT,
+          last_15_days: REGLES_PREVISIONS.POIDS_MOYEN,
+          last_30_days: REGLES_PREVISIONS.POIDS_ANCIEN,
+        },
+        jours_utilises: historicalData.map((d) => d.jour),
+        nombre_jours: historicalData.length,
+        variance: {
+          chiffre_affaires: calculateVariance(historicalData, "chiffre_affaires"),
+          nombre_ventes_total: calculateVariance(historicalData, "nombre_ventes_total"),
+        },
+        ca_minimum_jour: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+        ca_prevu_comptable: caMinimumJournalier,
+        ratio_depenses_max: REGLES_PREVISIONS.RATIO_DEPENSES_MAX,
+        generee_le: new Date().toISOString(),
+      },
+    };
+
+    return {
+      previsions,
+      previsions_generees_le: new Date().toISOString(),
+      previsions_base_sur_jours: historicalData.length,
+      previsions_confiance: confidenceScore,
+      regles_comptables: {
+        ca_minimum_jour: REGLES_PREVISIONS.CA_MINIMUM_JOUR,
+        ca_prevu_jour: caMinimumJournalier,
+        ca_details: caResult.success ? caResult.details : null,
+        plafond_depenses_mensuel: plafondResult.success ? plafondResult.plafond_depenses : null,
+        plafond_depenses_details: plafondResult.success ? plafondResult.details : null,
+        ratio_depenses_max: REGLES_PREVISIONS.RATIO_DEPENSES_MAX * 100 + "%",
+      },
+    };
+  } catch (error) {
+    console.error("Erreur generateDayForecast:", error);
+    return {
+      previsions: getEmptyMetrics(),
+      previsions_generees_le: new Date().toISOString(),
+      previsions_base_sur_jours: 0,
+      previsions_confiance: 0,
+    };
+  }
+};
+
+/**
+ * Calcule la variance pour une métrique donnée
+ * @param {Array} data - Données historiques
+ * @param {string} field - Champ à analyser
+ * @returns {number} Variance normalisée (coefficient de variation)
+ */
+const calculateVariance = (data, field) => {
+  if (!data || data.length === 0) return 0;
+
+  const values = data.map((d) => parseFloat(d[field]) || 0);
+  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+
+  if (mean === 0) return 0;
+
+  const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+  const stdDev = Math.sqrt(variance);
+  const coefficientOfVariation = stdDev / mean;
+
+  return Math.round(coefficientOfVariation * 100) / 100;
+};
+
+/**
+ * Calcule les métriques en temps réel pour une date donnée
+ * SANS filtrage par statut - approche consultative
+ * @param {string} date - Date au format YYYY-MM-DD
+ * @returns {Promise<Object>} Métriques en temps réel
+ */
+export const calculateRealtimeMetrics = async (date) => {
+  try {
+    // Récupérer TOUTES les commandes du jour (pas de filtre de statut)
+    const commandes = await getCommandesByDate(date);
+
+    if (commandes.length === 0) {
+      return getEmptyMetrics();
+    }
+
+    // Calculer les métriques (fonction existante)
+    const metrics = await calculateDayMetrics(commandes);
+
+    return metrics;
+  } catch (error) {
+    console.error("Erreur calculateRealtimeMetrics:", error);
+    return getEmptyMetrics();
+  }
+};
+
+/**
+ * Compare les métriques réelles avec les prévisions
+ * @param {Object} realtime - Métriques en temps réel
+ * @param {Object} forecast - Prévisions
+ * @returns {Object} Objet de comparaison avec écarts et pourcentages
+ */
+export const compareMetrics = (realtime, forecast) => {
+  const comparison = {};
+
+  // Métriques clés à comparer
+  const keysToCompare = [
+    "nombre_ventes_total",
+    "chiffre_affaires",
+    "panier_moyen",
+    "nombre_paiements_momo",
+    "nombre_paiements_cash",
+    "montant_percu_momo",
+    "montant_percu_cash",
+    "cadence_vente",
+    "taux_livraison",
+  ];
+
+  keysToCompare.forEach((key) => {
+    const realtimeVal = parseFloat(realtime[key]) || 0;
+    const forecastVal = parseFloat(forecast[key]) || 0;
+
+    const difference = realtimeVal - forecastVal;
+    const percentChange = forecastVal !== 0 ? (difference / forecastVal) * 100 : 0;
+
+    comparison[key] = {
+      realtime: realtimeVal,
+      forecast: forecastVal,
+      difference: Math.round(difference * 100) / 100,
+      percentChange: Math.round(percentChange * 100) / 100,
+      status: difference > 0 ? "above" : difference < 0 ? "below" : "equal",
+    };
+  });
+
+  return comparison;
+};
+
+// =====================================================
+// ENREGISTREMENT DES CLÔTURES
+// =====================================================
+
+/**
+ * Récupère les dépenses d'une journée donnée
+ * @param {string} date - Date au format YYYY-MM-DD
+ * @returns {Promise<number>} Total des dépenses du jour
+ */
+const getDepensesJour = async (date) => {
+  try {
+    const result = await getOperations({
+      operation: TYPES_OPERATION.DEPENSE,
+      startDate: date,
+      endDate: date,
+      limit: 10000,
+      offset: 0,
+    });
+
+    if (!result.success) return 0;
+
+    return result.operations.reduce((sum, op) => sum + parseFloat(op.montant), 0);
+  } catch (error) {
+    console.error("Erreur getDepensesJour:", error);
+    return 0;
+  }
+};
+
+/**
+ * Génère automatiquement le rapport journalier lors de la clôture
+ * @param {Object} metrics - Métriques de la journée
+ * @param {string} userId - ID de l'utilisateur qui clôture
+ * @returns {Promise<{success: boolean, rapport?: Object, error?: string}>}
+ */
+const genererRapportJournalier = async (metrics, userId) => {
+  try {
+    const date = metrics.jour;
+
+    // 1. Récupérer les prévisions (objectifs) pour calculer les écarts
+    const forecastResult = await generateDayForecast();
+    const previsions = forecastResult.previsions || {};
+
+    // 2. Récupérer les dépenses du jour depuis les opérations comptables
+    const depensesJour = await getDepensesJour(date);
+
+    // 3. Calculer les objectifs prévus
+    const objectifVentes = previsions.nombre_ventes_total || 0;
+    const objectifEncaissement = previsions.chiffre_affaires || REGLES_PREVISIONS.CA_MINIMUM_JOUR;
+
+    // Objectif dépenses = plafond journalier (40% du CA prévu / nb jours du mois)
+    const now = new Date(date);
+    const nbJoursMois = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const objectifDepense = Math.round((objectifEncaissement * REGLES_PREVISIONS.RATIO_DEPENSES_MAX * nbJoursMois) / nbJoursMois);
+
+    // 4. Calculer les écarts en pourcentage
+    const ecartVentes = calculerEcartPourcentage(metrics.nombre_ventes_total, objectifVentes);
+    const ecartEncaissement = calculerEcartPourcentage(metrics.chiffre_affaires, objectifEncaissement);
+    const ecartDepense = calculerEcartPourcentage(depensesJour, objectifDepense);
+
+    // 5. Préparer les données du rapport
+    const rapportData = {
+      date,
+      total_ventes: metrics.nombre_ventes_total,
+      total_encaissement: metrics.chiffre_affaires,
+      total_depense: depensesJour,
+      objectifs: {
+        ventes: objectifVentes,
+        encaissement: objectifEncaissement,
+        depense: objectifDepense,
+      },
+    };
+
+    // 6. Vérifier si un rapport existe déjà pour cette date
+    const existingResult = await getRapportByDate(date);
+
+    if (existingResult.rapport) {
+      // Mettre à jour le rapport existant
+      const updateResult = await updateRapport(existingResult.rapport.id, {
+        total_ventes: metrics.nombre_ventes_total,
+        total_encaissement: metrics.chiffre_affaires,
+        total_depense: depensesJour,
+        objectifs: {
+          ventes: ecartVentes,
+          encaissement: ecartEncaissement,
+          depense: ecartDepense,
+        },
+      });
+
+      return updateResult;
+    }
+
+    // 7. Créer un nouveau rapport
+    const createResult = await createRapport(rapportData, userId);
+
+    return createResult;
+  } catch (error) {
+    console.error("Erreur genererRapportJournalier:", error);
+    return {
+      success: false,
+      error: error.message || "Erreur lors de la génération du rapport",
+    };
+  }
+};
+
+/**
+ * Crée ou met à jour une clôture journalière
+ * Génère automatiquement le rapport journalier correspondant
+ * @param {Object} metrics - Métriques calculées
+ * @param {string} userId - ID de l'utilisateur qui clôture
+ * @param {string} notes - Notes optionnelles
+ * @returns {Promise<Object>} Clôture enregistrée avec le rapport
+ */
+export const saveDayClosure = async (metrics, userId, notes = "") => {
+  try {
+    // Vérifier si une clôture existe déjà
+    const existing = await getDayClosureByDate(metrics.jour);
+
+    const closureData = {
+      ...metrics,
+      cloture_par: userId,
+      cloture_a: new Date().toISOString(),
+      notes,
+    };
+
+    let closureResult;
+
+    if (existing) {
+      // Mise à jour
+      const { data, error } = await supabase
+        .from("days")
+        .update(closureData)
+        .eq("jour", metrics.jour)
+        .select()
+        .single();
+
+      if (error) throw error;
+      closureResult = data;
+    } else {
+      // Insertion
+      const { data, error } = await supabase.from("days").insert(closureData).select().single();
+
+      if (error) throw error;
+      closureResult = data;
+    }
+
+    // Générer automatiquement le rapport journalier
+    const rapportResult = await genererRapportJournalier(metrics, userId);
+
+    if (rapportResult.success) {
+      console.log("Rapport journalier généré:", rapportResult.rapport?.denomination);
+    } else {
+      console.warn("Erreur génération rapport:", rapportResult.error);
+    }
+
+    // Retourner la clôture avec info sur le rapport
+    return {
+      ...closureResult,
+      rapport: rapportResult.success ? rapportResult.rapport : null,
+      rapport_error: rapportResult.success ? null : rapportResult.error,
+    };
+  } catch (error) {
+    console.error("Erreur saveDayClosure:", error);
+    throw error;
+  }
+};
+
+/**
+ * Supprime une clôture journalière
+ * @param {string} date - Date au format YYYY-MM-DD
+ * @returns {Promise<void>}
+ */
+export const deleteDayClosure = async (date) => {
+  try {
+    const { error } = await supabase.from("days").delete().eq("jour", date);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error("Erreur deleteDayClosure:", error);
+    throw error;
+  }
+};

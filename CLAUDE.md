@@ -3,6 +3,42 @@
 Ce fichier est lu par Claude Code à chaque session. Il contient tout le nécessaire pour
 travailler dans ce projet sans re-scanner le code.
 
+## CONSIGNE DE SESSION
+
+**Au début de chaque session, lire `TODO.md` en priorité absolue avant toute autre action.**
+
+**Avant d'écrire ou de migrer un composant, consulter `composants.refactoring.md`.**
+
+Si le composant y est décrit, appliquer exactement les directives de refactoring (shadcn, tokens, animation, UX rules) avant de coder. Ne pas écrire une seule ligne du composant sans avoir lu sa fiche. Si le composant n'y figure pas, appliquer les patterns transversaux du tableau récapitulatif en fin de fichier.
+
+`TODO.md` est la source de vérité sur l'état de la migration. Il indique :
+- ce qui est déjà fait (`[x]`) vs ce qui reste à faire (`[ ]`)
+- l'ordre de priorité (sections 1 → 9)
+- les points d'attention spécifiques (`[!]`) par composant
+
+Ne jamais re-scanner le code de v1 ni relire MIGRATION.md pour savoir où en est la migration :
+tout est synthétisé dans TODO.md. Commencer par la première tâche non cochée dans la
+section de plus haute priorité.
+
+## SKILLS DISPONIBLES
+
+Les skills suivants sont installés localement dans `.claude/skills/` :
+
+| Skill | Trigger | Usage |
+|---|---|---|
+| **ui-ux-pro-max** | `/ui-ux-pro-max` | Design intelligence : styles, couleurs, typographies, règles UX/a11y |
+| **graphify** | `/graphify` | Transformation de tout input en knowledge graph |
+
+### ui-ux-pro-max — génération de design system
+
+```bash
+python ".claude/skills/ui-ux-pro-max/scripts/search.py" "<query>" --design-system
+python ".claude/skills/ui-ux-pro-max/scripts/search.py" "<query>" --domain <style|color|typography|ux|chart|react|web|google-fonts>
+python ".claude/skills/ui-ux-pro-max/scripts/search.py" "<query>" --stack <react|nextjs|shadcn|svelte|vue>
+```
+
+Invoquer **systématiquement** `/ui-ux-pro-max` avant de créer ou modifier un composant visuel.
+
 ---
 
 ## Présentation du projet
@@ -189,6 +225,25 @@ const MainLayout = () => (
 - Les navbars se cachent via Tailwind (`lg:hidden` / `hidden lg:flex`)
 - `<Outlet />` est rendu **une seule fois** (correction v1 : double render éliminé)
 
+### Décision ADR — pages Desktop/Mobile
+
+**La v1 avait `DesktopXxx.jsx` + `MobileXxx.jsx` pour chaque page. En v2 : un seul fichier.**
+
+```jsx
+// ✅ v2 — fichier unique avec sections Tailwind responsive
+export default function GestionDesCommandes() {
+  return (
+    <div>
+      <div className="lg:hidden"> {/* Mobile */} </div>
+      <div className="hidden lg:block"> {/* Desktop */} </div>
+    </div>
+  );
+}
+```
+
+- `useBreakpoint()` uniquement si la **logique** (données, hooks, callbacks) diffère selon l'écran — pas pour le layout seul.
+- Si les deux variantes sont vraiment trop différentes (>80% de JSX distinct), accepter deux sous-composants internes `<MobileView />` et `<DesktopView />` dans le **même fichier**. Jamais deux fichiers séparés.
+
 ---
 
 ## Routing
@@ -207,6 +262,33 @@ const MainLayout = () => (
 - Stores de feature → `src/features/[feature]/store/`
 - Pas de Context React pour l'état global
 
+**Boilerplate store avec persist :**
+```js
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+
+const useCartStore = create(
+  persist(
+    (set, get) => ({
+      items: [],
+      addItem: (item) => set((s) => ({ items: [...s.items, item] })),
+      removeItem: (id) => set((s) => ({ items: s.items.filter((i) => i.id !== id) })),
+      clear: () => set({ items: [] }),
+    }),
+    { name: "cart" } // clé localStorage
+  )
+);
+export default useCartStore;
+```
+
+**Store sans persist (état éphémère) :**
+```js
+const useCommandeRefreshStore = create((set) => ({
+  refreshKey: 0,
+  trigger: () => set((s) => ({ refreshKey: s.refreshKey + 1 })),
+}));
+```
+
 ---
 
 ## Conventions de nommage
@@ -221,6 +303,49 @@ const MainLayout = () => (
 | Dossiers features | camelCase français | `panneauDeVente/`, `backDay/` |
 | Variables env | `VITE_` + UPPER_SNAKE | `VITE_SUPABASE_URL` |
 | Imports | alias `@/` | `@/lib/animations`, `@/shared/hooks/useGSAP` |
+| Pages (v2) | PascalCase unique | `GestionDesCommandes.jsx` (pas Desktop/Mobile séparés) |
+
+### Couleurs Tailwind — tokens corporate
+
+`@theme inline` est configuré dans `index.css` → utiliser **uniquement les classes sémantiques** :
+
+| Classe | Usage |
+|---|---|
+| `bg-primary` / `text-primary-foreground` | Boutons principaux, brand rouge |
+| `bg-secondary` / `text-secondary-foreground` | Fonds cream, zones secondaires |
+| `bg-accent` / `text-accent-foreground` | Highlights miel, badges |
+| `bg-card` / `text-card-foreground` | Cartes, panneaux |
+| `text-foreground` | Texte principal |
+| `text-muted-foreground` | Texte secondaire, labels |
+| `bg-muted` | Fonds neutres |
+| `border-border` | Bordures standard |
+| `bg-destructive` / `text-destructive-foreground` | Erreurs, actions destructives |
+
+**Jamais** : `text-[#a41624]`, `bg-[var(--primary)]`, valeurs hex directes dans les composants.
+
+### Pattern service Supabase
+
+```js
+// features/commandes/services/commandeService.js
+import { supabase } from "@/lib/supabase";
+
+export async function getCommandes(pointDeVenteId) {
+  const { data, error } = await supabase
+    .from("commandes")
+    .select("*, menus(*)")
+    .eq("point_de_vente_id", pointDeVenteId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;  // toujours throw, jamais retourner { data, error }
+  return data;
+}
+```
+
+Le hook appelant wrape dans `try/catch` et gère l'état d'erreur localement.
+
+### Rythme de commit git
+
+Committer après chaque section TODO cochée en entier (section 1.x, 2.x, 3.x…), pas après chaque fichier.
+Message format : `feat(feature): migrer [nom de la section]` — ex: `feat(commandes): migrer composants et hooks`.
 
 ---
 
@@ -256,6 +381,27 @@ VITE_FIREBASE_APP_ID=
 - **`../les-sandwichs-du-docteur-v1/`** — la v1 est en production, intouchable
 - **`src/lib/animations.js`** — peut être étendu, jamais vidé ni bypassé
 - **`src/index.css`** — palette corporate, ne pas changer les variables CSS racines
+
+---
+
+## Philosophie de code
+
+**Principe fondamental : conserver toutes les fonctionnalités, simplifier le code.**
+
+Lors de la migration et de tout développement en v2, appliquer ces règles dans cet ordre de priorité :
+
+1. **Fonctionnalité d'abord** — aucune feature existante en v1 ne doit être perdue ou dégradée. En cas de doute entre simplification et fonctionnalité, garder la fonctionnalité.
+2. **Lisibilité** — un développeur qui lit le code pour la première fois doit comprendre ce qu'il fait sans commentaires. Préférer des noms explicites à des commentaires explicatifs.
+3. **Maintenabilité** — éviter les abstractions prématurées. Trois lignes similaires valent mieux qu'une abstraction mal placée. Ne pas généraliser tant qu'il n'y a pas 3+ cas concrets identiques.
+
+### Ce que cela implique concrètement
+
+- **Supprimer le code mort** : commentaires inutiles, `console.log`, variables non utilisées, fonctions jamais appelées.
+- **Pas de sur-ingénierie** : pas de HOC, context ou pattern si un hook simple suffit. Pas de fichier `index.js` barrel si la feature n'est pas encore partagée.
+- **Composants ciblés** : un composant fait une chose. Si un composant dépasse ~150 lignes, chercher à le découper — mais seulement si la découpe améliore la lisibilité, pas pour respecter une règle arbitraire.
+- **Hooks légers** : un hook extrait de la logique d'un composant doit avoir une responsabilité unique et un nom qui la décrit (`useCommandeRefresh`, pas `useData`).
+- **Pas de duplication inutile** : si deux features ont le même helper, le placer dans `shared/utils/` — pas avant.
+- **Zéro glue code** : ne pas écrire de code dont l'unique rôle est de relier d'autres bouts de code. Simplifier jusqu'au point où chaque ligne a un effet direct sur le comportement.
 
 ---
 

@@ -1,42 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap');
+
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Dark mode via class .dark sur <html> */
 @custom-variant dark (&:is(.dark *));
 
 /* ========================================================================
-   PALETTE CORPORATE
+   NEO BRUTALISM — Les Sandwichs du Docteur v2
    ========================================================================
-   Principales:
-   - Primary (brand rouge):    #a41624
-   - Secondary (cream):        #ffe8c9
-
-   Accompagnements:
-   - Accent (miel):            #ffb564
-   - Destructive (orange):     #d9571d
+   Bordures épaisses · Ombres dures · Radius 0 · Typo bold
+   Palette : rouge brand + cream + miel + noir dur
    ======================================================================== */
 
 /* ========= MODE LIGHT ========= */
 :root {
   --background: #ffe8c9;
-  --foreground: #3d1a1e;
+  --foreground: #1a1a1a;
   --card: #ffffff;
-  --card-foreground: #3d1a1e;
+  --card-foreground: #1a1a1a;
   --popover: #ffffff;
-  --popover-foreground: #3d1a1e;
+  --popover-foreground: #1a1a1a;
   --primary: #a41624;
   --primary-foreground: #ffffff;
   --secondary: #ffe8c9;
   --secondary-foreground: #a41624;
   --muted: #ffd9a8;
-  --muted-foreground: #8b4513;
+  --muted-foreground: #6b4423;
   --accent: #ffb564;
-  --accent-foreground: #3d1a1e;
+  --accent-foreground: #1a1a1a;
   --destructive: #d9571d;
   --destructive-foreground: #ffffff;
-  --border: #ffd9a8;
-  --input: #ffd9a8;
-  --ring: #ffb564;
+  --border: #1a1a1a;
+  --input: #1a1a1a;
+  --ring: #a41624;
   --chart-1: #a41624;
   --chart-2: #ffb564;
   --chart-3: #d9571d;
@@ -44,38 +40,65 @@
   --chart-5: #8b1a2a;
   --chart-6: #ff9d47;
   --chart-7: #cc8844;
-  --radius: 0.625rem;
+  --radius: 0px;
+
+  /* Neo Brutalism tokens */
+  --border-width: 3px;
+  --border-width-thick: 4px;
+  --shadow-brutal: 4px 4px 0px var(--foreground);
+  --shadow-brutal-sm: 2px 2px 0px var(--foreground);
+  --shadow-brutal-lg: 6px 6px 0px var(--foreground);
+  --shadow-brutal-primary: 4px 4px 0px var(--primary);
+  --shadow-brutal-accent: 4px 4px 0px var(--accent);
+
+  /* Layout */
+  --mobile-nav-height: 64px;
+  --navbar-height: 64px;
+
+  /* Typographie — Space Grotesk everywhere */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Space Grotesk', system-ui, sans-serif;
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-overlay: 30;
+  --z-navbar: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+
   --sidebar-background: #ffffff;
-  --sidebar-foreground: #3d1a1e;
+  --sidebar-foreground: #1a1a1a;
   --sidebar-primary: #a41624;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #ffe8c9;
   --sidebar-accent-foreground: #a41624;
-  --sidebar-border: #ffd9a8;
-  --sidebar-ring: #ffb564;
+  --sidebar-border: #1a1a1a;
+  --sidebar-ring: #a41624;
   --sidebar: #fffaf5;
 }
 
 /* ========= MODE DARK ========= */
 .dark {
-  --background: #2a1f21;
+  --background: #1a1a1a;
   --foreground: #ffe8c9;
-  --card: #3d2d2f;
+  --card: #2a2a2a;
   --card-foreground: #ffe8c9;
-  --popover: #3d2d2f;
+  --popover: #2a2a2a;
   --popover-foreground: #ffe8c9;
   --primary: #d9571d;
   --primary-foreground: #ffffff;
-  --secondary: #4a3638;
+  --secondary: #333333;
   --secondary-foreground: #ffb564;
-  --muted: #4a3638;
+  --muted: #333333;
   --muted-foreground: #cc9966;
   --accent: #ffb564;
-  --accent-foreground: #2a1f21;
+  --accent-foreground: #1a1a1a;
   --destructive: #ff7a3d;
   --destructive-foreground: #ffffff;
-  --border: #5a4648;
-  --input: #5a4648;
+  --border: #ffe8c9;
+  --input: #ffe8c9;
   --ring: #ffb564;
   --chart-1: #d9571d;
   --chart-2: #ffb564;
@@ -84,18 +107,25 @@
   --chart-5: #c94d1a;
   --chart-6: #ffcc80;
   --chart-7: #d4a574;
-  --sidebar-background: #3d2d2f;
+
+  --shadow-brutal: 4px 4px 0px var(--foreground);
+  --shadow-brutal-sm: 2px 2px 0px var(--foreground);
+  --shadow-brutal-lg: 6px 6px 0px var(--foreground);
+  --shadow-brutal-primary: 4px 4px 0px var(--primary);
+  --shadow-brutal-accent: 4px 4px 0px var(--accent);
+
+  --sidebar-background: #2a2a2a;
   --sidebar-foreground: #ffe8c9;
   --sidebar-primary: #d9571d;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #4a3638;
+  --sidebar-accent: #333333;
   --sidebar-accent-foreground: #ffb564;
-  --sidebar-border: #5a4648;
+  --sidebar-border: #ffe8c9;
   --sidebar-ring: #ffb564;
-  --sidebar: #2a1f21;
+  --sidebar: #1a1a1a;
 }
 
-/* ========= Mapping @theme inline → Tailwind Classes ========= */
+/* ========= @theme inline → Tailwind Classes ========= */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -123,10 +153,12 @@
   --color-chart-5: var(--chart-5);
   --color-chart-6: var(--chart-6);
   --color-chart-7: var(--chart-7);
-  --radius-sm: calc(var(--radius) - 0.25rem);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 0.25rem);
-  --radius-xl: calc(var(--radius) + 0.5rem);
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-display);
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
   --color-sidebar-background: var(--sidebar-background);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -138,14 +170,15 @@
   --color-sidebar: var(--sidebar);
 }
 
-/* ========= Base Layer ========= */
+/* ========= Base Layer — Neo Brutalism ========= */
 @layer base {
+  /* Transitions rapides — mécanique, pas smooth */
   *,
   *::before,
   *::after {
-    transition-property: background-color, border-color, color, fill, stroke;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 200ms;
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    transition-duration: 100ms;
   }
 
   * {
@@ -154,12 +187,24 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-    font-weight: var(--font-weight-base, 400);
+    font-family: var(--font-body);
+    font-weight: 500;
   }
 
   html {
-    font-size: var(--font-size-base, 100%);
+    font-size: 100%;
+  }
+
+  /* Titres — uppercase bold brutal */
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  h1 {
+    text-transform: uppercase;
+    letter-spacing: -0.03em;
   }
 
   .text-muted-foreground,
@@ -185,44 +230,204 @@
   }
 }
 
+/* ========= Neo Brutalism Component Overrides ========= */
+@layer base {
+  /* Cards — thick border + hard shadow */
+  [data-slot="card"],
+  .brutal-card {
+    border-width: var(--border-width);
+    border-color: var(--foreground);
+    border-radius: 0px;
+    box-shadow: var(--shadow-brutal);
+  }
+
+  [data-slot="card"]:hover,
+  .brutal-card:hover {
+    box-shadow: var(--shadow-brutal-lg);
+    transform: translate(-2px, -2px);
+  }
+
+  /* Buttons — thick border, hard shadow, mechanical press */
+  button[data-slot="button"],
+  .brutal-btn {
+    border-width: 2px;
+    border-color: var(--foreground);
+    border-radius: 0px;
+    box-shadow: var(--shadow-brutal-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.85rem;
+  }
+
+  button[data-slot="button"]:hover,
+  .brutal-btn:hover {
+    box-shadow: var(--shadow-brutal);
+    transform: translate(-2px, -2px);
+  }
+
+  /* Mechanical press — shadow disparaît, élément se décale */
+  button[data-slot="button"]:active,
+  .brutal-btn:active {
+    box-shadow: none;
+    transform: translate(2px, 2px);
+  }
+
+  /* Inputs — thick bottom border or full border */
+  input[data-slot="input"],
+  textarea[data-slot="textarea"],
+  .brutal-input {
+    border-width: 2px;
+    border-color: var(--foreground);
+    border-radius: 0px;
+    background: var(--card);
+  }
+
+  input[data-slot="input"]:focus,
+  textarea[data-slot="textarea"]:focus,
+  .brutal-input:focus {
+    box-shadow: var(--shadow-brutal-sm);
+    transform: translate(-1px, -1px);
+  }
+
+  /* Badges — sharp, bold */
+  [data-slot="badge"],
+  .brutal-badge {
+    border-width: 2px;
+    border-color: var(--foreground);
+    border-radius: 0px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.7rem;
+  }
+
+  /* Dialogs & Sheets — thick border */
+  [data-slot="dialog-content"],
+  [data-slot="sheet-content"],
+  [data-slot="alert-dialog-content"] {
+    border-width: var(--border-width);
+    border-color: var(--foreground);
+    border-radius: 0px;
+    box-shadow: var(--shadow-brutal-lg);
+  }
+
+  /* Select trigger */
+  button[data-slot="select-trigger"] {
+    border-width: 2px;
+    border-color: var(--foreground);
+    border-radius: 0px;
+  }
+
+  /* Tabs — bold underline active */
+  button[data-slot="tabs-trigger"][data-state="active"] {
+    border-bottom: 3px solid var(--primary);
+    font-weight: 700;
+  }
+
+  /* Separator */
+  [data-slot="separator"] {
+    background-color: var(--foreground);
+    height: 2px;
+  }
+
+  /* Table — visible grid */
+  table {
+    border: 2px solid var(--foreground);
+  }
+  th, td {
+    border: 1px solid var(--foreground);
+  }
+  th {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.8rem;
+  }
+}
+
 /* ========= Utilities ========= */
 @layer utilities {
+  /* Brutal shadow classes */
+  .shadow-brutal {
+    box-shadow: var(--shadow-brutal);
+  }
+  .shadow-brutal-sm {
+    box-shadow: var(--shadow-brutal-sm);
+  }
+  .shadow-brutal-lg {
+    box-shadow: var(--shadow-brutal-lg);
+  }
+  .shadow-brutal-primary {
+    box-shadow: var(--shadow-brutal-primary);
+  }
+  .shadow-brutal-accent {
+    box-shadow: var(--shadow-brutal-accent);
+  }
+
+  /* Mechanical press utility */
+  .brutal-press:active {
+    box-shadow: none !important;
+    transform: translate(2px, 2px) !important;
+  }
+  .brutal-press:hover {
+    box-shadow: var(--shadow-brutal);
+    transform: translate(-2px, -2px);
+  }
+
+  /* Brutal border utility */
+  .border-brutal {
+    border: var(--border-width) solid var(--foreground);
+  }
+  .border-brutal-thick {
+    border: var(--border-width-thick) solid var(--foreground);
+  }
+
+  /* Color block fills */
   .gradient-primary {
-    background: linear-gradient(135deg, #a41624 0%, #d9571d 100%);
+    background: var(--primary);
   }
 
   .gradient-accent {
-    background: linear-gradient(135deg, #ffb564 0%, #ffe8c9 100%);
+    background: var(--accent);
   }
 
   .text-gradient-primary {
     @apply bg-gradient-to-r from-primary to-destructive bg-clip-text text-transparent;
   }
 
+  /* Legacy shadow compat — redirect to brutal */
   .shadow-primary {
-    box-shadow: 0 4px 14px 0 rgba(164, 22, 36, 0.15);
+    box-shadow: var(--shadow-brutal-primary);
   }
 
   .shadow-accent {
-    box-shadow: 0 4px 14px 0 rgba(255, 181, 100, 0.2);
+    box-shadow: var(--shadow-brutal-accent);
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
 
-/* ========= Leaflet Map ========= */
+/* ========= Leaflet Map — brutal treatment ========= */
 .leaflet-tooltip.custom-tooltip {
   background: white;
-  border: 2px solid #e5e7eb;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 3px solid var(--foreground);
+  border-radius: 0px;
+  box-shadow: var(--shadow-brutal-sm);
   padding: 0 !important;
 }
 
 .custom-marker-icon {
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(2px 2px 0px rgba(0, 0, 0, 0.8));
 }
 
 .custom-user-marker {
-  filter: drop-shadow(0 2px 6px rgba(59, 130, 246, 0.5));
+  filter: drop-shadow(2px 2px 0px rgba(164, 22, 36, 0.8));
   animation: pulse-user 2s infinite;
 }
 

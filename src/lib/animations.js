@@ -1,4 +1,4 @@
-/**
+﻿/**
  * animations.js — Source unique de toutes les animations du projet.
  *
  * RÈGLE : toute animation passe par ce fichier. Framer Motion est banni.
@@ -19,23 +19,28 @@ import { Flip } from "gsap/Flip";
 gsap.registerPlugin(ScrollTrigger, Flip);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// REDUCED MOTION — respecter prefers-reduced-motion
+// Si activé, les entrées s'appliquent instantanément (état final direct, sans tween)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Remplace gsap.fromTo : applique l'état final immédiatement si reduced-motion
+const safeFromTo = (el, from, to) =>
+  prefersReducedMotion() ? gsap.set(el, to) : gsap.fromTo(el, from, to);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ENTRÉES — fade + translation Y (pattern le plus commun de la v1)
 // Remplace : initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const fadeInUp = (el, options = {}) =>
-  gsap.fromTo(
-    el,
-    { opacity: 0, y: 20 },
-    { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", ...options }
-  );
+  safeFromTo(el, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", ...options });
 
 export const fadeInDown = (el, options = {}) =>
-  gsap.fromTo(
-    el,
-    { opacity: 0, y: -20 },
-    { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", ...options }
-  );
+  safeFromTo(el, { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", ...options });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENTRÉES — fade + translation X
@@ -43,18 +48,10 @@ export const fadeInDown = (el, options = {}) =>
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const fadeInLeft = (el, options = {}) =>
-  gsap.fromTo(
-    el,
-    { opacity: 0, x: -20 },
-    { opacity: 1, x: 0, duration: 0.2, ease: "power2.out", ...options }
-  );
+  safeFromTo(el, { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.2, ease: "power2.out", ...options });
 
 export const fadeInRight = (el, options = {}) =>
-  gsap.fromTo(
-    el,
-    { opacity: 0, x: 20 },
-    { opacity: 1, x: 0, duration: 0.2, ease: "power2.out", ...options }
-  );
+  safeFromTo(el, { opacity: 0, x: 20 }, { opacity: 1, x: 0, duration: 0.2, ease: "power2.out", ...options });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SORTIES — exit animations (remplacent AnimatePresence exit props)
@@ -79,27 +76,13 @@ export const fadeOut = (el, options = {}) =>
 // Remplace : initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
 // Utilisé dans PaymentConfirmation (container), CommandesEnAttente, etc.
 export const scaleIn = (el, options = {}) =>
-  gsap.fromTo(
-    el,
-    { opacity: 0, scale: 0.9 },
-    { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(1.7)", ...options }
-  );
+  safeFromTo(el, { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power1.out", ...options });
 
-// Remplace : initial={{ opacity: 0, scale: 0.95 }} — MenuCard POS (compact/desktop)
 export const scaleInTight = (el, options = {}) =>
-  gsap.fromTo(
-    el,
-    { opacity: 0, scale: 0.95 },
-    { opacity: 1, scale: 1, duration: 0.15, ease: "power2.out", ...options }
-  );
+  safeFromTo(el, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.15, ease: "power2.out", ...options });
 
-// Remplace : initial={{ opacity: 0, scale: 0.8 }} — ingredient badges, MenuStats par type
 export const scaleInSmall = (el, options = {}) =>
-  gsap.fromTo(
-    el,
-    { opacity: 0, scale: 0.8 },
-    { opacity: 1, scale: 1, duration: 0.2, ease: "back.out(1.7)", ...options }
-  );
+  safeFromTo(el, { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.2, ease: "power1.out", ...options });
 
 export const scaleOut = (el, options = {}) =>
   gsap.to(el, { opacity: 0, scale: 0.8, duration: 0.2, ease: "power2.in", ...options });
@@ -111,24 +94,13 @@ export const scaleOut = (el, options = {}) =>
 // Remplace : initial={{ scale: 0 }} transition={{ type: "spring", stiffness: 200 }}
 // Utilisé dans PaymentConfirmation (icône CheckCircle)
 export const springScaleIn = (el, options = {}) =>
-  gsap.fromTo(
-    el,
-    { scale: 0, opacity: 0 },
-    { scale: 1, opacity: 1, duration: 0.5, ease: "elastic.out(1, 0.5)", ...options }
-  );
+  safeFromTo(el, { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "power2.out", ...options });
 
-// Remplace : initial={{ y: 100 }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
-// Utilisé dans CookiesAgreement (bannière slide-up depuis le bas)
 export const springSlideUp = (el, options = {}) =>
-  gsap.fromTo(
-    el,
-    { y: 100, opacity: 0 },
-    { y: 0, opacity: 1, duration: 0.5, ease: "back.out(2)", ...options }
-  );
+  safeFromTo(el, { y: 100, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out", ...options });
 
-// Fade simple
 export const fadeIn = (el, options = {}) =>
-  gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out", ...options });
+  safeFromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out", ...options });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INTERACTIONS — hover et tap (remplacent whileHover / whileTap)
@@ -137,9 +109,11 @@ export const fadeIn = (el, options = {}) =>
 
 // Remplace : whileHover={{ y: -4 }}
 // Utilisé sur CommandeCard (grille), MenuCard (menus/), MenuStats
-export const applyHoverLift = (el, distance = 4) => {
-  const onEnter = () => gsap.to(el, { y: -distance, duration: 0.2, ease: "power2.out" });
-  const onLeave = () => gsap.to(el, { y: 0, duration: 0.2, ease: "power2.inOut" });
+// Neo Brutalism : hover = translate up-left + shadow grows (via CSS), pas de Y seul
+export const applyHoverLift = (el, distance = 2) => {
+  if (prefersReducedMotion()) return () => {};
+  const onEnter = () => gsap.to(el, { x: -distance, y: -distance, duration: 0.1, ease: "power1.out" });
+  const onLeave = () => gsap.to(el, { x: 0, y: 0, duration: 0.1, ease: "power1.out" });
   el.addEventListener("mouseenter", onEnter);
   el.addEventListener("mouseleave", onLeave);
   return () => {
@@ -150,16 +124,20 @@ export const applyHoverLift = (el, distance = 4) => {
 
 // Remplace : whileTap={{ scale: 0.97 }} ou whileTap={{ scale: 0.98 }}
 // Utilisé sur MenuCard POS (compact = 0.97, desktop = 0.98)
-export const applyTapPress = (el, scale = 0.97) => {
-  const onDown = () => gsap.to(el, { scale, duration: 0.1, ease: "power2.out" });
-  const onUp = () => gsap.to(el, { scale: 1, duration: 0.15, ease: "back.out(2)" });
+// Neo Brutalism : mechanical press = translate shadow offset, pas de scale
+export const applyTapPress = (el, offset = 2) => {
+  if (prefersReducedMotion()) return () => {};
+  const onDown = () => gsap.to(el, { x: offset, y: offset, boxShadow: "none", duration: 0.05, ease: "none" });
+  const onUp = () => gsap.to(el, { x: 0, y: 0, boxShadow: "var(--shadow-brutal-sm)", duration: 0.05, ease: "none" });
   el.addEventListener("pointerdown", onDown);
   el.addEventListener("pointerup", onUp);
   el.addEventListener("pointerleave", onUp);
+  el.addEventListener("pointercancel", onUp);
   return () => {
     el.removeEventListener("pointerdown", onDown);
     el.removeEventListener("pointerup", onUp);
     el.removeEventListener("pointerleave", onUp);
+    el.removeEventListener("pointercancel", onUp);
   };
 };
 
@@ -169,35 +147,17 @@ export const applyTapPress = (el, scale = 0.97) => {
 
 // Remplace : motion.div avec transition={{ delay: index * 0.1 }} + fadeInUp
 // Utilisé dans MenuStats (globalStats), CommandeCard listes, etc.
-export const staggerFadeInUp = (els, options = {}) =>
-  gsap.fromTo(
-    els,
-    { opacity: 0, y: 20 },
-    {
-      opacity: 1,
-      y: 0,
-      duration: 0.3,
-      stagger: options.stagger ?? 0.1,
-      ease: "power2.out",
-      ...options,
-    }
-  );
+export const staggerFadeInUp = (els, options = {}) => {
+  if (prefersReducedMotion()) return gsap.set(els, { opacity: 1, y: 0 });
+  const { stagger = 0.1, ...rest } = options;
+  return gsap.fromTo(els, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.3, stagger, ease: "power2.out", ...rest });
+};
 
-// Remplace : motion.div avec transition={{ delay: 0.4 + index * 0.1 }} + scaleIn
-// Utilisé dans MenuStats (par type) avec scale 0.8→1
-export const staggerScaleIn = (els, options = {}) =>
-  gsap.fromTo(
-    els,
-    { opacity: 0, scale: 0.8 },
-    {
-      opacity: 1,
-      scale: 1,
-      duration: 0.3,
-      stagger: options.stagger ?? 0.1,
-      ease: "back.out(1.7)",
-      ...options,
-    }
-  );
+export const staggerScaleIn = (els, options = {}) => {
+  if (prefersReducedMotion()) return gsap.set(els, { opacity: 1, scale: 1 });
+  const { stagger = 0.1, ...rest } = options;
+  return gsap.fromTo(els, { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.3, stagger, ease: "power1.out", ...rest });
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SÉQUENCE — écran de confirmation commande (PaymentConfirmation)
@@ -205,30 +165,34 @@ export const staggerScaleIn = (els, options = {}) =>
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const animateConfirmationScreen = ({ container, icon, message, card, actions }) => {
+  if (prefersReducedMotion()) {
+    gsap.set([container, icon, message, card, actions], { opacity: 1, scale: 1, y: 0 });
+    return gsap.timeline();
+  }
   const tl = gsap.timeline();
   tl.fromTo(container,
       { opacity: 0, scale: 0.9 },
-      { opacity: 1, scale: 1, duration: 0.3, ease: "power2.out" }
+      { opacity: 1, scale: 1, duration: 0.2, ease: "power2.out" }
     )
     .fromTo(icon,
       { scale: 0 },
-      { scale: 1, duration: 0.5, ease: "elastic.out(1, 0.5)" },
+      { scale: 1, duration: 0.35, ease: "power2.out" },
       "-=0.1"
     )
     .fromTo(message,
-      { opacity: 0, y: 20 },
-      { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" },
-      "-=0.2"
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" },
+      "-=0.15"
     )
     .fromTo(card,
-      { opacity: 0, y: 20 },
-      { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" },
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" },
       "-=0.15"
     )
     .fromTo(actions,
-      { opacity: 0, y: 20 },
-      { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" },
-      "-=0.15"
+      { opacity: 0 },
+      { opacity: 1, duration: 0.15 },
+      "-=0.1"
     );
   return tl;
 };
@@ -298,9 +262,47 @@ export const animateFlip = (state, options = {}) =>
 export const withExit = (animateFn) => (el, onComplete) =>
   animateFn(el, { onComplete });
 
-export const exitSlideDown = withExit(slideOutDown);
-export const exitFadeOut   = withExit(fadeOut);
-export const exitScaleOut  = withExit(scaleOut);
+export const exitSlideDown     = withExit(slideOutDown);
+export const exitFadeOut       = withExit(fadeOut);
+export const exitScaleOut      = withExit(scaleOut);
+
+// Sortie avec translation Y + fade — pour suppressions expressives (CommandeCard annulée, etc.)
+export const exitSlideDownFade = (el, onComplete) =>
+  prefersReducedMotion()
+    ? gsap.set(el, { opacity: 0, onComplete })
+    : gsap.to(el, { y: 24, opacity: 0, duration: 0.18, ease: "power2.in", onComplete });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BORDER BEAM — animation décorative en boucle infinie
+// Utilisé par shared/components/ui/border-beam.jsx uniquement
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Anime le périmètre complet via CSS offset-path + offsetDistance
+export const animateBorderBeamFull = (el, { duration = 6, delay = 0, initialOffset = 0, reverse = false } = {}) => {
+  if (prefersReducedMotion()) return null;
+  return gsap.fromTo(
+    el,
+    { offsetDistance: `${initialOffset}%` },
+    {
+      offsetDistance: reverse ? `${-(100 - initialOffset)}%` : `${100 + initialOffset}%`,
+      repeat: -1,
+      duration,
+      ease: "linear",
+      delay: -delay,
+    }
+  );
+};
+
+// Anime un seul bord via translation X ou Y
+export const animateBorderBeamEdge = (el, { duration = 6, delay = 0, reverse = false, horizontal = true } = {}) => {
+  if (prefersReducedMotion()) return null;
+  const axis = horizontal ? "x" : "y";
+  return gsap.fromTo(
+    el,
+    { [axis]: "-100%" },
+    { [axis]: reverse ? "-200%" : "100%", repeat: -1, duration, ease: "linear", delay: -delay }
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPORT DEFAULT — instance gsap brute (usage interne uniquement si nécessaire)
